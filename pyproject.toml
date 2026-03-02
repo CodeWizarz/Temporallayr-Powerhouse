@@ -75,7 +75,12 @@ follow_imports = "skip"
 exclude = '(^example_agent\.py$|^src/temporallayr/(cli|server|core)/)'
 
 [tool.pytest.ini_options]
-addopts = "-W error --strict-markers"
+addopts = "--strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::ResourceWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"

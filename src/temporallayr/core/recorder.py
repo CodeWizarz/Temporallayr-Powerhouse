@@ -134,10 +134,4 @@ class ExecutionRecorder:
 
         transport = get_transport()
 
-        await transport.send_event(
-            {
-                "type": "execution_graph",
-                "tenant_id": self.tenant_id,
-                "graph": self.graph.model_dump(mode="json"),
-            }
-        )
+        await transport.send_event(self.graph.model_dump(mode="json"))
