@@ -3,11 +3,14 @@ Production alert dispatchers for routing incident notifications across external 
 """
 
 import json
+import logging
 import os
 from typing import Any
 
 import certifi
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class AlertDispatcher:
@@ -53,9 +56,16 @@ class AlertDispatcher:
                 verify=certifi.where(),
             )
             if res.status_code >= 400:
-                print(f"Webhook dispatch failed with status: {res.status_code}")
+                logger.error(
+                    f"Webhook dispatch failed with status: {res.status_code}",
+                    extra={
+                        "webhook_url": url,
+                        "status_code": res.status_code,
+                        "response": res.text,
+                    },
+                )
         except Exception as e:
-            print(f"Failed to cleanly dispatch generic webhook: {e}")
+            logger.error("Failed to cleanly dispatch generic webhook", exc_info=True)
 
     @classmethod
     def _dispatch_slack(cls, payload: dict[str, Any]) -> None:
@@ -73,8 +83,7 @@ class AlertDispatcher:
 
         slack_payload = {
             "text": (
-                f"{emoji} {event_title}: {payload['incident_id']} "
-                f"[{payload['severity'].upper()}]"
+                f"{emoji} {event_title}: {payload['incident_id']} [{payload['severity'].upper()}]"
             ),
             "blocks": [
                 {
@@ -101,9 +110,12 @@ class AlertDispatcher:
         try:
             res = httpx.post(slack_url, json=slack_payload, timeout=5.0, verify=certifi.where())
             if res.status_code >= 400:
-                print(f"Slack webhook dispatch failed with status: {res.status_code}")
-        except Exception as e:
-            print(f"Failed to cleanly dispatch slack webhook: {e}")
+                logger.error(
+                    f"Slack webhook dispatch failed with status: {res.status_code}",
+                    extra={"webhook_url": slack_url, "status_code": res.status_code},
+                )
+        except Exception:
+            logger.error("Failed to cleanly dispatch slack webhook", exc_info=True)
 
     @classmethod
     def _dispatch_email(cls, payload: dict[str, Any]) -> None:
@@ -132,6 +144,9 @@ class AlertDispatcher:
         try:
             res = httpx.post(email_api_url, json=email_payload, timeout=5.0, verify=certifi.where())
             if res.status_code >= 400:
-                print(f"Email API dispatch failed with status: {res.status_code}")
-        except Exception as e:
-            print(f"Failed to cleanly dispatch email API: {e}")
+                logger.error(
+                    f"Email API dispatch failed with status: {res.status_code}",
+                    extra={"api_url": email_api_url, "status_code": res.status_code},
+                )
+        except Exception:
+            logger.error("Failed to cleanly dispatch email API", exc_info=True)

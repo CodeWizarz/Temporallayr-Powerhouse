@@ -83,17 +83,35 @@ def track(
                 graph.add_node(node)
                 token = _current_parent_id.set(node.id)
 
+                start = datetime.now(timezone.utc)
                 try:
                     result = await wrapped_func(*args, **kwargs)
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["output"] = result
-                    new_node = node.model_copy(update={"attributes": new_attrs})
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
+                    new_node = node.model_copy(
+                        update={
+                            "attributes": new_attrs,
+                            "start_time": start,
+                            "end_time": end,
+                        }
+                    )
                     graph.update_node(node.id, new_node)
                     return result
                 except Exception as e:
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["error"] = str(e)
-                    new_node = node.model_copy(update={"attributes": new_attrs})
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
+                    new_node = node.model_copy(
+                        update={
+                            "attributes": new_attrs,
+                            "start_time": start,
+                            "end_time": end,
+                            "status": "error",
+                        }
+                    )
                     graph.update_node(node.id, new_node)
                     raise
                 finally:
@@ -136,17 +154,35 @@ def track(
                 graph.add_node(node)
                 token = _current_parent_id.set(node.id)
 
+                start = datetime.now(timezone.utc)
                 try:
                     result = wrapped_func(*args, **kwargs)
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["output"] = result
-                    new_node = node.model_copy(update={"attributes": new_attrs})
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
+                    new_node = node.model_copy(
+                        update={
+                            "attributes": new_attrs,
+                            "start_time": start,
+                            "end_time": end,
+                        }
+                    )
                     graph.update_node(node.id, new_node)
                     return result
                 except Exception as e:
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["error"] = str(e)
-                    new_node = node.model_copy(update={"attributes": new_attrs})
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
+                    new_node = node.model_copy(
+                        update={
+                            "attributes": new_attrs,
+                            "start_time": start,
+                            "end_time": end,
+                            "status": "error",
+                        }
+                    )
                     graph.update_node(node.id, new_node)
                     raise
                 finally:
@@ -209,8 +245,10 @@ def track_llm(
                 graph.add_node(node)
                 token = _current_parent_id.set(node.id)
 
+                start = datetime.now(timezone.utc)
                 try:
                     result = await wrapped_func(*args, **kwargs)
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
 
                     if isinstance(result, dict):
@@ -239,21 +277,26 @@ def track_llm(
                             new_attrs[SpanAttributes.LLM_MODEL_NAME] = result.model
 
                     new_attrs["output"] = result if isinstance(result, dict) else str(result)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                         }
                     )
                     graph.update_node(node.id, new_node)
                     return result
                 except Exception as e:
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["error"] = str(e)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                             "status": "error",
                         }
                     )
@@ -295,8 +338,10 @@ def track_llm(
                 graph.add_node(node)
                 token = _current_parent_id.set(node.id)
 
+                start = datetime.now(timezone.utc)
                 try:
                     result = wrapped_func(*args, **kwargs)
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
 
                     if isinstance(result, dict):
@@ -325,21 +370,26 @@ def track_llm(
                             new_attrs[SpanAttributes.LLM_MODEL_NAME] = result.model
 
                     new_attrs["output"] = result if isinstance(result, dict) else str(result)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                         }
                     )
                     graph.update_node(node.id, new_node)
                     return result
                 except Exception as e:
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["error"] = str(e)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                             "status": "error",
                         }
                     )
@@ -406,26 +456,33 @@ def track_tool(
                 graph.add_node(node)
                 token = _current_parent_id.set(node.id)
 
+                start = datetime.now(timezone.utc)
                 try:
                     result = await wrapped_func(*args, **kwargs)
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["output"] = result if isinstance(result, dict) else str(result)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
 
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                         }
                     )
                     graph.update_node(node.id, new_node)
                     return result
                 except Exception as e:
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["error"] = str(e)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                             "status": "error",
                         }
                     )
@@ -468,26 +525,33 @@ def track_tool(
                 graph.add_node(node)
                 token = _current_parent_id.set(node.id)
 
+                start = datetime.now(timezone.utc)
                 try:
                     result = wrapped_func(*args, **kwargs)
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["output"] = result if isinstance(result, dict) else str(result)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
 
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                         }
                     )
                     graph.update_node(node.id, new_node)
                     return result
                 except Exception as e:
+                    end = datetime.now(timezone.utc)
                     new_attrs = dict(node.attributes)
                     new_attrs["error"] = str(e)
+                    new_attrs["duration_ms"] = (end - start).total_seconds() * 1000.0
                     new_node = node.model_copy(
                         update={
                             "attributes": new_attrs,
-                            "end_time": datetime.now(timezone.utc),
+                            "start_time": start,
+                            "end_time": end,
                             "status": "error",
                         }
                     )

@@ -15,13 +15,17 @@ def register(subparsers) -> None:
     login_parser.set_defaults(func=_run_login)
 
 
+import logging
+from temporallayr.core.logging import configure_logging
+
+logger = logging.getLogger(__name__)
+
+
 def _run_login(args) -> None:
     """Interactively save the TemporalLayr API Key into temporallayr.yaml for the workspace."""
     import yaml
 
-    print("=" * 40)
-    print("Temporallayr Enterprise Login")
-    print("=" * 40)
+    logger.info("Temporallayr Enterprise Login Initialized")
 
     api_key = args.key
 
@@ -29,7 +33,7 @@ def _run_login(args) -> None:
         api_key = input("Enter your TemporalLayr API Key: ").strip()
 
     if not api_key:
-        print("Error: API Key cannot be empty.", file=sys.stderr)
+        logger.error("API Key cannot be empty.")
         sys.exit(1)
 
     config_path = "temporallayr.yaml"
@@ -43,9 +47,11 @@ def _run_login(args) -> None:
             pass
 
     existing_config["api_key"] = api_key
-
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(existing_config, f, default_flow_style=False)
 
-    print(f"✓ API Key securely saved to {os.path.abspath(config_path)}\n")
-    print("Run `temporallayr doctor` to verify your connection.")
+    logger.info(
+        "API Key securely saved to local workspace context configuration.",
+        extra={"path": os.path.abspath(config_path)},
+    )
+    logger.info("Run `temporallayr doctor` to verify your connection.")

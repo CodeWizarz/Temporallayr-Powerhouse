@@ -5,8 +5,11 @@ ExecutionStore abstraction and default implementations.
 import abc
 from datetime import datetime
 from pathlib import Path
+import logging
 
 from temporallayr.models.execution import ExecutionGraph
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionStore(abc.ABC):
@@ -90,7 +93,8 @@ class LocalJSONStore(ExecutionStore):
                         filepath.unlink()
                         deleted += 1
                 except Exception as e:
-                    print(f"GC error for {filepath}: {e}")
+                    logger.error(f"GC error for {filepath}: {e}", exc_info=True)
+                    deleted += 1
         return deleted
 
 

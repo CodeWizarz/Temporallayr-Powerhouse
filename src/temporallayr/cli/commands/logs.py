@@ -14,6 +14,12 @@ def register(subparsers) -> None:
     logs_parser.set_defaults(func=_run_logs)
 
 
+import logging
+from temporallayr.core.logging import configure_logging
+
+logger = logging.getLogger(__name__)
+
+
 def _run_logs(args) -> None:
     """Read API key securely, fetch remote events natively, and display tabular graphs."""
     import httpx
@@ -23,14 +29,14 @@ def _run_logs(args) -> None:
     api_key_str = get_api_key()
     target_url = get_server_url().rstrip("/")
     if not api_key_str:
-        print("✗ No API key found. Run `temporallayr login` first.", file=sys.stderr)
+        logger.error("No API key found. Run `temporallayr login` first.")
         sys.exit(1)
 
     endpoint = f"{target_url}/v1/query"
     headers = {"Authorization": f"Bearer {api_key_str}"}
     params = {"limit": args.limit}
 
-    print(f"Fetching logs from {endpoint}...")
+    logger.info(f"Fetching logs from {endpoint}...")
     try:
         import certifi
 
@@ -42,25 +48,27 @@ def _run_logs(args) -> None:
             events = data.get("executions", data.get("events", []))
 
             if not events:
-                print("No executions found.")
+                logger.info("No executions found.")
                 return
-
-            print("\n" + "=" * 100)
-            print(f"{'EXECUTION ID':<38} | {'CREATED AT':<27} | {'TENANT':<15} | {'NODES'}")
-            print("-" * 100)
 
             for ev in events:
                 eid = ev.get("id", "Unknown")[:36]
                 created = ev.get("created_at", "Unknown")[:25]
                 tenant = ev.get("tenant_id", "Unknown")[:13]
                 nodes = len(ev.get("nodes", {}))
-                print(f"{eid:<38} | {created:<27} | {tenant:<15} | {nodes}")
-
-            print("=" * 100)
+                logger.info(
+                    "Execution Log",
+                    extra={
+                        "execution_id": eid,
+                        "created_at": created,
+                        "tenant_id": tenant,
+                        "node_count": nodes,
+                    },
+                )
 
     except httpx.HTTPStatusError as e:
-        print(f"✗ Server error: HTTP {e.response.status_code}", file=sys.stderr)
+        logger.error(f"Server error: HTTP {e.response.status_code}")
         sys.exit(1)
     except Exception as e:
-        print(f"✗ Could not fetch logs from server: {e}", file=sys.stderr)
+        logger.error(f"Could not fetch logs from server: {e}", exc_info=True)
         sys.exit(1)

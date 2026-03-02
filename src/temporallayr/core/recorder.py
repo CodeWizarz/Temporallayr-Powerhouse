@@ -3,10 +3,13 @@ Execution recorder for building and tracking temporal execution graphs.
 """
 
 import uuid
+from typing import Any
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 from temporallayr.context import get_context
 from temporallayr.core.store import get_default_store
@@ -16,6 +19,7 @@ from temporallayr.models.execution import ExecutionGraph, ExecutionNode
 
 class RecorderStateError(TemporalLayrError):
     """Exception raised for invalid recorder states or context usage."""
+
     pass
 
 
@@ -47,13 +51,15 @@ class ExecutionRecorder:
         if not ExecutionRecorder._diagnostics_printed:
             from temporallayr.config import get_api_key, get_server_url
 
-            print("\n[TEMPORALLAYR CONFIG]")
-            print(f"SERVER_URL={get_server_url()}")
-            print(f"API_KEY={'present' if get_api_key() else 'missing'}")
-            print(f"TENANT_ID={tenant_id or 'missing'}")
+            logger.info("TEMPORALLAYR CONFIG START")
+            logger.info(f"SERVER_URL={get_server_url()}")
+            logger.info(f"API_KEY={'present' if get_api_key() else 'missing'}")
+            logger.info(f"TENANT_ID={tenant_id or 'missing'}")
+            logger.info("TEMPORALLAYR CONFIG END")
             ExecutionRecorder._diagnostics_printed = True
 
         from temporallayr.transport import get_transport
+
         get_transport()
 
         # trace_id is the canonical field; 'id' is remapped via model_validator
@@ -125,6 +131,7 @@ class ExecutionRecorder:
         get_default_store().save_execution(self._graph)
 
         from temporallayr.transport import get_transport
+
         transport = get_transport()
 
         await transport.send_event(

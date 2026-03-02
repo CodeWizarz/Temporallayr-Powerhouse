@@ -17,6 +17,7 @@ class TemporalLayrConfig(BaseModel):
     flush_interval: float = Field(default=2.0, gt=0)
     debug_mode: bool = False
     rate_limit_enabled: bool = True
+    log_level: str = "INFO"
     max_queue_size: int = Field(default=10000, ge=1)
     # Transport settings used by sdk_api.py
     timeout_seconds: float = Field(default=10.0, gt=0)
@@ -39,6 +40,7 @@ class TemporalLayrConfig(BaseModel):
             rate_limit_enabled=(
                 os.getenv("TEMPORALLAYR_RATE_LIMIT_ENABLED", "true").lower() in {"1", "true", "yes"}
             ),
+            log_level=os.getenv("TEMPORALLAYR_LOG_LEVEL", "INFO").upper(),
             max_queue_size=int(os.getenv("TEMPORALLAYR_MAX_QUEUE_SIZE", "10000")),
             timeout_seconds=float(os.getenv("TEMPORALLAYR_TIMEOUT_SECONDS", "10.0")),
             max_retries=int(os.getenv("TEMPORALLAYR_MAX_RETRIES", "3")),

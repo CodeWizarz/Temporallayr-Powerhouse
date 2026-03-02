@@ -5,6 +5,8 @@ FastAPI ingestion and replay server for Temporallayr.
 import asyncio
 import os
 import time
+import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -44,6 +46,7 @@ from temporallayr.core.replay import ReplayEngine
 from temporallayr.core.store import get_default_store
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.store_sqlite import SQLiteStore
+from temporallayr.core.logging import configure_logging
 from temporallayr.models.execution import ExecutionGraph
 from temporallayr.models.replay import ReplayReport
 from temporallayr.server.auth import verify_admin_key, verify_api_key
@@ -57,6 +60,9 @@ from temporallayr.server.auth.api_keys import (
 )
 from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+logger = logging.getLogger(__name__)
 
 
 def _get_sqlite_store() -> SQLiteStore:
@@ -68,18 +74,29 @@ def _load_incidents() -> list[dict[str, Any]]:
     try:
         return _get_sqlite_store().load_all_incidents()
     except Exception:
+        logger.error("Failed to load incidents from SQLite.", exc_info=True)
         return []
 
 
-def _persist_incidents(incidents: list[dict[str, Any]]) -> None:
+def _persist_incidents() -> None:
+    global _INCIDENTS
     try:
-        _get_sqlite_store().bulk_save_incidents(incidents)
+        from temporallayr.core.store import get_default_store
+
+        store = get_default_store()
+        store.bulk_save_incidents(_INCIDENTS)
     except Exception as e:
-        print(f"Warning: failed to persist incidents: {e}")
+        logger.error(f"Failed to persist incidents: {e}", exc_info=True)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    from temporallayr.config import get_config
+
+    config = get_config()
+    configure_logging(level=config.log_level)
+    logger.info("Initializing TemporalLayr API Services")
+
     AuditLogger.log_config_change(
         "TEMPORALLAYR_RETENTION_DAYS", os.getenv("TEMPORALLAYR_RETENTION_DAYS", "30")
     )
@@ -87,37 +104,47 @@ async def lifespan(app: FastAPI):
         "TEMPORALLAYR_API_KEYS", os.getenv("TEMPORALLAYR_API_KEYS", "configured")
     )
 
+    store = get_default_store()
     global _INCIDENTS
     async with _incidents_lock:
-        _INCIDENTS = _load_incidents()
+        _INCIDENTS = store.load_all_incidents()
+        logger.info(
+            f"Loaded {len(_INCIDENTS)} active incidents globally.",
+            extra={"incident_count": len(_INCIDENTS)},
+        )
 
-    # Initialize ClickHouse schema if configured
-    ch = get_clickhouse_store()
-    if ch:
+    ch_store = get_clickhouse_store()
+    if ch_store:
         try:
-            ch.initialize_schema()
-            print("[TemporalLayr] ClickHouse schema initialized.")
+            ch_store.ensure_schema()
+            logger.info("ClickHouse OLAP Analytics engine native schema loaded dynamically.")
         except Exception as e:
-            print(f"[TemporalLayr] ClickHouse init warning: {e}")
+            logger.warning(f"ClickHouse schema initialization skipped: {e}", exc_info=True)
 
-    otlp = get_otlp_exporter()
+    from temporallayr.core.store import init_otlp_batcher
+
+    otlp = init_otlp_batcher()
     if otlp:
-        print(f"[TemporalLayr] OTLP export enabled → {otlp.endpoint}")
+        logger.info(f"OTLP Trace routing actively bound internally: {otlp.endpoint}")
 
-    retention_days = int(os.getenv("TEMPORALLAYR_RETENTION_DAYS", "30"))
-
-    async def _retention_worker() -> None:
+    async def _retention_loop() -> None:
         while True:
+            await asyncio.sleep(60 * 60)  # Check every hour
             try:
-                cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-                deleted = get_default_store().delete_old_executions(cutoff)
-                if deleted > 0:
-                    print(f"Retention cleaned {deleted} old executions.")
-            except Exception as e:
-                print(f"Retention worker error: {e}")
-            await asyncio.sleep(3600)
+                from temporallayr.core.store import get_default_store
 
-    task = asyncio.create_task(_retention_worker())
+                store = get_default_store()
+                if hasattr(store, "_store_dir"):  # Only for SQLiteStore
+                    deleted = store.retention_cleanup()
+                    if deleted > 0:
+                        logger.info(
+                            f"Database Retention worker dropped {deleted} historical objects."
+                        )
+            except Exception as e:
+                logger.error(f"Retention background pipeline fault: {e}", exc_info=True)
+            await asyncio.sleep(3600)  # Wait for another hour after cleanup attempt
+
+    task = asyncio.create_task(_retention_loop())
     yield
     task.cancel()
 
@@ -143,6 +170,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
             status_code = response.status_code
         except Exception as e:
             status_code = 500
+            logger.error(f"API call error: {e}", exc_info=True)
             raise e
         finally:
             AuditLogger.log_api_call(
@@ -173,6 +201,7 @@ async def ready() -> dict[str, Any]:
         get_default_store().list_executions("__probe__")
         details["sqlite"] = "ok"
     except Exception as e:
+        logger.error(f"SQLite not ready: {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"SQLite not ready: {e}") from e
     ch = get_clickhouse_store()
     if ch:
@@ -181,6 +210,7 @@ async def ready() -> dict[str, Any]:
             details["clickhouse"] = "ok"
         except Exception as e:
             details["clickhouse"] = f"degraded: {e}"
+            logger.warning(f"ClickHouse degraded: {e}", exc_info=True)
     return {"status": "ready", "backends": details}
 
 
@@ -193,10 +223,11 @@ class CreateKeyRequest(BaseModel):
 
 @app.post("/keys/create", response_model=dict[str, str], tags=["auth"])
 async def create_api_key(
-    req: CreateKeyRequest, active_tenant: str = Depends(verify_api_key)
+    req: CreateKeyRequest, active_tenant: str = Depends(verify_admin_key)
 ) -> dict[str, str]:
     new_key = generate_api_key()
     map_api_key_to_tenant(new_key, req.tenant_id)
+    logger.info(f"API key created for tenant: {req.tenant_id}")
     return {"api_key": new_key, "tenant_id": req.tenant_id}
 
 
@@ -212,7 +243,7 @@ class IngestRequest(BaseModel):
     events: list[dict[str, Any]]
 
 
-async def _process_graph(graph: ExecutionGraph) -> None:
+async def _process_graph(graph: ExecutionGraph, tenant_id: str) -> None:
     """Post-ingest side effects: fingerprint, cluster, OTLP export, ClickHouse."""
     # OTLP export (Phoenix, Jaeger, etc.)
     otlp = get_otlp_exporter()
@@ -220,12 +251,12 @@ async def _process_graph(graph: ExecutionGraph) -> None:
         asyncio.create_task(otlp.export(graph))
 
     # ClickHouse analytics write
-    ch = get_clickhouse_store()
-    if ch:
+    ch_store = get_clickhouse_store()
+    if ch_store:
         try:
-            await asyncio.to_thread(ch.insert_trace, graph)
+            await asyncio.to_thread(ch_store.record_spans, tenant_id, graph)
         except Exception as e:
-            print(f"ClickHouse insert warning: {e}")
+            logger.warning(f"ClickHouse insertion block aborted: {e}", exc_info=True)
 
     # Incident detection
     try:
@@ -233,10 +264,15 @@ async def _process_graph(graph: ExecutionGraph) -> None:
         if clusters:
             global _INCIDENTS
             async with _incidents_lock:
-                _INCIDENTS = IncidentEngine.detect_incidents(clusters, _INCIDENTS)
-                _persist_incidents(_INCIDENTS)
+                new_incidents = IncidentEngine.detect_incidents(clusters, _INCIDENTS)
+                if new_incidents:
+                    _INCIDENTS.extend(new_incidents)
+                    _persist_incidents()
+                    logger.info(
+                        f"Detected {len(new_incidents)} new incidents for tenant {tenant_id}."
+                    )
     except Exception as e:
-        print(f"Incident detection error: {e}")
+        logger.error(f"Evaluation anomaly processing internal fault mapping: {e}", exc_info=True)
 
 
 @app.post("/v1/ingest", status_code=202, tags=["ingest"])
@@ -279,10 +315,10 @@ async def ingest_batch(
 
             graph = ExecutionGraph.model_validate(event)
             store.save_execution(graph)
-            asyncio.create_task(_process_graph(graph))
+            asyncio.create_task(_process_graph(graph, graph.tenant_id))
             processed += 1
         except Exception as e:
-            print(f"Ingest event error: {e}")
+            logger.error(f"Ingest event error: {e}", exc_info=True)
             errors += 1
 
     return {"processed": processed, "errors": errors}
@@ -332,11 +368,14 @@ async def create_execution(graph: ExecutionGraph, x_tenant_id: str = Header(...)
                 prev = store.load_execution(previous_id, x_tenant_id)
                 alerts = AlertEngine.check_execution(graph, prev)
                 if alerts:
-                    print(f"Triggered {len(alerts)} alerts for {graph.id}")
+                    logger.info(
+                        f"Triggered {len(alerts)} alerts for {graph.id}",
+                        extra={"alert_count": len(alerts), "execution_id": graph.id},
+                    )
             except Exception as e:
-                print(f"Alert check failed: {e}")
+                logger.error(f"Alert check failed: {e}", exc_info=True)
 
-        asyncio.create_task(_process_graph(graph))
+        asyncio.create_task(_process_graph(graph, graph.tenant_id))
         return {"execution_id": graph.id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -415,7 +454,9 @@ async def get_clusters(
                 "has_more": offset + limit < total,
             }
         except Exception as e:
-            print(f"ClickHouse cluster query failed, falling back to SQLite: {e}")
+            logger.warning(
+                f"ClickHouse cluster query failed, falling back to SQLite: {e}", exc_info=True
+            )
 
     # SQLite fallback
     store = get_default_store()
@@ -591,7 +632,7 @@ async def ack_incident(
                 AuditLogger.log_incident_change(
                     incident_id, "ack", tenant_id, {"status": "acknowledged"}
                 )
-                _persist_incidents(_INCIDENTS)
+                _persist_incidents()
                 return inc
     raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found.")
 
@@ -608,6 +649,6 @@ async def resolve_incident(
                 AuditLogger.log_incident_change(
                     incident_id, "resolve", tenant_id, {"status": "resolved"}
                 )
-                _persist_incidents(_INCIDENTS)
+                _persist_incidents()
                 return inc
     raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found.")

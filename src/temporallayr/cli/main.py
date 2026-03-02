@@ -3,40 +3,42 @@ import asyncio
 import sys
 from datetime import UTC, datetime, timedelta
 
+import logging
+
 from temporallayr.cli.commands import doctor, login, logs, test
+from temporallayr.core.logging import configure_logging
+from temporallayr.config import get_config
 from temporallayr.core.diff_engine import ExecutionDiffer
 from temporallayr.core.failure_cluster import FailureClusterEngine
 from temporallayr.core.incidents import IncidentEngine
 from temporallayr.core.replay import ReplayEngine
 from temporallayr.core.store import get_default_store
 
+logger = logging.getLogger(__name__)
+
 
 async def run_replay(execution_id: str, tenant_id: str) -> None:
     """Load an execution graph by ID and run the deterministic replay engine."""
-    print(f"Resolving execution '{execution_id}' for tenant '{tenant_id}'...")
+    logger.info(f"Resolving execution '{execution_id}' for tenant '{tenant_id}'...")
     try:
         graph = get_default_store().load_execution(execution_id, tenant_id)
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logger.error(f"Error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Error parsing ExecutionGraph JSON: {e}", file=sys.stderr)
+        logger.error(f"Error parsing ExecutionGraph JSON: {e}", exc_info=True)
         sys.exit(1)
 
-    print(f"Loaded graph '{graph.id}' with {len(graph.nodes)} node(s).")
-    print("Initiating deterministic replay engine...\n")
+    logger.info(f"Loaded graph '{graph.id}' with {len(graph.nodes)} node(s).")
+    logger.info("Initiating deterministic replay engine...")
 
     engine = ReplayEngine(graph)
     report = await engine.replay()
 
-    print("=" * 40)
-    print("REPLAY SUMMARY")
-    print("=" * 40)
-
     for res in report.results:
         node_name = graph.nodes[res.node_id].name
         if res.success:
-            print(f"✓ {node_name} OK")
+            logger.info(f"OK: {node_name}")
         else:
             orig_node = graph.nodes[res.node_id]
             expected = orig_node.metadata.get("output", orig_node.metadata.get("error", "Unknown"))
@@ -45,9 +47,8 @@ async def run_replay(execution_id: str, tenant_id: str) -> None:
                 got = res.actual_output
             else:
                 got = getattr(res, "actual_error", "Unknown")
-            print(f"✗ {node_name} DIVERGED (expected {expected} got {got})")
+            logger.error(f"DIVERGED: {node_name}", extra={"expected": expected, "actual": got})
 
-    print("-" * 40)
     sys.exit(0 if report.is_deterministic else 1)
 
 
@@ -57,35 +58,29 @@ def run_diff(id1: str, id2: str, tenant_id: str) -> None:
         graph_a = get_default_store().load_execution(id1, tenant_id)
         graph_b = get_default_store().load_execution(id2, tenant_id)
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logger.error(f"Error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Error parsing ExecutionGraph JSON: {e}", file=sys.stderr)
+        logger.error(f"Error parsing ExecutionGraph JSON: {e}", exc_info=True)
         sys.exit(1)
 
     diff = ExecutionDiffer.diff(graph_a, graph_b)
 
-    print("=" * 40)
-    print(f"DIFF RUN: {id1[:8]} vs {id2[:8]}")
-    print("=" * 40)
+    logger.info(f"DIFF RUN: {id1[:8]} vs {id2[:8]}")
 
     structural = diff.get("structural_changes", [])
     if structural:
-        print("STRUCTURAL CHANGES:")
         for change in structural:
-            print(f"  - {change}")
-        print("-" * 40)
+            logger.warning("STRUCTURAL CHANGE", extra={"change": change})
 
     value = diff.get("value_changes", [])
     if value:
-        print("VALUE CHANGES:")
         for change in value:
-            print(f"  - {change}")
+            logger.warning("VALUE CHANGE", extra={"change": change})
 
     if not structural and not value:
-        print("Executions are identical.")
+        logger.info("Executions are identical.")
 
-    print("=" * 40)
     sys.exit(1 if structural or value else 0)
 
 
@@ -110,28 +105,24 @@ def run_incidents(tenant_id: str) -> None:
     clusters = FailureClusterEngine.cluster_failures(recent_executions)
     incidents = IncidentEngine.detect_incidents(clusters, [])
 
-    print("\n" + "=" * 80)
-    print(f"ACTIVE INCIDENTS (Last 24h) - Tenant: {tenant_id}")
-    print("=" * 80)
+    logger.info(f"ACTIVE INCIDENTS (Last 24h) - Tenant: {tenant_id}")
 
     if not incidents:
-        print("No structural incidents detected.")
-        print("=" * 80)
+        logger.info("No structural incidents detected.")
         return
 
-    print(f"{'ID':<12} | {'SEVERITY':<10} | {'COUNT':<8} | {'STATUS':<12} | {'LAST SEEN'}")
-    print("-" * 80)
-
     for inc in incidents:
-        inc_id = inc["incident_id"][:12]
-        sev = inc["severity"].upper()
-        count = str(inc["count"])
-        status = inc["status"].upper()
-        last = inc["last_seen"]
+        logger.info(
+            "Active Incident",
+            extra={
+                "incident_id": inc["incident_id"][:12],
+                "severity": inc["severity"].upper(),
+                "count": inc["count"],
+                "status": inc["status"].upper(),
+                "last_seen": inc["last_seen"],
+            },
+        )
 
-        print(f"{inc_id:<12} | {sev:<10} | {count:<8} | {status:<12} | {last}")
-
-    print("=" * 80)
     sys.exit(0)
 
 
@@ -158,6 +149,9 @@ def _invoke_incidents(args):
 
 def main() -> None:
     """Entry point for the Modular TemporalLayr Developer CLI."""
+    config = get_config()
+    configure_logging(level=config.log_level)
+
     parser = argparse.ArgumentParser(description="TemporalLayr Developer CLI", prog="temporallayr")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

@@ -4,6 +4,12 @@ Command line interface for the Temporallayr ingestion server.
 
 import argparse
 import sys
+import logging
+
+from temporallayr.core.logging import configure_logging
+from temporallayr.config import get_config
+
+logger = logging.getLogger(__name__)
 
 import uvicorn
 
@@ -19,8 +25,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    config = get_config()
+    configure_logging(level=config.log_level)
+
     # Defer to uvicorn API interface
-    print(f"Starting Temporallayr Server Engine on {args.host}:{args.port}")
+    logger.info(f"Starting Temporallayr Server Engine on {args.host}:{args.port}")
     try:
         uvicorn.run("temporallayr.server.app:app", host=args.host, port=args.port)
     except KeyboardInterrupt:
