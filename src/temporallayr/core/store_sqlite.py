@@ -4,7 +4,7 @@ SQLite backend implementation for temporallayr ExecutionStore.
 
 import json
 import sqlite3
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,37 +33,30 @@ class SQLiteStore(ExecutionStore):
     def _initialize_schema(self) -> None:
         """Idempotently bootstrap all tables."""
         with self._get_connection() as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS executions (
                     id TEXT PRIMARY KEY,
                     data TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,
                     key_hash TEXT NOT NULL UNIQUE,
                     tenant_id TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS incidents (
                     incident_id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL,
                     data TEXT NOT NULL,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_logs (
                     id TEXT PRIMARY KEY,
                     timestamp TEXT,
@@ -72,19 +65,15 @@ class SQLiteStore(ExecutionStore):
                     details TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS tenant_quotas (
                     tenant_id TEXT PRIMARY KEY,
                     daily_span_limit INT DEFAULT 100000,
                     monthly_span_limit INT DEFAULT 2000000
                 )
-                """
-            )
-            conn.execute(
-                """
+                """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS tenant_usage (
                     tenant_id TEXT,
                     date TEXT,
@@ -92,8 +81,7 @@ class SQLiteStore(ExecutionStore):
                     trace_count INT DEFAULT 0,
                     PRIMARY KEY (tenant_id, date)
                 )
-                """
-            )
+                """)
 
             for alter in [
                 "ALTER TABLE executions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'",

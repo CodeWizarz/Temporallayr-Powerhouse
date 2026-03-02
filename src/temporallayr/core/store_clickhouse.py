@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -270,7 +270,7 @@ class ClickHouseAnalyticsStore:
         SQL-powered failure clustering — replaces Python-memory FailureClusterEngine
         for production scale. Returns (total, items). Total is estimated here just as item bounds.
         """
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = datetime.now(UTC) - timedelta(hours=hours)
         client = self._get_client()
 
         # Simple separate total proxy for OLAP
@@ -302,7 +302,7 @@ class ClickHouseAnalyticsStore:
         self, tenant_id: str, hours: int = 24, limit: int = 50, offset: int = 0
     ) -> tuple[int, list[dict[str, Any]]]:
         """P50/P95/P99 latency per span name. Zero Python loops."""
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = datetime.now(UTC) - timedelta(hours=hours)
         client = self._get_client()
 
         total_q = "SELECT COUNT(DISTINCT name) FROM temporallayr_spans WHERE tenant_id={tenant_id:String} AND start_time >= {since:DateTime64} AND duration_ms IS NOT NULL"
@@ -329,7 +329,7 @@ class ClickHouseAnalyticsStore:
         self, tenant_id: str, hours: int = 168, limit: int = 50, offset: int = 0
     ) -> tuple[int, list[dict[str, Any]]]:
         """Hourly breakdown of trace volume + error rate per fingerprint."""
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = datetime.now(UTC) - timedelta(hours=hours)
         client = self._get_client()
 
         total_q = "SELECT COUNT(DISTINCT fingerprint) FROM temporallayr_traces WHERE tenant_id={tenant_id:String} AND start_time >= {since:DateTime64}"

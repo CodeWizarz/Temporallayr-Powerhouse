@@ -1,11 +1,12 @@
-import pytest
 import asyncio
-from datetime import datetime, timezone
 import uuid
-from httpx import AsyncClient, ASGITransport
+from datetime import UTC, datetime
+
+import pytest
+from httpx import ASGITransport, AsyncClient
 
 from temporallayr.server.app import app
-from temporallayr.server.auth.api_keys import map_api_key_to_tenant, delete_keys_for_tenant
+from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +37,7 @@ def _get_dummy_span(span_id=None, parent_id=None, name="test_span", error=None):
         "span_id": span_id,
         "parent_span_id": parent_id,
         "name": name,
-        "start_time": datetime.now(timezone.utc).isoformat(),
+        "start_time": datetime.now(UTC).isoformat(),
         "status": "error" if error else "success",
         "attributes": {"error": error} if error else {},
     }
@@ -47,7 +48,7 @@ def _get_dummy_event(trace_id="trace-1", name="test_span", error=None):
     return {
         "trace_id": trace_id,
         "tenant_id": "test-tenant",
-        "start_time": datetime.now(timezone.utc).isoformat(),
+        "start_time": datetime.now(UTC).isoformat(),
         "spans": [_get_dummy_span(name=name, error=error)],
     }
 

@@ -41,8 +41,7 @@ class PostgresStore(ExecutionStore):
     async def _initialize_schema(self) -> None:
         """Idempotently bootstrap all tables."""
         async with self._pool.acquire() as conn:
-            await conn.execute(
-                """
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS executions (
                     id TEXT PRIMARY KEY,
                     tenant_id TEXT NOT NULL DEFAULT 'default',
@@ -67,8 +66,7 @@ class PostgresStore(ExecutionStore):
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_inc_tenant ON incidents (tenant_id);
-                """
-            )
+                """)
 
     def _run_sync(self, coro: Any) -> Any:
         """Run a coroutine blocking in the main thread."""

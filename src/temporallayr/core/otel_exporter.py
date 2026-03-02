@@ -18,7 +18,7 @@ import logging
 import time
 from typing import Any
 
-from temporallayr.core.semantic_conventions import MimeType, OpenInferenceStatusCode, SpanAttributes
+from temporallayr.core.semantic_conventions import MimeType, SpanAttributes
 from temporallayr.models.execution import ExecutionGraph, Span
 
 logger = logging.getLogger(__name__)
@@ -26,13 +26,13 @@ logger = logging.getLogger(__name__)
 # ── OTLP protobuf-JSON wire format constants ──────────────────────────
 _OTLP_SPAN_KIND_INTERNAL = 1
 _OTLP_SPAN_KIND_MAP = {
-    "AGENT":     1,
-    "CHAIN":     1,
-    "TOOL":      1,
-    "LLM":       1,
+    "AGENT": 1,
+    "CHAIN": 1,
+    "TOOL": 1,
+    "LLM": 1,
     "RETRIEVER": 1,
-    "SERVER":    2,
-    "CLIENT":    3,
+    "SERVER": 2,
+    "CLIENT": 3,
 }
 
 
@@ -114,9 +114,9 @@ def _span_to_otlp(span: Span, trace_id: str, tenant_id: str) -> dict[str, Any]:
 
     # Token counts if present (set by @track_llm users)
     for field, attr in [
-        ("prompt_tokens",     SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
+        ("prompt_tokens", SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
         ("completion_tokens", SpanAttributes.LLM_TOKEN_COUNT_COMPLETION),
-        ("total_tokens",      SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
+        ("total_tokens", SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
     ]:
         if field in attrs:
             try:
@@ -143,14 +143,16 @@ def _span_to_otlp(span: Span, trace_id: str, tenant_id: str) -> dict[str, Any]:
     events = []
     if has_error:
         error_msg = span.error or str(attrs.get("error", ""))
-        events.append({
-            "name": "exception",
-            "timeUnixNano": str(_to_nanos(span.end_time or span.start_time)),
-            "attributes": [
-                _make_str_attr(SpanAttributes.EXCEPTION_MESSAGE, error_msg),
-                _make_str_attr(SpanAttributes.EXCEPTION_TYPE, "Exception"),
-            ],
-        })
+        events.append(
+            {
+                "name": "exception",
+                "timeUnixNano": str(_to_nanos(span.end_time or span.start_time)),
+                "attributes": [
+                    _make_str_attr(SpanAttributes.EXCEPTION_MESSAGE, error_msg),
+                    _make_str_attr(SpanAttributes.EXCEPTION_TYPE, "Exception"),
+                ],
+            }
+        )
 
     end_time = span.end_time or span.start_time
 
@@ -211,6 +213,7 @@ class OTLPExporter:
         """Export a trace. Returns True on success. Never raises."""
         try:
             import httpx
+
             payload = trace_to_otlp_payload(graph)
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
@@ -230,6 +233,7 @@ class OTLPExporter:
         """Synchronous export for non-async contexts."""
         try:
             import httpx
+
             payload = trace_to_otlp_payload(graph)
             resp = httpx.post(
                 f"{self.endpoint}/v1/traces",
@@ -255,6 +259,7 @@ def configure_otlp_exporter(endpoint: str, headers: dict[str, str] | None = None
 
 def get_otlp_exporter() -> OTLPExporter | None:
     import os
+
     global _otlp_exporter
     if _otlp_exporter is None:
         endpoint = os.getenv("TEMPORALLAYR_OTLP_ENDPOINT")

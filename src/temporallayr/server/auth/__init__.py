@@ -5,8 +5,9 @@ API Key authentication middleware for multi-tenant isolation.
 import os
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from temporallayr.config import get_config
 
 security = HTTPBearer()

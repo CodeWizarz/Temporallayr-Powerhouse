@@ -1,7 +1,9 @@
 import asyncio
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from temporallayr.server.app import app, _INCIDENTS, get_default_store
+from httpx import ASGITransport, AsyncClient
+
+from temporallayr.server.app import app
 from temporallayr.server.auth.api_keys import generate_api_key, map_api_key_to_tenant
 
 

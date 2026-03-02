@@ -1,16 +1,15 @@
 import argparse
 import asyncio
+import logging
 import sys
 from datetime import UTC, datetime, timedelta
 
-import logging
-
 from temporallayr.cli.commands import doctor, login, logs, test
-from temporallayr.core.logging import configure_logging
 from temporallayr.config import get_config
 from temporallayr.core.diff_engine import ExecutionDiffer
 from temporallayr.core.failure_cluster import FailureClusterEngine
 from temporallayr.core.incidents import IncidentEngine
+from temporallayr.core.logging import configure_logging
 from temporallayr.core.replay import ReplayEngine
 from temporallayr.core.store import get_default_store
 

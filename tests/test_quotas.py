@@ -1,12 +1,12 @@
-import pytest
-import asyncio
 import uuid
-from datetime import datetime, timezone
-from httpx import AsyncClient, ASGITransport
+from datetime import UTC, datetime
 
-from temporallayr.server.app import app
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from temporallayr.core.store_sqlite import SQLiteStore
-from temporallayr.server.auth.api_keys import map_api_key_to_tenant, delete_keys_for_tenant
+from temporallayr.server.app import app
+from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,7 @@ def setup_env(monkeypatch):
     store.upsert_quota("test-tenant", daily=5, monthly=100)
 
     # Clean usage tables prior natively preventing contamination
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
     with store._get_connection() as conn:
         conn.execute("DELETE FROM tenant_usage WHERE tenant_id = ?", ("test-tenant",))
         conn.commit()
@@ -48,7 +48,7 @@ def _get_dummy_event(spans_count=1):
                 "span_id": str(uuid.uuid4()),
                 "parent_span_id": None,
                 "name": "test_span",
-                "start_time": datetime.now(timezone.utc).isoformat(),
+                "start_time": datetime.now(UTC).isoformat(),
                 "status": "success",
                 "attributes": {},
             }
@@ -56,7 +56,7 @@ def _get_dummy_event(spans_count=1):
     return {
         "trace_id": str(uuid.uuid4()),
         "tenant_id": "test-tenant",
-        "start_time": datetime.now(timezone.utc).isoformat(),
+        "start_time": datetime.now(UTC).isoformat(),
         "spans": spans,
     }
 

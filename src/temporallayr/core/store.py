@@ -3,9 +3,9 @@ ExecutionStore abstraction and default implementations.
 """
 
 import abc
+import logging
 from datetime import datetime
 from pathlib import Path
-import logging
 
 from temporallayr.models.execution import ExecutionGraph
 

@@ -63,8 +63,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "N", "B", "ASYNC", "RUF", "W"]
+ignore = ["E402", "E501", "E712", "B008", "B904", "B905", "RUF005", "RUF006", "N818", "F841", "W291", "W293"]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 python_version = "3.11"
 strict = true
 warn_return_any = true

@@ -3,10 +3,10 @@ Structured JSON Logging Module.
 Provides native logging formatters outputting JSON-lines mapping internal telemetry contexts globally.
 """
 
-import logging
 import json
+import logging
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 

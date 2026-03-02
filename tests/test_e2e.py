@@ -1,16 +1,16 @@
-import pytest
 import asyncio
 import os
 import warnings
-from httpx import AsyncClient, ASGITransport
+
+import pytest
+from httpx import ASGITransport, AsyncClient
 
 warnings.simplefilter("ignore", DeprecationWarning)
 
-import temporallayr
-from temporallayr.server.app import app
-from temporallayr.core.recorder import ExecutionRecorder
 from temporallayr.core.decorators import track
-from temporallayr.server.auth.api_keys import map_api_key_to_tenant, delete_keys_for_tenant
+from temporallayr.core.recorder import ExecutionRecorder
+from temporallayr.server.app import app
+from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
 
 # Fixtures
 
@@ -120,7 +120,6 @@ class TestE2EPipeline:
         assert "failing_node" in clusters[0]
 
         # 6. GET /incidents → assert len >= 1, incidents[0]["status"] == "open"
-        import time
 
         max_retries = 10
         incidents = []

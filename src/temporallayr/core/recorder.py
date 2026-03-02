@@ -2,12 +2,12 @@
 Execution recorder for building and tracking temporal execution graphs.
 """
 
+import logging
 import uuid
-from typing import Any
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,790 @@
+E402 Module level import not at top of file
+  --> src\temporallayr\cli\commands\doctor.py:11:1
+   |
+11 | import logging
+   | ^^^^^^^^^^^^^^
+12 |
+13 | logger = logging.getLogger(__name__)
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\cli\commands\login.py:18:1
+   |
+18 | import logging
+   | ^^^^^^^^^^^^^^
+19 |
+20 | logger = logging.getLogger(__name__)
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\cli\commands\logs.py:17:1
+   |
+17 | import logging
+   | ^^^^^^^^^^^^^^
+18 |
+19 | logger = logging.getLogger(__name__)
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\cli\commands\test.py:8:1
+   |
+ 8 | import logging
+   | ^^^^^^^^^^^^^^
+ 9 |
+10 | logger = logging.getLogger(__name__)
+   |
+
+F821 Undefined name `url`
+  --> src\temporallayr\core\alert_dispatcher.py:62:40
+   |
+60 |                     f"Webhook dispatch failed with status: {res.status_code}",
+61 |                     extra={
+62 |                         "webhook_url": url,
+   |                                        ^^^
+63 |                         "status_code": res.status_code,
+64 |                         "response": res.text,
+   |
+
+E501 Line too long (102 > 100)
+ --> src\temporallayr\core\logging.py:3:101
+  |
+1 | """
+2 | Structured JSON Logging Module.
+3 | Provides native logging formatters outputting JSON-lines mapping internal telemetry contexts globally.
+  |                                                                                                     ^^
+4 | """
+  |
+
+E501 Line too long (102 > 100)
+  --> src\temporallayr\core\logging.py:15:101
+   |
+13 | class JSONFormatter(logging.Formatter):
+14 |     """
+15 |     Format standard python log records into a robust native JSON structure mapping context boundaries.
+   |                                                                                                     ^^
+16 |     """
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\core\recorder.py:14:1
+   |
+12 | logger = logging.getLogger(__name__)
+13 |
+14 | from temporallayr.context import get_context
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+15 | from temporallayr.core.store import get_default_store
+16 | from temporallayr.exceptions import TemporalLayrError
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\core\recorder.py:15:1
+   |
+14 | from temporallayr.context import get_context
+15 | from temporallayr.core.store import get_default_store
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 | from temporallayr.exceptions import TemporalLayrError
+17 | from temporallayr.models.execution import ExecutionGraph, ExecutionNode
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\core\recorder.py:16:1
+   |
+14 | from temporallayr.context import get_context
+15 | from temporallayr.core.store import get_default_store
+16 | from temporallayr.exceptions import TemporalLayrError
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+17 | from temporallayr.models.execution import ExecutionGraph, ExecutionNode
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\core\recorder.py:17:1
+   |
+15 | from temporallayr.core.store import get_default_store
+16 | from temporallayr.exceptions import TemporalLayrError
+17 | from temporallayr.models.execution import ExecutionGraph, ExecutionNode
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src\temporallayr\core\store_clickhouse.py:151:17
+    |
+149 |                   )
+150 |               except ImportError:
+151 | /                 raise RuntimeError(
+152 | |                     "clickhouse-connect not installed. Run: pip install clickhouse-connect"
+153 | |                 )
+    | |_________________^
+154 |           return self._client
+    |
+
+E501 Line too long (169 > 100)
+   --> src\temporallayr\core\store_clickhouse.py:277:101
+    |
+276 | â€¦
+277 | â€¦yr_spans WHERE tenant_id={tenant_id:String} AND status='error' AND start_time >= {since:DateTime64}"
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+278 | â€¦nant_id, "since": since})
+279 | â€¦else 0
+    |
+
+E501 Line too long (171 > 100)
+   --> src\temporallayr\core\store_clickhouse.py:308:101
+    |
+306 | â€¦
+307 | â€¦
+308 | â€¦ WHERE tenant_id={tenant_id:String} AND start_time >= {since:DateTime64} AND duration_ms IS NOT NULL"
+    |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+309 | â€¦ant_id, "since": since})
+310 | â€¦lse 0
+    |
+
+B905 `zip()` without an explicit `strict=` parameter
+   --> src\temporallayr\core\store_clickhouse.py:326:29
+    |
+324 |             "error_rate_pct",
+325 |         ]
+326 |         return total, [dict(zip(cols, row)) for row in result.result_rows]
+    |                             ^^^^^^^^^^^^^^
+327 |
+328 |     def get_fingerprint_trends(
+    |
+help: Add explicit value for parameter `strict=`
+
+E501 Line too long (151 > 100)
+   --> src\temporallayr\core\store_clickhouse.py:335:101
+    |
+333 | â€¦
+334 | â€¦
+335 | â€¦emporallayr_traces WHERE tenant_id={tenant_id:String} AND start_time >= {since:DateTime64}"
+    |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+336 | â€¦t_id": tenant_id, "since": since})
+337 | â€¦ult_rows else 0
+    |
+
+B905 `zip()` without an explicit `strict=` parameter
+   --> src\temporallayr\core\store_clickhouse.py:344:29
+    |
+342 |         )
+343 |         cols = ["hour", "fingerprint", "trace_count", "error_trace_count"]
+344 |         return total, [dict(zip(cols, row)) for row in result.result_rows]
+    |                             ^^^^^^^^^^^^^^
+345 |
+346 |     def get_span_timeline(self, trace_id: str, tenant_id: str) -> list[dict[str, Any]]:
+    |
+help: Add explicit value for parameter `strict=`
+
+B905 `zip()` without an explicit `strict=` parameter
+   --> src\temporallayr\core\store_clickhouse.py:372:22
+    |
+370 |         rows = []
+371 |         for row in result.result_rows:
+372 |             d = dict(zip(cols, row))
+    |                      ^^^^^^^^^^^^^^
+373 |             try:
+374 |                 d["attributes"] = json.loads(d["attributes"] or "{}")
+    |
+help: Add explicit value for parameter `strict=`
+
+W293 Blank line contains whitespace
+  --> src\temporallayr\core\store_postgres.py:54:1
+   |
+52 |                 CREATE INDEX IF NOT EXISTS idx_tenant_id ON executions (tenant_id);
+53 |                 CREATE INDEX IF NOT EXISTS idx_fingerprint ON executions (fingerprint);
+54 |                 
+   | ^^^^^^^^^^^^^^^^
+55 |                 CREATE TABLE IF NOT EXISTS api_keys (
+56 |                     id TEXT PRIMARY KEY,
+   |
+help: Remove whitespace from blank line
+
+W293 Blank line contains whitespace
+  --> src\temporallayr\core\store_postgres.py:61:1
+   |
+59 |                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+60 |                 );
+61 |                 
+   | ^^^^^^^^^^^^^^^^
+62 |                 CREATE TABLE IF NOT EXISTS incidents (
+63 |                     incident_id TEXT PRIMARY KEY,
+   |
+help: Remove whitespace from blank line
+
+W291 Trailing whitespace
+  --> src\temporallayr\core\store_postgres.py:95:39
+   |
+93 |         INSERT INTO executions (id, tenant_id, fingerprint, data)
+94 |         VALUES ($1, $2, $3, $4::jsonb)
+95 |         ON CONFLICT (id) DO UPDATE SET 
+   |                                       ^
+96 |             tenant_id = EXCLUDED.tenant_id,
+97 |             fingerprint = EXCLUDED.fingerprint,
+   |
+help: Remove trailing whitespace
+
+E501 Line too long (109 > 100)
+   --> src\temporallayr\core\store_postgres.py:136:101
+    |
+135 |             rows = await conn.fetch(
+136 |                 "SELECT id FROM executions WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+    |                                                                                                     ^^^^^^^^^
+137 |                 tenant_id,
+138 |                 limit,
+    |
+
+W291 Trailing whitespace
+   --> src\temporallayr\core\store_postgres.py:163:48
+    |
+161 |         INSERT INTO incidents (incident_id, tenant_id, data, updated_at)
+162 |         VALUES ($1, $2, $3::jsonb, CURRENT_TIMESTAMP)
+163 |         ON CONFLICT (incident_id) DO UPDATE SET 
+    |                                                ^
+164 |             tenant_id = EXCLUDED.tenant_id,
+165 |             data = EXCLUDED.data,
+    |
+help: Remove trailing whitespace
+
+W291 Trailing whitespace
+   --> src\temporallayr\core\store_postgres.py:185:48
+    |
+183 |         INSERT INTO incidents (incident_id, tenant_id, data, updated_at)
+184 |         VALUES ($1, $2, $3::jsonb, CURRENT_TIMESTAMP)
+185 |         ON CONFLICT (incident_id) DO UPDATE SET 
+    |                                                ^
+186 |             tenant_id = EXCLUDED.tenant_id,
+187 |             data = EXCLUDED.data,
+    |
+help: Remove trailing whitespace
+
+E501 Line too long (110 > 100)
+   --> src\temporallayr\core\store_postgres.py:210:101
+    |
+209 |             rows = await conn.fetch(
+210 |                 "SELECT data FROM incidents WHERE tenant_id = $1 ORDER BY updated_at DESC LIMIT $2 OFFSET $3",
+    |                                                                                                     ^^^^^^^^^^
+211 |                 tenant_id,
+212 |                 limit,
+    |
+
+E501 Line too long (106 > 100)
+   --> src\temporallayr\core\store_sqlite.py:161:101
+    |
+160 |             cursor = conn.execute(
+161 |                 "SELECT id FROM executions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+    |                                                                                                     ^^^^^^
+162 |                 (tenant_id, limit, offset),
+163 |             )
+    |
+
+E501 Line too long (107 > 100)
+   --> src\temporallayr\core\store_sqlite.py:217:101
+    |
+216 |             cursor = conn.execute(
+217 |                 "SELECT data FROM incidents WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+    |                                                                                                     ^^^^^^^
+218 |                 (tenant_id, limit, offset),
+219 |             )
+    |
+
+E501 Line too long (109 > 100)
+   --> src\temporallayr\core\store_sqlite.py:280:101
+    |
+278 |             total = total_cursor.fetchone()[0]
+279 |
+280 |             query = f"SELECT details FROM audit_logs {where_clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+    |                                                                                                     ^^^^^^^^^
+281 |             cursor = conn.execute(query, params + [limit, offset])
+    |
+
+RUF005 Consider `[*params, limit, offset]` instead of concatenation
+   --> src\temporallayr\core\store_sqlite.py:281:42
+    |
+280 |             query = f"SELECT details FROM audit_logs {where_clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+281 |             cursor = conn.execute(query, params + [limit, offset])
+    |                                          ^^^^^^^^^^^^^^^^^^^^^^^^
+282 |
+283 |             return total, [json.loads(row["details"]) for row in cursor.fetchall()]
+    |
+help: Replace with `[*params, limit, offset]`
+
+E501 Line too long (101 > 100)
+   --> src\temporallayr\core\store_sqlite.py:290:101
+    |
+288 |         with self._get_connection() as conn:
+289 |             cursor = conn.execute(
+290 |                 "SELECT daily_span_limit, monthly_span_limit FROM tenant_quotas WHERE tenant_id = ?",
+    |                                                                                                     ^
+291 |                 (tenant_id,),
+292 |             )
+    |
+
+W291 Trailing whitespace
+   --> src\temporallayr\core\store_sqlite.py:307:53
+    |
+305 |                 INSERT INTO tenant_quotas (tenant_id, daily_span_limit, monthly_span_limit)
+306 |                 VALUES (?, ?, ?)
+307 |                 ON CONFLICT(tenant_id) DO UPDATE SET 
+    |                                                     ^
+308 |                     daily_span_limit = excluded.daily_span_limit,
+309 |                     monthly_span_limit = excluded.monthly_span_limit
+    |
+help: Remove trailing whitespace
+
+W291 Trailing whitespace
+   --> src\temporallayr\core\store_sqlite.py:322:59
+    |
+320 |                 INSERT INTO tenant_usage (tenant_id, date, span_count, trace_count)
+321 |                 VALUES (?, ?, ?, ?)
+322 |                 ON CONFLICT(tenant_id, date) DO UPDATE SET 
+    |                                                           ^
+323 |                     span_count = span_count + excluded.span_count,
+324 |                     trace_count = trace_count + excluded.trace_count
+    |
+help: Remove trailing whitespace
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:37:1
+   |
+37 | from slowapi.errors import RateLimitExceeded
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+38 |
+39 | from temporallayr.core.alerting import AlertEngine
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:39:1
+   |
+37 | from slowapi.errors import RateLimitExceeded
+38 |
+39 | from temporallayr.core.alerting import AlertEngine
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+40 | from temporallayr.core.audit import AuditLogger
+41 | from temporallayr.core.diff_engine import ExecutionDiffer
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:40:1
+   |
+39 | from temporallayr.core.alerting import AlertEngine
+40 | from temporallayr.core.audit import AuditLogger
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+41 | from temporallayr.core.diff_engine import ExecutionDiffer
+42 | from temporallayr.core.failure_cluster import FailureClusterEngine
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:41:1
+   |
+39 | from temporallayr.core.alerting import AlertEngine
+40 | from temporallayr.core.audit import AuditLogger
+41 | from temporallayr.core.diff_engine import ExecutionDiffer
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+42 | from temporallayr.core.failure_cluster import FailureClusterEngine
+43 | from temporallayr.core.incidents import IncidentEngine
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:42:1
+   |
+40 | from temporallayr.core.audit import AuditLogger
+41 | from temporallayr.core.diff_engine import ExecutionDiffer
+42 | from temporallayr.core.failure_cluster import FailureClusterEngine
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+43 | from temporallayr.core.incidents import IncidentEngine
+44 | from temporallayr.core.logging import configure_logging
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:43:1
+   |
+41 | from temporallayr.core.diff_engine import ExecutionDiffer
+42 | from temporallayr.core.failure_cluster import FailureClusterEngine
+43 | from temporallayr.core.incidents import IncidentEngine
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+44 | from temporallayr.core.logging import configure_logging
+45 | from temporallayr.core.otel_exporter import get_otlp_exporter
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:44:1
+   |
+42 | from temporallayr.core.failure_cluster import FailureClusterEngine
+43 | from temporallayr.core.incidents import IncidentEngine
+44 | from temporallayr.core.logging import configure_logging
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+45 | from temporallayr.core.otel_exporter import get_otlp_exporter
+46 | from temporallayr.core.replay import ReplayEngine
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:45:1
+   |
+43 | from temporallayr.core.incidents import IncidentEngine
+44 | from temporallayr.core.logging import configure_logging
+45 | from temporallayr.core.otel_exporter import get_otlp_exporter
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+46 | from temporallayr.core.replay import ReplayEngine
+47 | from temporallayr.core.store import get_default_store
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:46:1
+   |
+44 | from temporallayr.core.logging import configure_logging
+45 | from temporallayr.core.otel_exporter import get_otlp_exporter
+46 | from temporallayr.core.replay import ReplayEngine
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+47 | from temporallayr.core.store import get_default_store
+48 | from temporallayr.core.store_clickhouse import get_clickhouse_store
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:47:1
+   |
+45 | from temporallayr.core.otel_exporter import get_otlp_exporter
+46 | from temporallayr.core.replay import ReplayEngine
+47 | from temporallayr.core.store import get_default_store
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+48 | from temporallayr.core.store_clickhouse import get_clickhouse_store
+49 | from temporallayr.core.store_sqlite import SQLiteStore
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:48:1
+   |
+46 | from temporallayr.core.replay import ReplayEngine
+47 | from temporallayr.core.store import get_default_store
+48 | from temporallayr.core.store_clickhouse import get_clickhouse_store
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+49 | from temporallayr.core.store_sqlite import SQLiteStore
+50 | from temporallayr.models.execution import ExecutionGraph
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:49:1
+   |
+47 | from temporallayr.core.store import get_default_store
+48 | from temporallayr.core.store_clickhouse import get_clickhouse_store
+49 | from temporallayr.core.store_sqlite import SQLiteStore
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+50 | from temporallayr.models.execution import ExecutionGraph
+51 | from temporallayr.models.replay import ReplayReport
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:50:1
+   |
+48 | from temporallayr.core.store_clickhouse import get_clickhouse_store
+49 | from temporallayr.core.store_sqlite import SQLiteStore
+50 | from temporallayr.models.execution import ExecutionGraph
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+51 | from temporallayr.models.replay import ReplayReport
+52 | from temporallayr.server.auth import verify_admin_key, verify_api_key
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:51:1
+   |
+49 | from temporallayr.core.store_sqlite import SQLiteStore
+50 | from temporallayr.models.execution import ExecutionGraph
+51 | from temporallayr.models.replay import ReplayReport
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+52 | from temporallayr.server.auth import verify_admin_key, verify_api_key
+53 | from temporallayr.server.auth.api_keys import (
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:52:1
+   |
+50 | from temporallayr.models.execution import ExecutionGraph
+51 | from temporallayr.models.replay import ReplayReport
+52 | from temporallayr.server.auth import verify_admin_key, verify_api_key
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+53 | from temporallayr.server.auth.api_keys import (
+54 |     delete_keys_for_tenant,
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:53:1
+   |
+51 |   from temporallayr.models.replay import ReplayReport
+52 |   from temporallayr.server.auth import verify_admin_key, verify_api_key
+53 | / from temporallayr.server.auth.api_keys import (
+54 | |     delete_keys_for_tenant,
+55 | |     generate_api_key,
+56 | |     list_all_tenants,
+57 | |     list_keys_for_tenant,
+58 | |     map_api_key_to_tenant,
+59 | |     validate_api_key,
+60 | | )
+   | |_^
+61 |   from temporallayr.server.quota import QuotaExceededException, check_and_increment_quota
+62 |   from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:61:1
+   |
+59 |     validate_api_key,
+60 | )
+61 | from temporallayr.server.quota import QuotaExceededException, check_and_increment_quota
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+62 | from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
+   |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\app.py:62:1
+   |
+60 | )
+61 | from temporallayr.server.quota import QuotaExceededException, check_and_increment_quota
+62 | from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+63 |
+64 | logger = logging.getLogger(__name__)
+   |
+
+RUF006 Store a reference to the return value of `asyncio.create_task`
+   --> src\temporallayr\server\app.py:264:9
+    |
+262 |     otlp = get_otlp_exporter()
+263 |     if otlp:
+264 |         asyncio.create_task(otlp.export(graph))
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+265 |
+266 |     # ClickHouse analytics write
+    |
+
+RUF006 Store a reference to the return value of `asyncio.create_task`
+   --> src\temporallayr\server\app.py:335:13
+    |
+333 |             graph = ExecutionGraph.model_validate(event)
+334 |             store.save_execution(graph)
+335 |             asyncio.create_task(_process_graph(graph, graph.tenant_id))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+336 |             processed += 1
+337 |         except Exception as e:
+    |
+
+RUF006 Store a reference to the return value of `asyncio.create_task`
+   --> src\temporallayr\server\app.py:398:9
+    |
+396 |                 logger.error(f"Alert check failed: {e}", exc_info=True)
+397 |
+398 |         asyncio.create_task(_process_graph(graph, graph.tenant_id))
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+399 |         return {"execution_id": graph.id}
+400 |     except Exception as e:
+    |
+
+B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src\temporallayr\server\app.py:575:7
+    |
+573 | async def register_tenant(
+574 |     req: RegisterTenantRequest,
+575 |     _=Depends(verify_admin_key),
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^
+576 | ) -> dict[str, Any]:
+577 |     """Register a new active tenant natively."""
+    |
+
+B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src\temporallayr\server\app.py:592:7
+    |
+590 | async def rotate_tenant_api_key(
+591 |     tenant_id: str,
+592 |     _=Depends(verify_admin_key),
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^
+593 | ) -> dict[str, Any]:
+594 |     """Invalidate immediately and rotate all access blocks linked to a tenant."""
+    |
+
+B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src\temporallayr\server\app.py:602:37
+    |
+601 | @app.get("/admin/tenants", tags=["admin"])
+602 | async def list_registered_tenants(_=Depends(verify_admin_key)) -> list[dict[str, Any]]:
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+603 |     """Yield all distinct active tenants inside the namespace."""
+604 |     return list_all_tenants()
+    |
+
+B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src\temporallayr\server\app.py:628:42
+    |
+626 | @app.post("/admin/tenants/{tenant_id}/quota", status_code=200, tags=["admin"])
+627 | async def set_tenant_quota(
+628 |     tenant_id: str, req: QuotaRequest, _=Depends(verify_admin_key)
+    |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+629 | ) -> dict[str, str]:
+630 |     store = _get_sqlite_store()
+    |
+
+B008 Do not perform function call `Depends` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
+   --> src\temporallayr\server\app.py:739:7
+    |
+737 | )
+738 | async def get_admin_audit_logs(
+739 |     _=Depends(verify_admin_key),
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^
+740 |     limit: int = 50,
+741 |     offset: int = 0,
+    |
+
+E402 Module level import not at top of file
+  --> src\temporallayr\server\cli.py:14:1
+   |
+12 | logger = logging.getLogger(__name__)
+13 |
+14 | import uvicorn
+   | ^^^^^^^^^^^^^^
+   |
+
+N818 Exception name `QuotaExceededException` should be named with an Error suffix
+  --> src\temporallayr\server\quota.py:8:7
+   |
+ 8 | class QuotaExceededException(Exception):
+   |       ^^^^^^^^^^^^^^^^^^^^^^
+ 9 |     def __init__(self, limit: int, used: int):
+10 |         self.limit = limit
+   |
+
+E501 Line too long (115 > 100)
+  --> tests\test_concurrency.py:59:101
+   |
+57 |     async with app_module._incidents_lock:
+58 |         count = len(app_module._INCIDENTS)
+59 |         # Should be some deterministic number of incidents since FailureClusterEngine handles duplicate error_types
+   |                                                                                                     ^^^^^^^^^^^^^^^
+60 |         assert count > 0, "Should have created at least one incident cluster"
+   |
+
+E402 Module level import not at top of file
+  --> tests\test_e2e.py:10:1
+   |
+ 8 | warnings.simplefilter("ignore", DeprecationWarning)
+ 9 |
+10 | from temporallayr.core.decorators import track
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+11 | from temporallayr.core.recorder import ExecutionRecorder
+12 | from temporallayr.server.app import app
+   |
+
+E402 Module level import not at top of file
+  --> tests\test_e2e.py:11:1
+   |
+10 | from temporallayr.core.decorators import track
+11 | from temporallayr.core.recorder import ExecutionRecorder
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+12 | from temporallayr.server.app import app
+13 | from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
+   |
+
+E402 Module level import not at top of file
+  --> tests\test_e2e.py:12:1
+   |
+10 | from temporallayr.core.decorators import track
+11 | from temporallayr.core.recorder import ExecutionRecorder
+12 | from temporallayr.server.app import app
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 | from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
+   |
+
+E402 Module level import not at top of file
+  --> tests\test_e2e.py:13:1
+   |
+11 | from temporallayr.core.recorder import ExecutionRecorder
+12 | from temporallayr.server.app import app
+13 | from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 |
+15 | # Fixtures
+   |
+
+E501 Line too long (116 > 100)
+  --> tests\test_e2e.py:71:101
+   |
+69 |         api_key = res_reg.json()["api_key"]
+70 |
+71 |         # Configure the SDK explicitly using client logic to ensure ExecutionRecorder transport hooks work natively.
+   |                                                                                                     ^^^^^^^^^^^^^^^^
+72 |         import temporallayr.client
+   |
+
+E501 Line too long (136 > 100)
+   --> tests\test_e2e.py:157:101
+    |
+155 | â€¦
+156 | â€¦
+157 | â€¦second graph.id â†’ assert response has changed_nodes or removed_nodes (not all empty)
+    |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+158 | â€¦
+159 | â€¦
+    |
+
+E712 Avoid equality comparisons to `True`; use `data["has_more"]:` for truth checks
+  --> tests\test_pagination.py:58:12
+   |
+56 |     assert data["limit"] == 2
+57 |     assert data["offset"] == 0
+58 |     assert data["has_more"] == True
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^
+59 |     assert len(data["items"]) == 2
+   |
+help: Replace with `data["has_more"]`
+
+E712 Avoid equality comparisons to `False`; use `not data2["has_more"]:` for false checks
+  --> tests\test_pagination.py:64:12
+   |
+62 |     data2 = res2.json()
+63 |     assert len(data2["items"]) == 1
+64 |     assert data2["has_more"] == False
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: Replace with `not data2["has_more"]`
+
+E712 Avoid equality comparisons to `True`; use `data["has_more"]:` for truth checks
+  --> tests\test_pagination.py:87:12
+   |
+85 |     assert data["total"] == 5
+86 |     assert data["limit"] == 3
+87 |     assert data["has_more"] == True
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^
+88 |     assert len(data["items"]) == 3
+   |
+help: Replace with `data["has_more"]`
+
+F841 Local variable `date_str` is assigned to but never used
+  --> tests\test_quotas.py:28:5
+   |
+27 |     # Clean usage tables prior natively preventing contamination
+28 |     date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+   |     ^^^^^^^^
+29 |     with store._get_connection() as conn:
+30 |         conn.execute("DELETE FROM tenant_usage WHERE tenant_id = ?", ("test-tenant",))
+   |
+help: Remove assignment to unused variable `date_str`
+
+E501 Line too long (118 > 100)
+  --> tests\test_ratelimit.py:34:101
+   |
+32 |     # GET /analytics/latency is limited to 100/minute
+33 |
+34 |     # Send 100 requests (we'll just do a smaller burst on a mock endpoint if possible, but the limit is hardcoded 100)
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^
+35 |     # 100 requests will succeed
+36 |     # To avoid writing a massive test execution loop, we will just make it hit the limit.
+   |
+
+F841 Local variable `responses` is assigned to but never used
+  --> tests\test_ratelimit.py:42:5
+   |
+40 |         tasks.append(async_client.get("/analytics/latency"))
+41 |
+42 |     responses = await asyncio.gather(*tasks)
+   |     ^^^^^^^^^
+43 |
+44 |     # Most/all should be 200 or 503 depending on clickhouse being up.
+   |
+help: Remove assignment to unused variable `responses`
+
+Found 73 errors.
+No fixes available (16 hidden fixes can be enabled with the `--unsafe-fixes` option).

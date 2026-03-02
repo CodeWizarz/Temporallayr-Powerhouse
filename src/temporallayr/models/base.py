@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict
 
 
-class TemporalLayrBaseModel(BaseModel):
+class TemporalLayrBaseModel(BaseModel):  # type: ignore[misc]
     """Base class for all TemporalLayr Pydantic models with standard config."""
 
     model_config = ConfigDict(

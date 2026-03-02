@@ -1,6 +1,5 @@
 import os
-from datetime import datetime, UTC, timedelta
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
 from temporallayr.core.store import get_default_store
 from temporallayr.core.store_sqlite import SQLiteStore

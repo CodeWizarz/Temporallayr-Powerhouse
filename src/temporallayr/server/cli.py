@@ -3,11 +3,11 @@ Command line interface for the Temporallayr ingestion server.
 """
 
 import argparse
-import sys
 import logging
+import sys
 
-from temporallayr.core.logging import configure_logging
 from temporallayr.config import get_config
+from temporallayr.core.logging import configure_logging
 
 logger = logging.getLogger(__name__)
 

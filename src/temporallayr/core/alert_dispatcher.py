@@ -59,12 +59,12 @@ class AlertDispatcher:
                 logger.error(
                     f"Webhook dispatch failed with status: {res.status_code}",
                     extra={
-                        "webhook_url": url,
+                        "webhook_url": webhook_url,
                         "status_code": res.status_code,
                         "response": res.text,
                     },
                 )
-        except Exception as e:
+        except Exception:
             logger.error("Failed to cleanly dispatch generic webhook", exc_info=True)
 
     @classmethod

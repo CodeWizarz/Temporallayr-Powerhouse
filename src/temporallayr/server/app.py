@@ -3,21 +3,20 @@ FastAPI ingestion and replay server for Temporallayr.
 """
 
 import asyncio
+import logging
 import os
 import time
-import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -35,18 +34,19 @@ class RegisterTenantRequest(BaseModel):
     admin_email: str
 
 
+from slowapi.errors import RateLimitExceeded
+
 from temporallayr.core.alerting import AlertEngine
 from temporallayr.core.audit import AuditLogger
 from temporallayr.core.diff_engine import ExecutionDiffer
 from temporallayr.core.failure_cluster import FailureClusterEngine
-from temporallayr.core.fingerprint import Fingerprinter
 from temporallayr.core.incidents import IncidentEngine
+from temporallayr.core.logging import configure_logging
 from temporallayr.core.otel_exporter import get_otlp_exporter
 from temporallayr.core.replay import ReplayEngine
 from temporallayr.core.store import get_default_store
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.store_sqlite import SQLiteStore
-from temporallayr.core.logging import configure_logging
 from temporallayr.models.execution import ExecutionGraph
 from temporallayr.models.replay import ReplayReport
 from temporallayr.server.auth import verify_admin_key, verify_api_key
@@ -58,10 +58,8 @@ from temporallayr.server.auth.api_keys import (
     map_api_key_to_tenant,
     validate_api_key,
 )
-from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
 from temporallayr.server.quota import QuotaExceededException, check_and_increment_quota
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
 
 logger = logging.getLogger(__name__)
 
@@ -577,7 +575,7 @@ async def register_tenant(
     _=Depends(verify_admin_key),
 ) -> dict[str, Any]:
     """Register a new active tenant natively."""
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
 
     new_key = generate_api_key()
     map_api_key_to_tenant(new_key, req.tenant_id)

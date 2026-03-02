@@ -1,12 +1,13 @@
-import pytest
 import asyncio
-from httpx import AsyncClient, ASGITransport
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from temporallayr.server.app import app
-from temporallayr.server.auth.api_keys import map_api_key_to_tenant, delete_keys_for_tenant
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from temporallayr.core.store_sqlite import SQLiteStore
+from temporallayr.server.app import app
+from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
 
 
 @pytest.fixture(autouse=True)
@@ -35,14 +36,14 @@ def _get_dummy_event(trace_id="trace-1", name="test_span", error=None):
         "span_id": span_id,
         "parent_span_id": None,
         "name": name,
-        "start_time": datetime.now(timezone.utc).isoformat(),
+        "start_time": datetime.now(UTC).isoformat(),
         "status": "error" if error else "success",
         "attributes": {"error": error} if error else {},
     }
     return {
         "trace_id": trace_id,
         "tenant_id": "test-tenant",
-        "start_time": datetime.now(timezone.utc).isoformat(),
+        "start_time": datetime.now(UTC).isoformat(),
         "spans": [s],
     }
 

@@ -9,7 +9,6 @@ def register(subparsers) -> None:
 
 
 import logging
-from temporallayr.core.logging import configure_logging
 
 logger = logging.getLogger(__name__)
 

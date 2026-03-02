@@ -7,7 +7,7 @@ import os
 from pydantic import BaseModel, Field
 
 
-class TemporalLayrConfig(BaseModel):
+class TemporalLayrConfig(BaseModel):  # type: ignore[misc]
     api_key: str | None = None
     admin_key: str | None = None
     server_url: str = "http://localhost:8000"

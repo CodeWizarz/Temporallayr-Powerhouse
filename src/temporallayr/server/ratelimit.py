@@ -47,7 +47,6 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
     # We can fetch it from the exception details generally if set by limits string:
     # However we can calculate it natively via the exception if attached.
     try:
-        from slowapi.util import get_remote_address
 
         # Just simple parsed retry
         if hasattr(exc, "detail") and isinstance(exc.detail, str):

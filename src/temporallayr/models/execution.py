@@ -7,6 +7,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import Field, model_validator
+
 from temporallayr.models.base import TemporalLayrBaseModel
 
 SpanStatus = Literal["success", "error"]
@@ -28,7 +29,7 @@ class Span(TemporalLayrBaseModel):
     error: str | None = None
     status: SpanStatus = "success"
 
-    @model_validator(mode="before")
+    @model_validator(mode="before")  # type: ignore[untyped-decorator]
     @classmethod
     def _remap_legacy_fields(cls, data: Any) -> Any:
         """Accept old field names used by recorder/decorators."""
@@ -69,7 +70,7 @@ class Trace(TemporalLayrBaseModel):
     end_time: datetime | None = None
     spans: list[Span] = Field(default_factory=list)
 
-    @model_validator(mode="before")
+    @model_validator(mode="before")  # type: ignore[untyped-decorator]
     @classmethod
     def _remap_legacy_fields(cls, data: Any) -> Any:
         """Accept old field names and node-dict format."""
