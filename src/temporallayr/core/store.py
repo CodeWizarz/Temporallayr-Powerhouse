@@ -7,7 +7,11 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from typing import TYPE_CHECKING
 from temporallayr.models.execution import ExecutionGraph
+
+if TYPE_CHECKING:
+    from temporallayr.core.otel_exporter import OTLPBatchExporter
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +33,20 @@ class ExecutionStore(abc.ABC):
 
     @abc.abstractmethod
     def delete_old_executions(self, cutoff: datetime) -> int: ...
+
+
+def init_otlp_batcher() -> "OTLPBatchExporter | None":
+    """Initialize OTLP export dynamically reading TEMPORALLAYR_OTLP_ENDPOINT."""
+    import os
+
+    if os.getenv("TEMPORALLAYR_OTLP_ENDPOINT"):
+        try:
+            from temporallayr.core.otel_exporter import get_otlp_exporter
+
+            return get_otlp_exporter()
+        except ImportError:
+            pass
+    return None
 
 
 class LocalJSONStore(ExecutionStore):

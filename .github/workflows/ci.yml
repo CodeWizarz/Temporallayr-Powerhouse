@@ -65,7 +65,7 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev]" pytest-cov coverage
 
       - name: Run tests with coverage
         run: |
