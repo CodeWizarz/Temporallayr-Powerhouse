@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: ruff check src/temporallayr/__init__.py src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/transport.py src/temporallayr/models src/temporallayr/core/transport_http.py tests
+        language: system
+        pass_filenames: false
+      - id: black
+        name: black
+        entry: black --check src/temporallayr/__init__.py src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/transport.py src/temporallayr/models src/temporallayr/core/transport_http.py tests
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: mypy
+        entry: mypy src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/models tests
+        language: system
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: PYTHONPATH=src pytest
+        language: system
+        pass_filenames: false

@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "temporallayr"
+version = "0.2.0"
+description = "Production-grade telemetry, governance, and observability for autonomous AI agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "TemporalLayr Team", email = "engineering@temporallayr.com" }]
+classifiers = [
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
+dependencies = [
+  "pydantic>=2.0.0",
+  "fastapi>=0.100.0",
+  "uvicorn>=0.27.1",
+  "PyYAML>=6.0.0",
+  "httpx>=0.27.0",
+  "certifi",
+  "slowapi>=0.1.9",
+]
+
+[project.optional-dependencies]
+clickhouse = [
+  "clickhouse-connect>=0.7.0",
+]
+postgres = [
+  "asyncpg>=0.29.0",
+]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.23.0",
+  "mypy>=1.6.0",
+  "ruff>=0.1.0",
+  "black>=24.0.0",
+  "pre-commit>=3.7.0",
+  "coverage>=7.0.0",
+  "pytest-cov>=4.0.0",
+]
+all = [
+  "temporallayr[clickhouse,postgres]",
+]
+
+[project.scripts]
+temporallayr = "temporallayr.cli.main:main"
+temporallayr-server = "temporallayr.server.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/temporallayr"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "N", "B", "ASYNC", "RUF", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+follow_imports = "skip"
+exclude = '(^example_agent\.py$|^src/temporallayr/(cli|server|core)/)'
+
+[tool.pytest.ini_options]
+addopts = "-W error --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+"pydantic/__init__.py" = ["N802"]
+"src/temporallayr/models/execution.py" = ["UP017"]

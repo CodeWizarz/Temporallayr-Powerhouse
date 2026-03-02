@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  temporallayr:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      TEMPORALLAYR_API_KEY: ${TEMPORALLAYR_API_KEY:-dev-key}
+      TEMPORALLAYR_TENANT_ID: ${TEMPORALLAYR_TENANT_ID:-default}
+      TEMPORALLAYR_CLICKHOUSE_HOST: clickhouse
+      TEMPORALLAYR_CLICKHOUSE_PORT: 8123
+      TEMPORALLAYR_CLICKHOUSE_DB: temporallayr
+      TEMPORALLAYR_OTLP_ENDPOINT: http://phoenix:6006
+      TEMPORALLAYR_RETENTION_DAYS: "30"
+    volumes:
+      - temporallayr_data:/app/.temporallayr
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # Native TCP
+    environment:
+      CLICKHOUSE_DB: temporallayr
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006"   # UI + OTLP HTTP receiver
+      - "4317:4317"   # OTLP gRPC
+    environment:
+      PHOENIX_WORKING_DIR: /phoenix
+    volumes:
+      - phoenix_data:/phoenix
+    restart: unless-stopped
+
+volumes:
+  temporallayr_data:
+  clickhouse_data:
+  phoenix_data:
