@@ -59,6 +59,7 @@ from temporallayr.server.auth.api_keys import (
     validate_api_key,
 )
 from temporallayr.server.ratelimit import limiter, rate_limit_exceeded_handler
+from temporallayr.server.quota import QuotaExceededException, check_and_increment_quota
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
@@ -154,6 +155,20 @@ app = FastAPI(title="Temporallayr API", version="1.0.0", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+@app.exception_handler(QuotaExceededException)
+async def quota_exceeded_exception_handler(request: Request, exc: QuotaExceededException):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "quota_exceeded",
+            "limit": exc.limit,
+            "used": exc.used,
+            "resets_at": exc.resets_at,
+        },
+    )
+
 
 _INCIDENTS: list[dict[str, Any]] = []
 _incidents_lock = asyncio.Lock()
@@ -306,6 +321,10 @@ async def ingest_batch(
 
     events = data.get("events", []) if isinstance(data, dict) else []
 
+    # Enforce quota globally mapping attributes explicitly
+    span_count = sum(len(e.get("spans", [])) for e in events)
+    check_and_increment_quota(token_tenant_id, span_count, trace_count=len(events))
+
     for event in events:
         try:
             if "tenant_id" not in event and x_tenant_id:
@@ -357,6 +376,9 @@ async def list_executions(
 async def create_execution(graph: ExecutionGraph, x_tenant_id: str = Header(...)) -> dict[str, str]:
     if graph.tenant_id != x_tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id mismatch")
+
+    check_and_increment_quota(x_tenant_id, span_count=len(graph.spans), trace_count=1)
+
     try:
         store = get_default_store()
         previous_ids = store.list_executions(x_tenant_id)
@@ -598,6 +620,37 @@ async def get_span_timeline(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+class QuotaRequest(BaseModel):
+    daily_span_limit: int
+    monthly_span_limit: int
+
+
+@app.post("/admin/tenants/{tenant_id}/quota", status_code=200, tags=["admin"])
+async def set_tenant_quota(
+    tenant_id: str, req: QuotaRequest, _=Depends(verify_admin_key)
+) -> dict[str, str]:
+    store = _get_sqlite_store()
+    store.upsert_quota(tenant_id, req.daily_span_limit, req.monthly_span_limit)
+    return {"status": "success"}
+
+
+@app.get("/usage", tags=["analytics"])
+async def get_tenant_usage(tenant_id: str = Depends(verify_api_key)) -> dict[str, Any]:
+    store = _get_sqlite_store()
+    quota = store.get_quota(tenant_id)
+
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    today_usage = store.get_usage(tenant_id, date_str)
+
+    # Very crude approximation of monthly natively mapping exactly
+    # Just return zeroes for monthly until proper SQL aggregations are demanded
+    return {
+        "today": {"spans": today_usage["span_count"], "traces": today_usage["trace_count"]},
+        "this_month": {"spans": 0, "traces": 0},
+        "limits": {"daily": quota["daily_span_limit"], "monthly": quota["monthly_span_limit"]},
+    }
+
+
 # ── Incidents ──────────────────────────────────────────────────────────
 
 
@@ -652,3 +705,56 @@ async def resolve_incident(
                 _persist_incidents()
                 return inc
     raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found.")
+
+
+# ── Audit Logs ─────────────────────────────────────────────────────────
+
+
+@app.get("/audit-log", response_model=PaginatedResponse[dict[str, Any]], tags=["audit"])
+async def get_audit_logs(
+    tenant_id: str = Depends(verify_api_key),
+    limit: int = 50,
+    offset: int = 0,
+    event_type: str | None = None,
+    since: str | None = None,
+) -> Any:
+    try:
+        store = _get_sqlite_store()
+        total, items = store.query_audit_logs(
+            tenant_id=tenant_id, limit=limit, offset=offset, event_type=event_type, since=since
+        )
+        return {
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + limit < total,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get(
+    "/admin/audit-log", response_model=PaginatedResponse[dict[str, Any]], tags=["admin", "audit"]
+)
+async def get_admin_audit_logs(
+    _=Depends(verify_admin_key),
+    limit: int = 50,
+    offset: int = 0,
+    event_type: str | None = None,
+    since: str | None = None,
+) -> Any:
+    try:
+        store = _get_sqlite_store()
+        total, items = store.query_audit_logs(
+            tenant_id=None, limit=limit, offset=offset, event_type=event_type, since=since
+        )
+        return {
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + limit < total,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e

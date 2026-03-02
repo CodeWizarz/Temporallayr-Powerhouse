@@ -32,6 +32,14 @@ class AuditLogger:
             except Exception as e:
                 logger.error(f"Failed to write audit log to {log_file}: {e}", exc_info=True)
 
+        # Send a copy to the DB locally mapping native dependencies natively blocking faults
+        try:
+            from temporallayr.core.store_sqlite import SQLiteStore
+
+            SQLiteStore().save_audit_log(entry)
+        except Exception:
+            pass
+
         # Always mirror to stdout for standard cloud observability ingestion
         logger.info(log_str, extra={"audit": True, "tenant_id": tenant_id})
 

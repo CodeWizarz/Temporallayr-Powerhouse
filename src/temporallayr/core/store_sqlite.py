@@ -4,7 +4,7 @@ SQLite backend implementation for temporallayr ExecutionStore.
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +62,38 @@ class SQLiteStore(ExecutionStore):
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id TEXT PRIMARY KEY,
+                    timestamp TEXT,
+                    event_type TEXT,
+                    tenant_id TEXT,
+                    details TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tenant_quotas (
+                    tenant_id TEXT PRIMARY KEY,
+                    daily_span_limit INT DEFAULT 100000,
+                    monthly_span_limit INT DEFAULT 2000000
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tenant_usage (
+                    tenant_id TEXT,
+                    date TEXT,
+                    span_count INT DEFAULT 0,
+                    trace_count INT DEFAULT 0,
+                    PRIMARY KEY (tenant_id, date)
+                )
+                """
+            )
 
             for alter in [
                 "ALTER TABLE executions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'",
@@ -75,6 +107,7 @@ class SQLiteStore(ExecutionStore):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_id ON executions (tenant_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_fingerprint ON executions (fingerprint)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_inc_tenant ON incidents (tenant_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs (tenant_id)")
             conn.commit()
 
     # ── Execution CRUD ─────────────────────────────────────────────────
@@ -202,3 +235,117 @@ class SQLiteStore(ExecutionStore):
         with self._get_connection() as conn:
             cursor = conn.execute("SELECT data FROM incidents ORDER BY updated_at DESC")
             return [json.loads(row["data"]) for row in cursor.fetchall()]
+
+    # ── Audit Logs persistence ──────────────────────────────────────────
+
+    def save_audit_log(self, entry: dict[str, Any]) -> None:
+        import uuid
+
+        log_id = str(uuid.uuid4())
+        timestamp = entry.get("timestamp", datetime.now().isoformat())
+        event_type = entry.get("event_type", "unknown")
+        tenant_id = entry.get("tenant_id", "unknown")
+        details = json.dumps(entry)
+
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO audit_logs (id, timestamp, event_type, tenant_id, details)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (log_id, timestamp, event_type, tenant_id, details),
+            )
+            conn.commit()
+
+    def query_audit_logs(
+        self,
+        tenant_id: str | None,
+        limit: int = 50,
+        offset: int = 0,
+        event_type: str | None = None,
+        since: str | None = None,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        conditions = []
+        params = []
+
+        if tenant_id is not None:
+            conditions.append("tenant_id = ?")
+            params.append(tenant_id)
+
+        if event_type is not None:
+            conditions.append("event_type = ?")
+            params.append(event_type)
+
+        if since is not None:
+            conditions.append("timestamp >= ?")
+            params.append(since)
+
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+        with self._get_connection() as conn:
+            total_query = f"SELECT COUNT(*) FROM audit_logs {where_clause}"
+            total_cursor = conn.execute(total_query, params)
+            total = total_cursor.fetchone()[0]
+
+            query = f"SELECT details FROM audit_logs {where_clause} ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+            cursor = conn.execute(query, params + [limit, offset])
+
+            return total, [json.loads(row["details"]) for row in cursor.fetchall()]
+
+    # ── Quotas and Usage ──────────────────────────────────────────────
+
+    def get_quota(self, tenant_id: str) -> dict[str, int]:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT daily_span_limit, monthly_span_limit FROM tenant_quotas WHERE tenant_id = ?",
+                (tenant_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "daily_span_limit": row["daily_span_limit"],
+                    "monthly_span_limit": row["monthly_span_limit"],
+                }
+            return {"daily_span_limit": 100000, "monthly_span_limit": 2000000}
+
+    def upsert_quota(self, tenant_id: str, daily: int, monthly: int) -> None:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenant_quotas (tenant_id, daily_span_limit, monthly_span_limit)
+                VALUES (?, ?, ?)
+                ON CONFLICT(tenant_id) DO UPDATE SET 
+                    daily_span_limit = excluded.daily_span_limit,
+                    monthly_span_limit = excluded.monthly_span_limit
+                """,
+                (tenant_id, daily, monthly),
+            )
+            conn.commit()
+
+    def increment_usage(self, tenant_id: str, spans: int, traces: int) -> None:
+        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenant_usage (tenant_id, date, span_count, trace_count)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(tenant_id, date) DO UPDATE SET 
+                    span_count = span_count + excluded.span_count,
+                    trace_count = trace_count + excluded.trace_count
+                """,
+                (tenant_id, date_str, spans, traces),
+            )
+            conn.commit()
+
+    def get_usage(self, tenant_id: str, date: str) -> dict[str, int]:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT span_count, trace_count FROM tenant_usage WHERE tenant_id = ? AND date = ?",
+                (tenant_id, date),
+            )
+            row = cursor.fetchone()
+            if row:
+                return {"span_count": row["span_count"], "trace_count": row["trace_count"]}
+            return {"span_count": 0, "trace_count": 0}
