@@ -6,6 +6,7 @@ import IncidentsPage from './pages/Incidents'
 import AnalyticsPage from './pages/Analytics'
 import ReplayPage from './pages/Replay'
 import SettingsPage from './pages/Settings'
+import StatusPage from './pages/Status'
 
 export default function App() {
     return (
@@ -18,6 +19,7 @@ export default function App() {
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/replay" element={<ReplayPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/status" element={<StatusPage />} />
             </Routes>
         </Layout>
     )

@@ -47,6 +47,25 @@ export interface Paginated<T> {
 export interface LatencySummaryResponse extends Paginated<LatencyRow> {
     summary: LatencySummary
 }
+export interface StatusResponse {
+    status: string
+    version: string
+    uptime_seconds: number
+    uptime_human: string
+    started_at: string
+    python_version: string
+    platform: string
+    components: Record<string, { status: string; type: string; error?: string }>
+    metrics: string
+}
+export interface HealthHistoryPoint {
+    time: string
+    status: string
+}
+export interface StatusHistoryResponse {
+    history: HealthHistoryPoint[]
+    max_points: number
+}
 export interface ReplayReport {
     graph_id: string; total_nodes: number; nodes_replayed: number
     divergences_found: number; is_deterministic: boolean
@@ -96,5 +115,9 @@ export const api = {
     health: {
         check: () => req<{ status: string }>('/health'),
         ready: () => req<{ status: string; backends: Record<string, string> }>('/ready'),
+    },
+    status: {
+        get: () => req<StatusResponse>('/status'),
+        history: () => req<StatusHistoryResponse>('/status/history'),
     },
 }
