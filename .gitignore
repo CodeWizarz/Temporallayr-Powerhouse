@@ -1,10 +1,41 @@
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
 .env
+
+# Test artifacts
+.pytest_cache/
 .coverage
-test_clickhouse.py
-ingest_body.json
-env_loads.py
+coverage.xml
+htmlcov/
+*.db
+e2e_out*.txt
+test_out*.txt
+ruff_errors.txt
+
+# Data
 .temporallayr/
-test_out.txt
+execution.json
+executions/
+
+# Node / Dashboard
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
