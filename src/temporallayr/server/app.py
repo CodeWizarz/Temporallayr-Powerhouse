@@ -114,6 +114,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning("ClickHouse init failed — analytics disabled", extra={"error": str(e)})
 
+    # Init Postgres schema if configured
+    if cfg.postgres_dsn:
+        try:
+            from temporallayr.core.store_postgres import init_schema
+
+            await init_schema()
+            logger.info("PostgreSQL schema ready")
+        except Exception as e:
+            logger.error("PostgreSQL init failed", extra={"error": str(e)})
+
     # Log OTLP status
     otlp = get_otlp_exporter()
     if otlp:
@@ -158,13 +168,20 @@ class _AuditMiddleware(BaseHTTPMiddleware):
             status_code = 500
             raise e
         finally:
+            duration_ms = (time.time() - t0) * 1000
             AuditLogger.log_api_call(
                 method=request.method,
                 path=request.url.path,
                 status_code=status_code,
-                duration_ms=(time.time() - t0) * 1000,
+                duration_ms=duration_ms,
                 tenant_id=tenant_id,
             )
+            api_requests.inc(
+                method=request.method,
+                path=request.url.path,
+                status_code=str(status_code),
+            )
+            request_duration.observe(duration_ms)
         return response
 
 

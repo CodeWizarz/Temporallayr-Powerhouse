@@ -39,7 +39,9 @@ class LocalJSONStore(ExecutionStore):
     def save_execution(self, graph: ExecutionGraph) -> None:
         tenant_dir = self.EXECUTIONS_DIR / graph.tenant_id
         tenant_dir.mkdir(parents=True, exist_ok=True)
-        (tenant_dir / f"{graph.id}.json").write_text(graph.model_dump_json(indent=2), encoding="utf-8")
+        (tenant_dir / f"{graph.id}.json").write_text(
+            graph.model_dump_json(indent=2), encoding="utf-8"
+        )
 
     def bulk_save_executions(self, graphs: list[ExecutionGraph]) -> None:
         for graph in graphs:
@@ -99,6 +101,14 @@ def set_default_store(store: ExecutionStore) -> None:
 def get_default_store() -> ExecutionStore:
     global _default_store
     if _default_store is None:
-        from temporallayr.core.store_sqlite import SQLiteStore
-        _default_store = SQLiteStore()
+        import os
+
+        if os.getenv("TEMPORALLAYR_POSTGRES_DSN"):
+            from temporallayr.core.store_postgres import PostgresStore
+
+            _default_store = PostgresStore()
+        else:
+            from temporallayr.core.store_sqlite import SQLiteStore
+
+            _default_store = SQLiteStore()
     return _default_store
