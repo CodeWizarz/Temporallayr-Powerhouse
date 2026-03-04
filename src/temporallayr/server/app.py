@@ -59,6 +59,7 @@ from temporallayr.server.auth.api_keys import (
     revoke_keys_for_tenant,
     validate_api_key,
 )
+from temporallayr.server.incidents import router as incidents_router
 from temporallayr.server.replay_routes import router as replay_router
 
 logger = logging.getLogger(__name__)
@@ -183,6 +184,7 @@ class _AuditMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(_AuditMiddleware)
+app.include_router(incidents_router)
 app.include_router(replay_router)
 
 
