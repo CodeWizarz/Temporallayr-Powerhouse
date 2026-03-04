@@ -9,14 +9,12 @@ from httpx import ASGITransport, AsyncClient
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.external]
 
-if os.getenv("TEMPORALLAYR_RUN_EXTERNAL_TESTS") != "1":
-    pytest.skip(
-        "Set TEMPORALLAYR_RUN_EXTERNAL_TESTS=1 to run Postgres integration tests.",
-        allow_module_level=True,
-    )
-
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    os.getenv("TEMPORALLAYR_RUN_EXTERNAL_TESTS") != "1",
+    reason="Set TEMPORALLAYR_RUN_EXTERNAL_TESTS=1 to run Postgres integration tests.",
+)
 async def test_v1_ingest_persists_execution_in_postgres(monkeypatch: pytest.MonkeyPatch) -> None:
     try:
         from testcontainers.postgres import PostgresContainer

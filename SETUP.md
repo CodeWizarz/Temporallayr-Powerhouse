@@ -9,6 +9,14 @@
 | `TEMPORALLAYR_DATA_DIR` | SQLite data directory | `.temporallayr` |
 | `TEMPORALLAYR_LOG_LEVEL` | Log level: DEBUG/INFO/WARNING/ERROR | `INFO` |
 
+## Database (SQLite or Postgres)
+| Variable | Description | Default |
+|---|---|---|
+| `DATABASE_URL` | Preferred DB connection string (Neon-friendly) | — |
+| `TEMPORALLAYR_POSTGRES_DSN` | Legacy Postgres DSN fallback | — |
+
+When either `DATABASE_URL` or `TEMPORALLAYR_POSTGRES_DSN` is set, TemporalLayr uses the asyncpg-backed `PostgresStore`. If both are set, `DATABASE_URL` wins.
+
 ## SDK Transport
 | Variable | Description | Default |
 |---|---|---|
@@ -52,9 +60,20 @@ docker-compose --profile phoenix up -d
 ## Koyeb + Neon (free-tier production deployment)
 ```
 API Server  → Koyeb free tier (deploy from GitHub, auto-SSL)
-Database    → Neon free tier Postgres (set TEMPORALLAYR_POSTGRES_DSN)
+Database    → Neon free tier Postgres (set DATABASE_URL, include ?sslmode=require)
 Analytics   → ClickHouse Cloud trial → paid Dev tier
 ```
+
+## Alembic Migrations
+```bash
+# Run all migrations
+alembic upgrade head
+
+# Roll back one revision
+alembic downgrade -1
+```
+
+By default Alembic reads `DATABASE_URL`, then `TEMPORALLAYR_POSTGRES_DSN`, then `alembic.ini`.
 
 ## Quick Start (local)
 ```powershell

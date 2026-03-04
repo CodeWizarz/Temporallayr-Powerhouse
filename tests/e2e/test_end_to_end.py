@@ -17,18 +17,6 @@ pytestmark = [
     pytest.mark.clickhouse,
 ]
 
-if (
-    os.getenv("TEMPORALLAYR_RUN_EXTERNAL_TESTS") != "1"
-    or os.getenv("TEMPORALLAYR_RUN_E2E_DOCKER") != "1"
-):
-    pytest.skip(
-        "Set TEMPORALLAYR_RUN_EXTERNAL_TESTS=1 and TEMPORALLAYR_RUN_E2E_DOCKER=1 to run e2e.",
-        allow_module_level=True,
-    )
-
-if shutil.which("docker") is None:
-    pytest.skip("Docker CLI not found in PATH.", allow_module_level=True)
-
 
 def _compose(*args: str, env: dict[str, str]) -> None:
     command = ["docker", "compose", "-f", "docker-compose.yml", *args]
@@ -50,6 +38,14 @@ def _wait_for_health(base_url: str, timeout_seconds: int = 180) -> None:
     raise AssertionError(f"Server health did not become ready: {last_error}")
 
 
+@pytest.mark.skipif(
+    (
+        os.getenv("TEMPORALLAYR_RUN_EXTERNAL_TESTS") != "1"
+        or os.getenv("TEMPORALLAYR_RUN_E2E_DOCKER") != "1"
+        or shutil.which("docker") is None
+    ),
+    reason="Set TEMPORALLAYR_RUN_EXTERNAL_TESTS=1 and TEMPORALLAYR_RUN_E2E_DOCKER=1 with Docker installed.",
+)
 def test_end_to_end_docker_compose_replay_is_deterministic() -> None:
     env = os.environ.copy()
     env.update(

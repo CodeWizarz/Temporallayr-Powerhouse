@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from typing import Any
 
@@ -43,7 +44,9 @@ class HTTPTransport:
                     headers=self.headers,
                     json=payload,
                 )
-                response.raise_for_status()
+                maybe_awaitable = response.raise_for_status()
+                if inspect.isawaitable(maybe_awaitable):
+                    await maybe_awaitable
                 return True
             except httpx.TimeoutException as e:
                 logger.warning("Transport timeout on attempt %d: %s", attempt + 1, e)
