@@ -36,8 +36,16 @@ export interface LatencyRow {
     p95_ms: number; p99_ms: number; avg_ms: number
     error_count: number; error_rate_pct: number
 }
+export interface LatencySummary {
+    p50_ms: number; p95_ms: number; p99_ms: number
+    avg_ms: number; error_rate_pct: number
+    span_groups: number; calls: number
+}
 export interface Paginated<T> {
     items: T[]; total: number; limit: number; offset: number; has_more: boolean
+}
+export interface LatencySummaryResponse extends Paginated<LatencyRow> {
+    summary: LatencySummary
 }
 export interface ReplayReport {
     graph_id: string; total_nodes: number; nodes_replayed: number
@@ -63,6 +71,10 @@ export const api = {
         list: (hours = 24) => req<Paginated<Cluster>>(`/clusters?hours=${hours}&limit=50`),
     },
     analytics: {
+        p50: (hours = 24, limit = 200, offset = 0) =>
+            req<LatencySummaryResponse>(
+                `/analytics/p50?hours=${hours}&limit=${limit}&offset=${offset}`,
+            ),
         latency: (hours = 24) => req<Paginated<LatencyRow>>(`/analytics/latency?hours=${hours}&limit=200`),
         trends: (hours = 168) => req<unknown[]>(`/analytics/trends?hours=${hours}`),
     },

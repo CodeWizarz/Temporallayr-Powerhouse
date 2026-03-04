@@ -62,6 +62,7 @@ from temporallayr.server.auth.api_keys import (
 )
 from temporallayr.server.incidents import router as incidents_router
 from temporallayr.server.replay_routes import router as replay_router
+from temporallayr.server.routes.analytics import router as analytics_router
 from temporallayr.workers.clickhouse_worker import (
     configure_clickhouse_worker,
     get_clickhouse_worker,
@@ -195,6 +196,7 @@ class _AuditMiddleware(BaseHTTPMiddleware):
 app.add_middleware(_AuditMiddleware)
 app.include_router(incidents_router)
 app.include_router(replay_router)
+app.include_router(analytics_router)
 
 
 # ── Health & Metrics ──────────────────────────────────────────────────
