@@ -84,3 +84,34 @@ jobs:
           files: reports/coverage.xml
           fail_ci_if_error: false
           verbose: true
+
+  sdk-node:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk-node/package-lock.json
+
+      - name: Install dependencies
+        working-directory: sdk-node
+        run: npm ci
+
+      - name: Lint
+        working-directory: sdk-node
+        run: npm run lint
+
+      - name: Build
+        working-directory: sdk-node
+        run: npm run build
+
+      - name: Test
+        working-directory: sdk-node
+        run: npm run test:coverage
