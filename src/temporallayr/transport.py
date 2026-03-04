@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from temporallayr.client import get_sdk
+from temporallayr.sdk.client import get_sdk
 from temporallayr.core.transport_http import AsyncHTTPTransport
 
 

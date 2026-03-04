@@ -8,7 +8,7 @@ import inspect
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
-from temporallayr.client import get_sdk
+from temporallayr.sdk.client import get_sdk
 from temporallayr.context import (
     get_context,
     get_current_span_id,
