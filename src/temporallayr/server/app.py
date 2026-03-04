@@ -62,6 +62,11 @@ from temporallayr.server.auth.api_keys import (
 )
 from temporallayr.server.incidents import router as incidents_router
 from temporallayr.server.replay_routes import router as replay_router
+from temporallayr.workers.clickhouse_worker import (
+    configure_clickhouse_worker,
+    get_clickhouse_worker,
+    shutdown_clickhouse_worker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +119,8 @@ async def lifespan(app: FastAPI):
     if ch:
         try:
             await asyncio.to_thread(ch.initialize_schema)
+            worker = configure_clickhouse_worker(ch)
+            await worker.start()
             logger.info("ClickHouse schema ready")
         except Exception as e:
             logger.warning("ClickHouse init failed — analytics disabled", extra={"error": str(e)})
@@ -143,6 +150,7 @@ async def lifespan(app: FastAPI):
 
     from temporallayr.core.retention import stop_retention_job
 
+    await shutdown_clickhouse_worker()
     stop_retention_job()
     logger.info("TemporalLayr server shutting down")
 
@@ -265,10 +273,19 @@ async def _process_graph_sync(graph: ExecutionGraph) -> None:
 
     ch = get_clickhouse_store()
     if ch:
-        try:
-            await asyncio.to_thread(ch.insert_trace, graph)
-        except Exception as e:
-            logger.warning("ClickHouse insert failed", extra={"error": str(e)})
+        worker = get_clickhouse_worker()
+        if worker:
+            accepted = await worker.enqueue(graph)
+            if not accepted:
+                try:
+                    await asyncio.to_thread(ch.insert_trace, graph)
+                except Exception as e:
+                    logger.warning("ClickHouse insert failed", extra={"error": str(e)})
+        else:
+            try:
+                await asyncio.to_thread(ch.insert_trace, graph)
+            except Exception as e:
+                logger.warning("ClickHouse insert failed", extra={"error": str(e)})
 
     try:
         clusters = FailureClusterEngine.cluster_failures([graph])
