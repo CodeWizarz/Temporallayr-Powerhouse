@@ -11,6 +11,7 @@ Fixes applied:
   - OTLP export via config
   - Single-worker safe (SQLite) + PostgreSQL upgrade path
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -49,6 +50,14 @@ from temporallayr.server.auth.api_keys import (
     revoke_keys_for_tenant,
     validate_api_key,
 )
+from temporallayr.core.metrics import (
+    render_all as render_metrics,
+    api_requests,
+    request_duration,
+    rate_limit_hits,
+    spans_ingested,
+)
+from temporallayr.core.rate_limit import check_ingest_rate, check_api_rate
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +90,7 @@ async def _persist_incidents_locked(incidents: list[dict[str, Any]]) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from temporallayr.config import get_config
+
     cfg = get_config()
 
     configure_logging(cfg.log_level)
@@ -161,7 +171,14 @@ class _AuditMiddleware(BaseHTTPMiddleware):
 app.add_middleware(_AuditMiddleware)
 
 
-# ── Health ─────────────────────────────────────────────────────────────
+# ── Health & Metrics ──────────────────────────────────────────────────
+
+
+@app.get("/metrics", tags=["ops"], include_in_schema=False)
+async def metrics() -> Response:
+    """Prometheus metrics endpoint. Scrape with Prometheus or Grafana."""
+    return Response(content=render_metrics(), media_type="text/plain; version=0.0.4")
+
 
 @app.get("/health", tags=["ops"])
 async def health() -> dict[str, str]:
@@ -189,6 +206,7 @@ async def ready() -> dict[str, Any]:
 
 
 # ── Ingest (FIXED: tenant isolation) ─────────────────────────────────
+
 
 class IngestRequest(BaseModel):
     events: list[dict[str, Any]]
@@ -264,6 +282,16 @@ async def ingest_events(
             detail="Token tenant does not match X-Tenant-Id header",
         )
 
+    # Rate limit check
+    allowed, rl_headers = check_ingest_rate(authed_tenant)
+    if not allowed:
+        rate_limit_hits.inc(tenant_id=authed_tenant)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. See Retry-After header.",
+            headers=rl_headers,
+        )
+
     effective_tenant = authed_tenant
     store = get_default_store()
     processed, errors = 0, 0
@@ -283,6 +311,7 @@ async def ingest_events(
 
 
 # ── Executions ─────────────────────────────────────────────────────────
+
 
 class DiffRequest(BaseModel):
     execution_a: str
@@ -306,7 +335,9 @@ async def create_execution(
                 prev = store.load_execution(previous_id, tenant_id)
                 alerts = AlertEngine.check_execution(graph, prev)
                 if alerts:
-                    logger.info("Alerts triggered", extra={"count": len(alerts), "graph_id": graph.id})
+                    logger.info(
+                        "Alerts triggered", extra={"count": len(alerts), "graph_id": graph.id}
+                    )
             except Exception as e:
                 logger.warning("Alert check failed", extra={"error": str(e)})
         asyncio.create_task(_process_graph(graph))
@@ -322,8 +353,14 @@ async def list_executions(
     offset: int = 0,
 ) -> dict[str, Any]:
     ids = get_default_store().list_executions(tenant_id)
-    page = ids[offset: offset + limit]
-    return {"items": page, "total": len(ids), "limit": limit, "offset": offset, "has_more": (offset + limit) < len(ids)}
+    page = ids[offset : offset + limit]
+    return {
+        "items": page,
+        "total": len(ids),
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < len(ids),
+    }
 
 
 @app.get("/executions/{execution_id}", response_model=ExecutionGraph, tags=["executions"])
@@ -334,7 +371,9 @@ async def get_execution(
     try:
         return get_default_store().load_execution(execution_id, tenant_id)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Execution '{execution_id}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Execution '{execution_id}' not found"
+        ) from None
 
 
 @app.post("/executions/{execution_id}/replay", response_model=ReplayReport, tags=["executions"])
@@ -345,7 +384,9 @@ async def replay_execution(
     try:
         graph = get_default_store().load_execution(execution_id, tenant_id)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Execution '{execution_id}' not found") from None
+        raise HTTPException(
+            status_code=404, detail=f"Execution '{execution_id}' not found"
+        ) from None
     return await ReplayEngine(graph).replay()
 
 
@@ -368,6 +409,7 @@ async def diff_executions(
 
 # ── Clusters & Analytics ───────────────────────────────────────────────
 
+
 @app.get("/clusters", tags=["analytics"])
 async def get_clusters(
     tenant_id: str = Depends(verify_api_key),
@@ -379,10 +421,18 @@ async def get_clusters(
     if ch:
         try:
             items = ch.get_failure_clusters(tenant_id, hours=hours)
-            page = items[offset: offset + limit]
-            return {"items": page, "total": len(items), "limit": limit, "offset": offset, "has_more": (offset + limit) < len(items)}
+            page = items[offset : offset + limit]
+            return {
+                "items": page,
+                "total": len(items),
+                "limit": limit,
+                "offset": offset,
+                "has_more": (offset + limit) < len(items),
+            }
         except Exception as e:
-            logger.warning("ClickHouse cluster query failed, using SQLite fallback", extra={"error": str(e)})
+            logger.warning(
+                "ClickHouse cluster query failed, using SQLite fallback", extra={"error": str(e)}
+            )
 
     store = get_default_store()
     cutoff = datetime.now(UTC) - timedelta(hours=hours)
@@ -396,8 +446,14 @@ async def get_clusters(
         except Exception:
             pass
     items = FailureClusterEngine.cluster_failures(recent)
-    page = items[offset: offset + limit]
-    return {"items": page, "total": len(items), "limit": limit, "offset": offset, "has_more": (offset + limit) < len(items)}
+    page = items[offset : offset + limit]
+    return {
+        "items": page,
+        "total": len(items),
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < len(items),
+    }
 
 
 @app.get("/analytics/latency", tags=["analytics"])
@@ -409,10 +465,18 @@ async def get_latency(
 ) -> dict[str, Any]:
     ch = get_clickhouse_store()
     if not ch:
-        raise HTTPException(status_code=503, detail="ClickHouse not configured. Set TEMPORALLAYR_CLICKHOUSE_HOST.")
+        raise HTTPException(
+            status_code=503, detail="ClickHouse not configured. Set TEMPORALLAYR_CLICKHOUSE_HOST."
+        )
     items = ch.get_latency_percentiles(tenant_id, hours=hours)
-    page = items[offset: offset + limit]
-    return {"items": page, "total": len(items), "limit": limit, "offset": offset, "has_more": (offset + limit) < len(items)}
+    page = items[offset : offset + limit]
+    return {
+        "items": page,
+        "total": len(items),
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < len(items),
+    }
 
 
 @app.get("/analytics/trends", tags=["analytics"])
@@ -439,6 +503,7 @@ async def get_span_timeline(
 
 # ── Incidents (FIXED: asyncio.Lock on all mutations) ──────────────────
 
+
 @app.get("/incidents", tags=["incidents"])
 async def get_incidents(
     tenant_id: str = Depends(verify_api_key),
@@ -447,8 +512,14 @@ async def get_incidents(
 ) -> dict[str, Any]:
     async with _incidents_lock:
         tenant_incs = [i for i in _INCIDENTS if i.get("tenant_id") == tenant_id]
-    page = tenant_incs[offset: offset + limit]
-    return {"items": page, "total": len(tenant_incs), "limit": limit, "offset": offset, "has_more": (offset + limit) < len(tenant_incs)}
+    page = tenant_incs[offset : offset + limit]
+    return {
+        "items": page,
+        "total": len(tenant_incs),
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < len(tenant_incs),
+    }
 
 
 @app.post("/incidents/{incident_id}/ack", tags=["incidents"])
@@ -482,6 +553,7 @@ async def resolve_incident(
 
 
 # ── Admin API ─────────────────────────────────────────────────────────
+
 
 class RegisterTenantRequest(BaseModel):
     tenant_id: str
@@ -524,6 +596,7 @@ async def list_tenants(_: None = Depends(verify_admin_key)) -> list[dict[str, An
 
 
 # ── Keys ───────────────────────────────────────────────────────────────
+
 
 @app.get("/keys", tags=["auth"])
 async def list_keys(tenant_id: str = Depends(verify_api_key)) -> list[dict[str, Any]]:
