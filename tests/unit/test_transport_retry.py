@@ -14,11 +14,14 @@ async def test_transport_success():
     transport = HTTPTransport("http://test", "key")
     mock_response = AsyncMock()
     mock_response.raise_for_status = lambda: None
-    transport._client.post.return_value = mock_response
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.aclose = AsyncMock()
+    transport._client = mock_client
 
     success = await transport.send_batch([{"id": 1}])
     assert success is True
-    assert transport._client.post.call_count == 1
+    assert mock_client.post.call_count == 1
     await transport.shutdown()
 
 
