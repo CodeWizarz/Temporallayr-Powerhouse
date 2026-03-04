@@ -54,15 +54,12 @@ export class Tracer {
 
         const ctx: TraceContext = { graph, parentSpanId: null };
 
-        let result: T;
-        const t0 = Date.now();
-
-        result = await _store.run(ctx, () => fn(this));
+        const result = await _store.run(ctx, () => fn(this));
 
         graph.end_time = new Date().toISOString();
         this.client.enqueue(graph);
 
-        return { result: result!, traceId: graph.id, spans: graph.spans };
+        return { result, traceId: graph.id, spans: graph.spans };
     }
 
     /** Wrap an arbitrary async function — captures timing, error, output. */
@@ -175,11 +172,11 @@ export class Tracer {
         const t0 = Date.now();
         let status: 'success' | 'error' = 'success';
         let errorMsg: string | null = null;
-        let result: T;
+        let result: T | undefined = undefined;
 
         try {
             result = await fn();
-            return result!;
+            return result;
         } catch (err) {
             status = 'error';
             errorMsg = err instanceof Error ? err.message : String(err);
