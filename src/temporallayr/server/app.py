@@ -34,7 +34,16 @@ from temporallayr.core.diff_engine import ExecutionDiffer
 from temporallayr.core.failure_cluster import FailureClusterEngine
 from temporallayr.core.incidents import IncidentEngine
 from temporallayr.core.logging import configure_logging
+from temporallayr.core.metrics import (
+    api_requests,
+    rate_limit_hits,
+    request_duration,
+)
+from temporallayr.core.metrics import (
+    render_all as render_metrics,
+)
 from temporallayr.core.otel_exporter import get_otlp_exporter
+from temporallayr.core.rate_limit import check_ingest_rate
 from temporallayr.core.replay import ReplayEngine
 from temporallayr.core.store import get_default_store
 from temporallayr.core.store_clickhouse import get_clickhouse_store
@@ -50,14 +59,7 @@ from temporallayr.server.auth.api_keys import (
     revoke_keys_for_tenant,
     validate_api_key,
 )
-from temporallayr.core.metrics import (
-    render_all as render_metrics,
-    api_requests,
-    request_duration,
-    rate_limit_hits,
-    spans_ingested,
-)
-from temporallayr.core.rate_limit import check_ingest_rate, check_api_rate
+from temporallayr.server.replay_routes import router as replay_router
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +183,7 @@ class _AuditMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(_AuditMiddleware)
+app.include_router(replay_router)
 
 
 # ── Health & Metrics ──────────────────────────────────────────────────
