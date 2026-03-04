@@ -1,6 +1,6 @@
-"""
-API Key authentication middleware for multi-tenant isolation.
-"""
+"""API Key authentication middleware for multi-tenant isolation."""
+
+from __future__ import annotations
 
 import os
 from typing import Annotated
@@ -8,50 +8,41 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from temporallayr.config import get_config
-
 security = HTTPBearer()
-
-
-def get_api_keys() -> dict[str, str]:
-    """
-    Dynamically loads API Key to Tenant ID mappings.
-    Format: KEY=TENANT,KEY2=TENANT2
-    """
-    keys_str = os.getenv(
-        "TEMPORALLAYR_API_KEYS", "key_live_default123=default,key_test_demo123=demo_tenant"
-    )
-    key_map = {}
-    if keys_str:
-        for pair in keys_str.split(","):
-            if "=" in pair:
-                k, v = pair.split("=", 1)
-                key_map[k.strip()] = v.strip()
-    return key_map
-
-
 CredentialsDep = Annotated[HTTPAuthorizationCredentials, Depends(security)]
+
+
+def _strip_bearer(token: str) -> str:
+    """Strip 'Bearer ' prefix if accidentally included in token string."""
+    if token.lower().startswith("bearer "):
+        return token[7:]
+    return token
 
 
 async def verify_api_key(credentials: CredentialsDep) -> str:
     """
-    Validate the incoming Bearer token and map it directly to an isolated tenant_id.
-    Ensures that unauthenticated traffic is cleanly rejected natively.
+    Validate Bearer token → return bound tenant_id.
+    Strips 'Bearer ' prefix before hashing to prevent lookup failures.
     """
-    token = credentials.credentials
+    raw_token = _strip_bearer(credentials.credentials)
 
     from temporallayr.server.auth.api_keys import validate_api_key
-
-    tenant_id = validate_api_key(token)
+    tenant_id = validate_api_key(raw_token)
 
     if not tenant_id:
-        key_map = get_api_keys()
-        tenant_id = key_map.get(token)
+        # Fallback: env-based static key map (dev convenience)
+        keys_str = os.getenv("TEMPORALLAYR_API_KEYS", "")
+        for pair in keys_str.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                if k.strip() == raw_token:
+                    tenant_id = v.strip()
+                    break
 
     if not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
+            detail="Invalid or missing API key",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return tenant_id
@@ -59,8 +50,17 @@ async def verify_api_key(credentials: CredentialsDep) -> str:
 
 async def verify_admin_key(x_admin_key: str = Header(default="")) -> None:
     """
-    Validates API key matching server configured admin initialization keys.
+    Validate X-Admin-Key header for admin-only endpoints.
+    Admin key is set via TEMPORALLAYR_ADMIN_KEY env var.
     """
-    admin_key = get_config().admin_key
-    if not admin_key or x_admin_key != admin_key:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    admin_key = os.getenv("TEMPORALLAYR_ADMIN_KEY", "")
+    if not admin_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin operations not configured. Set TEMPORALLAYR_ADMIN_KEY env var.",
+        )
+    if not x_admin_key or x_admin_key != admin_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid admin key",
+        )

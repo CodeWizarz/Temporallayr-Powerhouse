@@ -1,41 +1,10 @@
-﻿# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
 .env
-.venv
-env/
-venv/
-ENV/
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-
-# Testing and typing
-.mypy_cache/
-.pytest_cache/
 .coverage
-htmlcov/
-
-sdk-node/node_modules
+test_clickhouse.py
+ingest_body.json
+env_loads.py
+.temporallayr/
+test_out.txt

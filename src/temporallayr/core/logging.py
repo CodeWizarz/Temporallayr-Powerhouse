@@ -1,7 +1,8 @@
 """
-Structured JSON Logging Module.
-Provides native logging formatters outputting JSON-lines mapping internal telemetry contexts globally.
+Structured JSON logging for TemporalLayr.
+Replaces all print() calls in server code with proper log levels.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -10,77 +11,34 @@ from datetime import UTC, datetime
 from typing import Any
 
 
-class JSONFormatter(logging.Formatter):
-    """
-    Format standard python log records into a robust native JSON structure mapping context boundaries.
-    """
+class _JSONFormatter(logging.Formatter):
+    """Emit one JSON object per log record."""
 
     def format(self, record: logging.LogRecord) -> str:
-        log_obj: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+        obj: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
         }
-
-        # Include exception traceback natively if generated
+        # Pull any extra kwargs passed via logger.info("msg", extra={...})
+        for key in ("tenant_id", "trace_id", "span_id", "path", "method", "status_code"):
+            if hasattr(record, key):
+                obj[key] = getattr(record, key)
         if record.exc_info:
-            log_obj["exc_info"] = self.formatException(record.exc_info)
-
-        # Standard python 3.8+ LogRecord attributes to ignore traversing kwargs
-        standard_keys = {
-            "name",
-            "msg",
-            "args",
-            "levelname",
-            "levelno",
-            "pathname",
-            "filename",
-            "module",
-            "exc_info",
-            "exc_text",
-            "stack_info",
-            "lineno",
-            "funcName",
-            "created",
-            "msecs",
-            "relativeCreated",
-            "thread",
-            "threadName",
-            "processName",
-            "process",
-            "taskName",
-            "message",
-        }
-
-        # Map kwargs provided inside logger.info(msg, extra={"tenant_id": "X"}) dynamically.
-        for key, value in record.__dict__.items():
-            if key not in standard_keys:
-                log_obj[key] = value
-
-        return json.dumps(log_obj)
+            obj["exception"] = self.formatException(record.exc_info)
+        return json.dumps(obj)
 
 
 def configure_logging(level: str = "INFO") -> None:
-    """
-    Setups root logger to write standard JSON bounded formats to sys.stdout.
-    Must be called at application startup lifecycle natively.
-    """
-    root_logger = logging.getLogger()
+    """Call once at server startup to switch root logger to JSON output."""
+    root = logging.getLogger()
+    root.handlers.clear()
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(_JSONFormatter())
+    root.addHandler(handler)
+    root.setLevel(getattr(logging, level.upper(), logging.INFO))
 
-    # Strip existing default handlers
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Convert string level directly
-    numeric_level = getattr(logging, level.upper(), logging.INFO)
-    root_logger.setLevel(numeric_level)
-
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setFormatter(JSONFormatter())
-
-    root_logger.addHandler(stdout_handler)
-
-    # Optional debug safety bound internally so external noisy packages dont skew logs
-    logging.getLogger("uvicorn.access").disabled = True
-    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+    # Silence noisy third-party loggers
+    for noisy in ("uvicorn.access", "httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)

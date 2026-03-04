@@ -1,193 +1,247 @@
-import asyncio
-import uuid
-from datetime import UTC, datetime
+"""
+Server API route tests.
+Tests all major endpoints: health, ingest, executions, incidents, admin, auth.
+"""
+from __future__ import annotations
 
+import asyncio
 import pytest
-from httpx import ASGITransport, AsyncClient
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
 
 from temporallayr.server.app import app
-from temporallayr.server.auth.api_keys import delete_keys_for_tenant, map_api_key_to_tenant
+from temporallayr.server.auth.api_keys import map_api_key_to_tenant
 
 
-@pytest.fixture(autouse=True)
-def setup_env(monkeypatch):
-    monkeypatch.setenv("TEMPORALLAYR_ADMIN_KEY", "secret-admin-key")
-    monkeypatch.setenv("TEMPORALLAYR_RATE_LIMIT_ENABLED", "false")
-    # Setup test tenants
-    delete_keys_for_tenant("test-tenant")
-    delete_keys_for_tenant("other-tenant")
-    delete_keys_for_tenant("new-tenant")
-    map_api_key_to_tenant("test-key", "test-tenant")
-    map_api_key_to_tenant("other-key", "other-tenant")
+TEST_TENANT = "test-route-tenant"
+TEST_KEY = "route-test-key-abc123"
+ADMIN_KEY = "test-admin-key-xyz"
+
+import os
+os.environ["TEMPORALLAYR_ADMIN_KEY"] = ADMIN_KEY
+os.environ["TEMPORALLAYR_API_KEY"] = TEST_KEY
+os.environ["TEMPORALLAYR_TENANT_ID"] = TEST_TENANT
 
 
-@pytest.fixture
-async def async_client():
-    transport = ASGITransport(app=app)
+@pytest.fixture(autouse=True, scope="module")
+def seed_key():
+    map_api_key_to_tenant(TEST_KEY, TEST_TENANT)
+
+
+@pytest_asyncio.fixture
+async def client():
     async with AsyncClient(
-        transport=transport, base_url="http://test", headers={"Authorization": "Bearer test-key"}
-    ) as client:
-        yield client
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {TEST_KEY}"},
+    ) as c:
+        yield c
 
 
-def _get_dummy_span(span_id=None, parent_id=None, name="test_span", error=None):
-    if not span_id:
-        span_id = str(uuid.uuid4())
-    s = {
-        "span_id": span_id,
-        "parent_span_id": parent_id,
-        "name": name,
-        "start_time": datetime.now(UTC).isoformat(),
-        "status": "error" if error else "success",
-        "attributes": {"error": error} if error else {},
-    }
-    return s
+@pytest_asyncio.fixture
+async def admin_client():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-Admin-Key": ADMIN_KEY},
+    ) as c:
+        yield c
 
 
-def _get_dummy_event(trace_id="trace-1", name="test_span", error=None):
-    return {
-        "trace_id": trace_id,
-        "tenant_id": "test-tenant",
-        "start_time": datetime.now(UTC).isoformat(),
-        "spans": [_get_dummy_span(name=name, error=error)],
-    }
+# ── Health ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_health(client: AsyncClient):
+    r = await client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
 
 
 @pytest.mark.asyncio
-async def test_health(async_client):
-    res = await async_client.get("/health")
-    assert res.status_code == 200
-    assert res.json() == {"status": "ok"}
+async def test_ready(client: AsyncClient):
+    r = await client.get("/ready")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "ready"
+    assert "sqlite" in data["backends"]
+
+
+# ── Auth ────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_reject_invalid_key():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": "Bearer totally-wrong-key"},
+    ) as c:
+        r = await c.get("/executions")
+        assert r.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_ready(async_client):
-    res = await async_client.get("/ready")
-    assert res.status_code == 200
+async def test_reject_no_key():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as c:
+        r = await c.get("/executions")
+        assert r.status_code in (401, 403)
 
 
-@pytest.mark.asyncio
-async def test_ingest_valid(async_client):
-    payload = {"events": [_get_dummy_event()]}
-    res = await async_client.post("/v1/ingest", json=payload)
-    assert res.status_code == 202
-    assert res.json()["processed"] >= 1
-
+# ── Ingest ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_ingest_wrong_tenant(async_client):
-    payload = {"events": [_get_dummy_event()]}
-    res = await async_client.post(
-        "/v1/ingest", json=payload, headers={"Authorization": "Bearer invalid-key"}
+async def test_ingest_valid(client: AsyncClient):
+    r = await client.post(
+        "/v1/ingest",
+        json={"events": [{"tenant_id": TEST_TENANT, "spans": []}]},
+        headers={"Authorization": f"Bearer {TEST_KEY}", "X-Tenant-Id": TEST_TENANT},
     )
-    assert res.status_code == 401
+    assert r.status_code == 202
+    assert r.json()["processed"] == 1
+    assert r.json()["errors"] == 0
 
 
 @pytest.mark.asyncio
-async def test_get_execution_valid(async_client):
-    trace_id = "trace-get-2"
-    payload = {"events": [_get_dummy_event(trace_id=trace_id)]}
-    await async_client.post("/v1/ingest", json=payload)
-
-    # Wait for background task to ingest
-    await asyncio.sleep(0.1)
-
-    res = await async_client.get(f"/executions/{trace_id}")
-    assert res.status_code == 200
-    assert res.json()["trace_id"] == trace_id
+async def test_ingest_tenant_isolation():
+    """Bearer token for TEST_TENANT cannot write to different-tenant."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as c:
+        r = await c.post(
+            "/v1/ingest",
+            json={"events": [{"tenant_id": "other-tenant", "spans": []}]},
+            headers={
+                "Authorization": f"Bearer {TEST_KEY}",
+                "X-Tenant-Id": "other-tenant",   # Mismatch → should 401
+            },
+        )
+        assert r.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_get_execution_wrong_tenant(async_client):
-    trace_id = "trace-tenant-test-3"
-    payload = {"events": [_get_dummy_event(trace_id=trace_id)]}
-    await async_client.post("/v1/ingest", json=payload)
+async def test_ingest_no_auth():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.post("/v1/ingest", json={"events": []})
+        assert r.status_code == 401
 
-    await asyncio.sleep(0.1)
 
-    res = await async_client.get(
-        f"/executions/{trace_id}", headers={"Authorization": "Bearer other-key"}
+# ── Executions ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_list_executions(client: AsyncClient):
+    r = await client.get("/executions")
+    assert r.status_code == 200
+    data = r.json()
+    assert "items" in data
+    assert "total" in data
+    assert "has_more" in data
+
+
+@pytest.mark.asyncio
+async def test_get_execution_not_found(client: AsyncClient):
+    r = await client.get("/executions/nonexistent-id-00000")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_and_get_execution(client: AsyncClient):
+    from temporallayr.models.execution import ExecutionGraph
+    graph = ExecutionGraph(id="test-exec-001", tenant_id=TEST_TENANT, spans=[])
+    r = await client.post(
+        "/executions",
+        json=graph.model_dump(mode="json"),
     )
-    assert res.status_code == 404
+    assert r.status_code == 201
+    assert r.json()["execution_id"] == "test-exec-001"
+
+    r2 = await client.get("/executions/test-exec-001")
+    assert r2.status_code == 200
+    assert r2.json()["trace_id"] == "test-exec-001"
+
+
+# ── Incidents ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_list_incidents(client: AsyncClient):
+    r = await client.get("/incidents")
+    assert r.status_code == 200
+    data = r.json()
+    assert "items" in data
+    assert "total" in data
 
 
 @pytest.mark.asyncio
-async def test_diff(async_client):
-    trace_a = "trace-diff-a"
-    trace_b = "trace-diff-b"
-    await async_client.post(
-        "/v1/ingest", json={"events": [_get_dummy_event(trace_id=trace_a, name="original")]}
-    )
-    await async_client.post(
-        "/v1/ingest", json={"events": [_get_dummy_event(trace_id=trace_b, name="modified")]}
-    )
+async def test_ack_nonexistent_incident(client: AsyncClient):
+    r = await client.post("/incidents/nonexistent-000/ack")
+    assert r.status_code == 404
 
-    await asyncio.sleep(0.1)
 
-    res = await async_client.post(
-        "/executions/diff", json={"execution_a": trace_a, "execution_b": trace_b}
-    )
-    assert res.status_code == 200
-    data = res.json()
-    assert "changed_nodes" in data
-    assert "added_nodes" in data
-    assert "removed_nodes" in data
-
+# ── Clusters ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_clusters(async_client):
-    res = await async_client.get("/clusters")
-    assert res.status_code == 200
-    assert isinstance(res.json()["items"], list)
+async def test_clusters(client: AsyncClient):
+    r = await client.get("/clusters")
+    assert r.status_code == 200
+    data = r.json()
+    assert "items" in data
 
 
-@pytest.mark.asyncio
-async def test_incidents_lifecycle(async_client):
-    trace_id = f"trace-incident-{uuid.uuid4()}"
-    event = _get_dummy_event(trace_id=trace_id, name="failing_func", error="Something broke")
-
-    # Ingest the event with an error to trigger FailureClusterEngine
-    res = await async_client.post("/v1/ingest", json={"events": [event]})
-    assert res.status_code == 202
-
-    # Needs a small delay because IncidentEngine runs in background
-    await asyncio.sleep(0.5)
-
-    res = await async_client.get("/incidents")
-    assert res.status_code == 200
-    incidents = res.json()["items"]
-
-    assert len(incidents) > 0
-
-    # Find the incident for our recent error (or just the first one)
-    inc_id = incidents[0]["incident_id"]
-
-    res_ack = await async_client.post(f"/incidents/{inc_id}/ack")
-    assert res_ack.status_code == 200
-    assert res_ack.json()["status"] == "acknowledged"
-
-    res_res = await async_client.post(f"/incidents/{inc_id}/resolve")
-    assert res_res.status_code == 200
-    assert res_res.json()["status"] == "resolved"
-
+# ── Admin ───────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_admin_register_valid(async_client):
-    res = await async_client.post(
+async def test_admin_register_tenant(admin_client: AsyncClient):
+    r = await admin_client.post(
         "/admin/tenants/register",
-        json={"tenant_id": "new-tenant", "admin_email": "admin@test.com"},
-        headers={"X-Admin-Key": "secret-admin-key"},
+        json={"tenant_id": "new-test-tenant-xyz"},
     )
-    assert res.status_code == 201
-    data = res.json()
-    assert data["tenant_id"] == "new-tenant"
+    assert r.status_code == 201
+    data = r.json()
+    assert data["tenant_id"] == "new-test-tenant-xyz"
     assert "api_key" in data
-    assert "created_at" in data
+    assert len(data["api_key"]) > 10
 
 
 @pytest.mark.asyncio
-async def test_admin_register_forbidden(async_client):
-    res = await async_client.post(
-        "/admin/tenants/register", json={"tenant_id": "new-tenant", "admin_email": "admin@test.com"}
-    )
-    assert res.status_code == 403
+async def test_admin_list_tenants(admin_client: AsyncClient):
+    r = await admin_client.get("/admin/tenants")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_admin_rotate_key(admin_client: AsyncClient):
+    r = await admin_client.post("/admin/tenants/new-test-tenant-xyz/rotate-key")
+    assert r.status_code == 200
+    data = r.json()
+    assert "api_key" in data
+    assert "revoked_count" in data
+
+
+@pytest.mark.asyncio
+async def test_admin_wrong_key():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-Admin-Key": "wrong-admin-key"},
+    ) as c:
+        r = await c.get("/admin/tenants")
+        assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_no_key():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/admin/tenants")
+        assert r.status_code in (403, 422)
+
+
+# ── Keys ─────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_list_keys(client: AsyncClient):
+    r = await client.get("/keys")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)

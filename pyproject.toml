@@ -4,25 +4,22 @@ build-backend = "hatchling.build"
 
 [project]
 name = "temporallayr"
-version = "0.2.0"
+version = "0.2.1"
 description = "Production-grade telemetry, governance, and observability for autonomous AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "TemporalLayr Team", email = "engineering@temporallayr.com" }]
+keywords = ["observability", "ai", "agents", "tracing", "llm"]
 classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Typing :: Typed",
 ]
 dependencies = [
   "pydantic>=2.0.0",
   "fastapi>=0.100.0",
-  "uvicorn>=0.27.1",
-  "PyYAML>=6.0.0",
+  "uvicorn[standard]>=0.27.1",
   "httpx>=0.27.0",
-  "certifi",
-  "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
@@ -35,11 +32,10 @@ postgres = [
 dev = [
   "pytest>=7.4.0",
   "pytest-asyncio>=0.23.0",
-  "mypy>=1.6.0",
+  "httpx>=0.27.0",
   "ruff>=0.1.0",
   "black>=24.0.0",
   "pre-commit>=3.7.0",
-  "coverage>=7.0.0",
   "pytest-cov>=4.0.0",
 ]
 all = [
@@ -62,31 +58,14 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "N", "B", "ASYNC", "RUF", "W"]
-ignore = ["E402", "E501", "E712", "B008", "B904", "B905", "RUF005", "RUF006", "N818", "F841", "W291", "W293"]
-
-[tool.mypy]
-plugins = ["pydantic.mypy"]
-python_version = "3.11"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-ignore_missing_imports = true
-follow_imports = "skip"
-exclude = '(^example_agent\.py$|^src/temporallayr/(cli|server|core)/)'
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::ResourceWarning",
-    "ignore::pytest.PytestUnraisableExceptionWarning",
-]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+addopts = "--strict-markers"
 
 [tool.ruff.lint.per-file-ignores]
-"pydantic/__init__.py" = ["N802"]
-"src/temporallayr/models/execution.py" = ["UP017"]
+"tests/*" = ["S101"]

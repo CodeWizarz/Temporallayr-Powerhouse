@@ -6,25 +6,42 @@ services:
     ports:
       - "8000:8000"
     environment:
-      TEMPORALLAYR_API_KEY: ${TEMPORALLAYR_API_KEY:-dev-key}
-      TEMPORALLAYR_TENANT_ID: ${TEMPORALLAYR_TENANT_ID:-default}
-      TEMPORALLAYR_CLICKHOUSE_HOST: clickhouse
-      TEMPORALLAYR_CLICKHOUSE_PORT: 8123
-      TEMPORALLAYR_CLICKHOUSE_DB: temporallayr
-      TEMPORALLAYR_OTLP_ENDPOINT: http://phoenix:6006
-      TEMPORALLAYR_RETENTION_DAYS: "30"
+      TEMPORALLAYR_API_KEYS: ${TEMPORALLAYR_API_KEYS:-dev-key-123=default}
+      TEMPORALLAYR_ADMIN_KEY: ${TEMPORALLAYR_ADMIN_KEY:-admin-key-456}
+      TEMPORALLAYR_DATA_DIR: /data/.temporallayr
+      # ClickHouse Cloud — set these in .env
+      TEMPORALLAYR_CLICKHOUSE_HOST: ${TEMPORALLAYR_CLICKHOUSE_HOST:-clickhouse}
+      TEMPORALLAYR_CLICKHOUSE_PORT: ${TEMPORALLAYR_CLICKHOUSE_PORT:-8123}
+      TEMPORALLAYR_CLICKHOUSE_SECURE: ${TEMPORALLAYR_CLICKHOUSE_SECURE:-false}
+      TEMPORALLAYR_CLICKHOUSE_USER: ${TEMPORALLAYR_CLICKHOUSE_USER:-default}
+      TEMPORALLAYR_CLICKHOUSE_PASSWORD: ${TEMPORALLAYR_CLICKHOUSE_PASSWORD:-}
+      # OTLP — point at Phoenix or Jaeger
+      TEMPORALLAYR_OTLP_ENDPOINT: ${TEMPORALLAYR_OTLP_ENDPOINT:-}
+      TEMPORALLAYR_RETENTION_DAYS: ${TEMPORALLAYR_RETENTION_DAYS:-30}
+      TEMPORALLAYR_LOG_LEVEL: ${TEMPORALLAYR_LOG_LEVEL:-INFO}
     volumes:
-      - temporallayr_data:/app/.temporallayr
+      # Persistent SQLite data across deploys
+      - temporallayr_data:/data
+    restart: unless-stopped
     depends_on:
       clickhouse:
         condition: service_healthy
-    restart: unless-stopped
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
+  # Optional: self-hosted ClickHouse (omit if using ClickHouse Cloud)
   clickhouse:
     image: clickhouse/clickhouse-server:24.3-alpine
+    profiles: ["local-clickhouse"]
     ports:
-      - "8123:8123"   # HTTP
-      - "9000:9000"   # Native TCP
+      - "8123:8123"
+      - "9000:9000"
     environment:
       CLICKHOUSE_DB: temporallayr
       CLICKHOUSE_USER: default
@@ -36,15 +53,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
 
+  # Optional: self-hosted Phoenix UI (trace viewer)
   phoenix:
     image: arizephoenix/phoenix:latest
+    profiles: ["phoenix"]
     ports:
-      - "6006:6006"   # UI + OTLP HTTP receiver
-      - "4317:4317"   # OTLP gRPC
-    environment:
-      PHOENIX_WORKING_DIR: /phoenix
+      - "6006:6006"
+      - "4317:4317"
     volumes:
       - phoenix_data:/phoenix
     restart: unless-stopped

@@ -5,18 +5,13 @@ def register(subparsers) -> None:
     test_parser.set_defaults(func=_run_test)
 
 
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 def _run_test(args) -> None:
     """Trigger a fast end-to-end execution graph dispatch to verify telemetry ingestion."""
     import time
 
     from temporallayr import init, track
 
-    logger.info("Bootstrapping dummy payload validation for Temporallayr...")
+    print("Bootstrapping dummy payload validation for Temporallayr...")
     init()
 
     @track(type="test_probe")
@@ -26,4 +21,4 @@ def _run_test(args) -> None:
 
     result = _test_operation()
     time.sleep(2.5)  # Allow background transport to flush
-    logger.info(f"Test operation returned: '{result}' and sent to flush queues natively.")
+    print(f"✓ Test operation returned: '{result}' and sent to flush queues natively.")

@@ -3,12 +3,10 @@ Enterprise audit logging for compliance and traceability.
 """
 
 import json
-import logging
 import os
+import sys
 from datetime import UTC, datetime
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 class AuditLogger:
@@ -21,27 +19,16 @@ class AuditLogger:
         """Route log to stdout or dedicated audit file if configured."""
         log_file = os.environ.get("TEMPORALLAYR_AUDIT_LOG_FILE")
         log_str = json.dumps(entry)
-        tenant_id = entry.get(
-            "tenant_id", "unknown"
-        )  # Extract tenant_id from entry for logging context
 
         if log_file:
             try:
-                with open(log_file, "a") as f:
+                with open(log_file, "a", encoding="utf-8") as f:
                     f.write(log_str + "\n")
             except Exception as e:
-                logger.error(f"Failed to write audit log to {log_file}: {e}", exc_info=True)
-
-        # Send a copy to the DB locally mapping native dependencies natively blocking faults
-        try:
-            from temporallayr.core.store_sqlite import SQLiteStore
-
-            SQLiteStore().save_audit_log(entry)
-        except Exception:
-            pass
+                print(f"Failed to write audit log to {log_file}: {e}", file=sys.stderr)
 
         # Always mirror to stdout for standard cloud observability ingestion
-        logger.info(log_str, extra={"audit": True, "tenant_id": tenant_id})
+        print(f"[AUDIT] {log_str}")
 
     @classmethod
     def log_api_call(

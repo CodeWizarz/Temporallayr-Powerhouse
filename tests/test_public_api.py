@@ -16,6 +16,10 @@ def test_public_exports() -> None:
         "shutdown",
         "start_span",
         "start_trace",
+        "track",
+        "track_llm",
+        "track_pipeline",
+        "track_tool",
     ]
 
 

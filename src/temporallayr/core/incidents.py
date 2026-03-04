@@ -3,14 +3,11 @@ Engine for managing the lifecycle of deterministic execution failures.
 """
 
 import hashlib
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from temporallayr.core.alert_dispatcher import AlertDispatcher
 from temporallayr.core.audit import AuditLogger
-
-logger = logging.getLogger(__name__)
 
 
 class IncidentEngine:
@@ -88,14 +85,8 @@ class IncidentEngine:
                         {"severity": new_incident["severity"]},
                     )
                     AlertDispatcher.dispatch(new_incident, event_type="new_incident")
-                except Exception:
-                    logger.exception(
-                        "Failed to cleanly dispatch anomaly notifications for new incident",
-                        extra={
-                            "cluster_id": cluster_id,
-                            "incident_id": new_incident["incident_id"],
-                        },
-                    )
+                except Exception as e:
+                    print(f"Failed to cleanly dispatch anomaly notifications for new incident: {e}")
             else:
                 # Accumulate telemetry counts natively for an active regression
                 inc = incident_map[cluster_id]
@@ -131,10 +122,10 @@ class IncidentEngine:
                                 },
                             )
                             AlertDispatcher.dispatch(inc, event_type="severity_upgrade")
-                        except Exception:
-                            logger.exception(
-                                "Failed to cleanly dispatch notifications on regression up-scale",
-                                extra={"cluster_id": cluster_id, "incident_id": inc["incident_id"]},
+                        except Exception as e:
+                            print(
+                                "Failed to cleanly dispatch notifications "
+                                f"on regression up-scale: {e}"
                             )
                 else:
                     inc["severity"] = base_severity

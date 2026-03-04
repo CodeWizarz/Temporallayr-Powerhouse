@@ -1,6 +1,7 @@
 """
-Execution recorder for building and tracking temporal execution graphs.
+Execution recorder — builds and persists temporal execution graphs.
 """
+from __future__ import annotations
 
 import logging
 import uuid
@@ -9,17 +10,15 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from temporallayr.context import get_context
 from temporallayr.core.store import get_default_store
 from temporallayr.exceptions import TemporalLayrError
 from temporallayr.models.execution import ExecutionGraph, ExecutionNode
 
+logger = logging.getLogger(__name__)
+
 
 class RecorderStateError(TemporalLayrError):
-    """Exception raised for invalid recorder states or context usage."""
-
     pass
 
 
@@ -29,8 +28,8 @@ _current_parent_id: ContextVar[str | None] = ContextVar("_current_parent_id", de
 
 class ExecutionRecorder:
     """
-    Thread-safe, async-compatible context recorder for tracking execution
-    steps, model calls, and tool calls into an ExecutionGraph.
+    Async context manager for capturing execution graphs.
+    Thread-safe via ContextVar isolation.
     """
 
     _diagnostics_printed = False
@@ -39,44 +38,37 @@ class ExecutionRecorder:
         self.run_id = run_id or str(uuid.uuid4())
 
         from temporallayr.config import get_tenant_id
-
         tenant_id = get_context().tenant_id or get_tenant_id()
         if not tenant_id:
             raise ValueError(
-                "tenant_id must be provided via context or "
-                "TEMPORALLAYR_TENANT_ID environment variable."
+                "tenant_id must be provided via context or TEMPORALLAYR_TENANT_ID env var."
             )
         self.tenant_id = tenant_id
 
         if not ExecutionRecorder._diagnostics_printed:
             from temporallayr.config import get_api_key, get_server_url
-
-            logger.info("TEMPORALLAYR CONFIG START")
-            logger.info(f"SERVER_URL={get_server_url()}")
-            logger.info(f"API_KEY={'present' if get_api_key() else 'missing'}")
-            logger.info(f"TENANT_ID={tenant_id or 'missing'}")
-            logger.info("TEMPORALLAYR CONFIG END")
+            logger.info(
+                "TemporalLayr recorder initialised",
+                extra={
+                    "server_url": get_server_url(),
+                    "api_key_present": bool(get_api_key()),
+                    "tenant_id": tenant_id,
+                },
+            )
             ExecutionRecorder._diagnostics_printed = True
 
         from temporallayr.transport import get_transport
-
         get_transport()
 
-        # trace_id is the canonical field; 'id' is remapped via model_validator
         self._graph = ExecutionGraph(id=self.run_id, tenant_id=tenant_id)
 
     def _create_node(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
-        """Helper to create and add a node safely."""
         current_graph = _current_graph.get()
         if current_graph is None:
             raise RecorderStateError(
-                "Cannot record node outside of an active recorder context. "
-                "Use `async with recorder:`."
+                "Cannot record node outside an active recorder context. Use `async with recorder:`."
             )
-
         parent_id = _current_parent_id.get()
-
-        # 'id', 'metadata', 'parent_id' are remapped by Span's model_validator
         node = ExecutionNode(
             id=str(uuid.uuid4()),
             name=name,
@@ -97,14 +89,10 @@ class ExecutionRecorder:
         finally:
             _current_parent_id.reset(token)
 
-    async def record_model_call(
-        self, name: str, metadata: dict[str, Any] | None = None
-    ) -> ExecutionNode:
+    async def record_model_call(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
         return self._create_node(f"model_call:{name}", metadata)
 
-    async def record_tool_call(
-        self, name: str, metadata: dict[str, Any] | None = None
-    ) -> ExecutionNode:
+    async def record_tool_call(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
         return self._create_node(f"tool_call:{name}", metadata)
 
     @property
@@ -114,7 +102,6 @@ class ExecutionRecorder:
     async def __aenter__(self) -> "ExecutionRecorder":
         if _current_graph.get() is not None:
             raise RecorderStateError("Cannot nest ExecutionRecorder contexts.")
-
         self._graph_token = _current_graph.set(self._graph)
         self._parent_token = _current_parent_id.set(None)
         return self
@@ -128,10 +115,20 @@ class ExecutionRecorder:
         _current_graph.reset(self._graph_token)
         _current_parent_id.reset(self._parent_token)
 
-        get_default_store().save_execution(self._graph)
+        # Persist locally (sync SQLite — always safe)
+        try:
+            get_default_store().save_execution(self._graph)
+        except Exception as e:
+            logger.warning("Failed to save execution locally", extra={"error": str(e)})
 
-        from temporallayr.transport import get_transport
-
-        transport = get_transport()
-
-        await transport.send_event(self.graph.model_dump(mode="json"))
+        # Ship to server transport (async, fire-and-forget)
+        try:
+            from temporallayr.transport import get_transport
+            transport = get_transport()
+            await transport.send_event({
+                "type": "execution_graph",
+                "tenant_id": self.tenant_id,
+                "graph": self.graph.model_dump(mode="json"),
+            })
+        except Exception as e:
+            logger.warning("Failed to enqueue execution for transport", extra={"error": str(e)})

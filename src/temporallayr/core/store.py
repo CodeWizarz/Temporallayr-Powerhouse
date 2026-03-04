@@ -3,17 +3,10 @@ ExecutionStore abstraction and default implementations.
 """
 
 import abc
-import logging
 from datetime import datetime
 from pathlib import Path
 
-from typing import TYPE_CHECKING
 from temporallayr.models.execution import ExecutionGraph
-
-if TYPE_CHECKING:
-    from temporallayr.core.otel_exporter import OTLPBatchExporter
-
-logger = logging.getLogger(__name__)
 
 
 class ExecutionStore(abc.ABC):
@@ -27,26 +20,10 @@ class ExecutionStore(abc.ABC):
     def load_execution(self, graph_id: str, tenant_id: str) -> ExecutionGraph: ...
 
     @abc.abstractmethod
-    def list_executions(
-        self, tenant_id: str, limit: int = 50, offset: int = 0
-    ) -> tuple[int, list[str]]: ...
+    def list_executions(self, tenant_id: str) -> list[str]: ...
 
     @abc.abstractmethod
     def delete_old_executions(self, cutoff: datetime) -> int: ...
-
-
-def init_otlp_batcher() -> "OTLPBatchExporter | None":
-    """Initialize OTLP export dynamically reading TEMPORALLAYR_OTLP_ENDPOINT."""
-    import os
-
-    if os.getenv("TEMPORALLAYR_OTLP_ENDPOINT"):
-        try:
-            from temporallayr.core.otel_exporter import get_otlp_exporter
-
-            return get_otlp_exporter()
-        except ImportError:
-            pass
-    return None
 
 
 class LocalJSONStore(ExecutionStore):
@@ -62,9 +39,7 @@ class LocalJSONStore(ExecutionStore):
     def save_execution(self, graph: ExecutionGraph) -> None:
         tenant_dir = self.EXECUTIONS_DIR / graph.tenant_id
         tenant_dir.mkdir(parents=True, exist_ok=True)
-        (tenant_dir / f"{graph.id}.json").write_text(
-            graph.model_dump_json(indent=2), encoding="utf-8"
-        )
+        (tenant_dir / f"{graph.id}.json").write_text(graph.model_dump_json(indent=2), encoding="utf-8")
 
     def bulk_save_executions(self, graphs: list[ExecutionGraph]) -> None:
         for graph in graphs:
@@ -88,14 +63,11 @@ class LocalJSONStore(ExecutionStore):
                 return graph
         raise FileNotFoundError(f"Could not resolve {reference} for tenant {tenant_id}")
 
-    def list_executions(
-        self, tenant_id: str, limit: int = 50, offset: int = 0
-    ) -> tuple[int, list[str]]:
+    def list_executions(self, tenant_id: str) -> list[str]:
         tenant_dir = self.EXECUTIONS_DIR / tenant_id
         if not tenant_dir.exists():
-            return 0, []
-        files = sorted(tenant_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-        return len(files), [p.stem for p in files[offset : offset + limit]]
+            return []
+        return [p.stem for p in tenant_dir.glob("*.json")]
 
     def delete_old_executions(self, cutoff: datetime) -> int:
         deleted = 0
@@ -111,8 +83,7 @@ class LocalJSONStore(ExecutionStore):
                         filepath.unlink()
                         deleted += 1
                 except Exception as e:
-                    logger.error(f"GC error for {filepath}: {e}", exc_info=True)
-                    deleted += 1
+                    print(f"GC error for {filepath}: {e}")
         return deleted
 
 
@@ -128,15 +99,6 @@ def set_default_store(store: ExecutionStore) -> None:
 def get_default_store() -> ExecutionStore:
     global _default_store
     if _default_store is None:
-        from temporallayr.config import get_config
-
-        cfg = get_config()
-        if cfg.postgres_dsn:
-            from temporallayr.core.store_postgres import PostgresStore
-
-            _default_store = PostgresStore(cfg.postgres_dsn)
-        else:
-            from temporallayr.core.store_sqlite import SQLiteStore
-
-            _default_store = SQLiteStore()
+        from temporallayr.core.store_sqlite import SQLiteStore
+        _default_store = SQLiteStore()
     return _default_store

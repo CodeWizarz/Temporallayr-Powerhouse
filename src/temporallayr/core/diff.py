@@ -5,7 +5,6 @@ Execution diff engine to compare two ExecutionGraphs.
 from typing import Any
 
 from pydantic import BaseModel
-
 from temporallayr.models.execution import ExecutionGraph
 
 
