@@ -49,9 +49,9 @@ class _Gauge:
             self._value -= v
 
     def render(self) -> str:
-        return (
-            f"# HELP {self.name} {self.help}\n# TYPE {self.name} gauge\n{self.name} {self._value}"
-        )
+        # Always emit float notation (e.g. "8.0") for Prometheus compatibility
+        val = float(self._value)
+        return f"# HELP {self.name} {self.help}\n# TYPE {self.name} gauge\n{self.name} {val}"
 
 
 class _Histogram:

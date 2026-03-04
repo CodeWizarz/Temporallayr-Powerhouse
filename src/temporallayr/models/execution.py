@@ -120,4 +120,5 @@ class Trace(TemporalLayrBaseModel):
 
 # Backward-compatible aliases
 ExecutionNode = Span
+ExecutionSpan = Span  # used by integrations (langchain, openai_wrapper, etc.)
 ExecutionGraph = Trace
