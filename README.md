@@ -5,10 +5,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org)
 [![Build Status](https://github.com/CodeWizarz/Temporallayr-Powerhouse/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeWizarz/Temporallayr-Powerhouse/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/CodeWizarz/Temporallayr-Powerhouse?label=coverage)](https://codecov.io/gh/CodeWizarz/Temporallayr-Powerhouse)
 
 > **Not just request logging. The operational layer for autonomous AI.**
 
 Standard observability tools see your LLM API calls. TemporalLayr sees your *agent's reasoning* — every decision branch, tool call, and failure, stitched into a queryable execution graph you can replay, diff, and audit.
+
+---
+
+## Engineering Quality
+
+- Multi-platform CI on Linux and macOS for every push and pull request
+- Automated lint (`ruff`), formatting checks (`black`), static typing (`mypy`), and test execution (`pytest`)
+- Coverage gate enforced at **80% minimum** with XML + JUnit artifacts for pipeline diagnostics
 
 ---
 
