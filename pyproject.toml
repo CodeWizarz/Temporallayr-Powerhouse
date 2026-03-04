@@ -25,6 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 clickhouse = [
   "clickhouse-connect>=0.7.0",
+  "redis>=5.0.0",
 ]
 postgres = [
   "asyncpg>=0.29.0",
@@ -51,7 +52,7 @@ dev = [
   "pytest-cov>=4.0.0",
 ]
 all = [
-  "temporallayr[clickhouse,postgres]",
+  "temporallayr[clickhouse,postgres,langchain,llamaindex,openai,anthropic]",
 ]
 
 [project.scripts]

@@ -224,7 +224,32 @@ class IngestRequest(BaseModel):
     events: list[dict[str, Any]]
 
 
-async def _process_graph(graph: ExecutionGraph) -> None:
+async def _enqueue_graph(graph: ExecutionGraph) -> None:
+    """
+    Push graph to Redis queue for background worker processing.
+    If Redis isn't configured, fall back to synchronous processing.
+    """
+    from temporallayr.core.queue import get_redis_client
+
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            # Pushing the full serialized graph allows worker to parse it entirely standalone.
+            await redis_client.rpush("temporallayr:ingest_queue", graph.model_dump_json())
+        except Exception as e:
+            logger.warning(
+                "Failed to enqueue graph to Redis, falling back to sync process",
+                extra={"error": str(e)},
+            )
+            await _process_graph_sync(graph)
+        finally:
+            await redis_client.aclose()
+    else:
+        # Fallback if no REDIS_URL configured
+        await _process_graph_sync(graph)
+
+
+async def _process_graph_sync(graph: ExecutionGraph) -> None:
     """Post-ingest side-effects: OTLP, ClickHouse, incident detection."""
     otlp = get_otlp_exporter()
     if otlp:
@@ -341,7 +366,7 @@ async def ingest_events(
             event = {**event, "tenant_id": effective_tenant}
             graph = ExecutionGraph.model_validate(event)
             store.save_execution(graph)
-            asyncio.create_task(_process_graph(graph))
+            asyncio.create_task(_enqueue_graph(graph))
             processed += 1
         except Exception as e:
             logger.warning("Ingest event error", extra={"error": str(e)})
@@ -389,7 +414,7 @@ async def create_execution(
                     )
             except Exception as e:
                 logger.warning("Alert check failed", extra={"error": str(e)})
-        asyncio.create_task(_process_graph(graph))
+        asyncio.create_task(_enqueue_graph(graph))
         return {"execution_id": graph.id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
