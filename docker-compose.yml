@@ -11,12 +11,14 @@ services:
       TEMPORALLAYR_API_KEY: ${TEMPORALLAYR_API_KEY:-dev-key-change-me}
       TEMPORALLAYR_ADMIN_KEY: ${TEMPORALLAYR_ADMIN_KEY:-admin-key-change-me}
       TEMPORALLAYR_TENANT_ID: ${TEMPORALLAYR_TENANT_ID:-default}
+      TEMPORALLAYR_API_KEYS: ${TEMPORALLAYR_API_KEYS:-dev-key-change-me=default}
       TEMPORALLAYR_DATA_DIR: /data/.temporallayr
-      TEMPORALLAYR_CLICKHOUSE_HOST: ${TEMPORALLAYR_CLICKHOUSE_HOST:-}
-      TEMPORALLAYR_CLICKHOUSE_PORT: ${TEMPORALLAYR_CLICKHOUSE_PORT:-8443}
-      TEMPORALLAYR_CLICKHOUSE_SECURE: ${TEMPORALLAYR_CLICKHOUSE_SECURE:-true}
+      TEMPORALLAYR_CLICKHOUSE_HOST: ${TEMPORALLAYR_CLICKHOUSE_HOST:-clickhouse}
+      TEMPORALLAYR_CLICKHOUSE_PORT: ${TEMPORALLAYR_CLICKHOUSE_PORT:-8123}
+      TEMPORALLAYR_CLICKHOUSE_SECURE: ${TEMPORALLAYR_CLICKHOUSE_SECURE:-false}
       TEMPORALLAYR_CLICKHOUSE_USER: ${TEMPORALLAYR_CLICKHOUSE_USER:-default}
       TEMPORALLAYR_CLICKHOUSE_PASSWORD: ${TEMPORALLAYR_CLICKHOUSE_PASSWORD:-}
+      TEMPORALLAYR_POSTGRES_DSN: ${TEMPORALLAYR_POSTGRES_DSN:-postgresql://temporallayr:temporallayr@postgres:5432/temporallayr}
       TEMPORALLAYR_OTLP_ENDPOINT: ${TEMPORALLAYR_OTLP_ENDPOINT:-}
       TEMPORALLAYR_LOG_LEVEL: ${TEMPORALLAYR_LOG_LEVEL:-INFO}
     volumes:
@@ -54,9 +56,25 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["local-postgres"]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: temporallayr
+      POSTGRES_USER: temporallayr
+      POSTGRES_PASSWORD: temporallayr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporallayr -d temporallayr"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,4 +92,5 @@ services:
 volumes:
   temporallayr_data:
   clickhouse_data:
+  postgres_data:
   phoenix_data:

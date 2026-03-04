@@ -3,7 +3,7 @@ FROM python:3.11-slim AS deps
 WORKDIR /app
 COPY pyproject.toml requirements.txt ./
 COPY src/ ./src/
-RUN pip install --no-cache-dir -e ".[clickhouse]" && \
+RUN pip install --no-cache-dir -e ".[clickhouse,postgres]" && \
     pip install --no-cache-dir uvicorn[standard]
 
 # ── Stage 2: production image ─────────────────────────────────────────
