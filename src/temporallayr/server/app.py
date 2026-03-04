@@ -18,15 +18,12 @@ import asyncio
 import inspect
 import logging
 import os
-import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 from starlette.responses import Response
 
 from temporallayr.core.alerting import AlertEngine
@@ -35,14 +32,8 @@ from temporallayr.core.diff_engine import ExecutionDiffer
 from temporallayr.core.failure_cluster import FailureClusterEngine
 from temporallayr.core.incidents import IncidentEngine
 from temporallayr.core.logging import configure_logging
-from temporallayr.core.metrics import (
-    api_requests,
-    rate_limit_hits,
-    request_duration,
-)
-from temporallayr.core.metrics import (
-    render_all as render_metrics,
-)
+from temporallayr.core.metrics import rate_limit_hits
+from temporallayr.core.metrics import render_all as render_metrics
 from temporallayr.core.otel_exporter import get_otlp_exporter
 from temporallayr.core.rate_limit import check_ingest_rate
 from temporallayr.core.replay import ReplayEngine
@@ -61,8 +52,10 @@ from temporallayr.server.auth.api_keys import (
     validate_api_key,
 )
 from temporallayr.server.incidents import router as incidents_router
+from temporallayr.server.middleware import AuditMiddleware
 from temporallayr.server.replay_routes import router as replay_router
 from temporallayr.server.routes.analytics import router as analytics_router
+from temporallayr.server.routes.status import router as status_router
 from temporallayr.workers.clickhouse_worker import (
     configure_clickhouse_worker,
     get_clickhouse_worker,
@@ -164,39 +157,11 @@ app = FastAPI(
 )
 
 
-class _AuditMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
-        t0 = time.time()
-        # Determine tenant from header (best-effort; auth validates properly)
-        tenant_id = request.headers.get("X-Tenant-Id", "unknown")
-        try:
-            response = await call_next(request)
-            status_code = response.status_code
-        except Exception as e:
-            status_code = 500
-            raise e
-        finally:
-            duration_ms = (time.time() - t0) * 1000
-            AuditLogger.log_api_call(
-                method=request.method,
-                path=request.url.path,
-                status_code=status_code,
-                duration_ms=duration_ms,
-                tenant_id=tenant_id,
-            )
-            api_requests.inc(
-                method=request.method,
-                path=request.url.path,
-                status_code=str(status_code),
-            )
-            request_duration.observe(duration_ms)
-        return response
-
-
-app.add_middleware(_AuditMiddleware)
+app.add_middleware(AuditMiddleware)
 app.include_router(incidents_router)
 app.include_router(replay_router)
 app.include_router(analytics_router)
+app.include_router(status_router)
 
 
 # ── Health & Metrics ──────────────────────────────────────────────────
