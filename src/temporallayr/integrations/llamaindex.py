@@ -12,13 +12,19 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:
-    from llama_index.core.callbacks.base_handler import BaseCallbackHandler as LlamaBaseHandler
-    from llama_index.core.callbacks.schema import CBEventType, EventPayload
+    from llama_index.core.callbacks.base_handler import (  # type: ignore[import-not-found]
+        BaseCallbackHandler as LlamaBaseHandler,
+    )
+    from llama_index.core.callbacks.schema import (  # type: ignore[import-not-found]
+        CBEventType,
+        EventPayload,
+    )
 
     _LLAMA_AVAILABLE = True
 except ImportError:
@@ -53,20 +59,20 @@ class TemporalLayrObserver(LlamaBaseHandler):
 
         return _current_graph.get(None)
 
-    def start_trace(self, trace_id: Optional[str] = None) -> None:
+    def start_trace(self, trace_id: str | None = None) -> None:
         pass
 
     def end_trace(
         self,
-        trace_id: Optional[str] = None,
-        trace_map: Optional[dict[str, list[str]]] = None,
+        trace_id: str | None = None,
+        trace_map: dict[str, list[str]] | None = None,
     ) -> None:
         pass
 
     def on_event_start(
         self,
         event_type: CBEventType,
-        payload: Optional[dict[str, Any]] = None,
+        payload: dict[str, Any] | None = None,
         event_id: str = "",
         **kwargs: Any,
     ) -> str:
@@ -76,7 +82,7 @@ class TemporalLayrObserver(LlamaBaseHandler):
     def on_event_end(
         self,
         event_type: CBEventType,
-        payload: Optional[dict[str, Any]] = None,
+        payload: dict[str, Any] | None = None,
         event_id: str = "",
         **kwargs: Any,
     ) -> None:
@@ -87,9 +93,10 @@ class TemporalLayrObserver(LlamaBaseHandler):
         start = self._timings.pop(event_id, time.time())
         duration_ms = (time.time() - start) * 1000
 
-        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
 
         payload = payload or {}
         name = str(event_type).replace("CBEventType.", "").lower()
@@ -126,7 +133,7 @@ class TemporalLayrObserver(LlamaBaseHandler):
                     )
 
         error = payload.get("exception", None)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         from temporallayr.models.execution import ExecutionSpan
 
@@ -134,9 +141,8 @@ class TemporalLayrObserver(LlamaBaseHandler):
             span_id=str(uuid.uuid4()),
             parent_span_id=None,
             name=f"llama:{name}",
-            start_time=datetime.fromtimestamp(start, tz=timezone.utc),
+            start_time=datetime.fromtimestamp(start, tz=UTC),
             end_time=now,
-            duration_ms=duration_ms,
             status="error" if error else "success",
             error=str(error) if error else None,
             attributes=attrs,

@@ -15,12 +15,15 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_openai: Any = None
+
 try:
-    import openai as _openai
+    import openai as _openai  # type: ignore[import-not-found]
 
     _OPENAI_AVAILABLE = True
 except ImportError:
@@ -42,11 +45,12 @@ def _add_llm_span(
     if graph is None:
         return
 
+    import uuid
+    from datetime import datetime
+
     from temporallayr.core.decorators import _compute_cost
     from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
     from temporallayr.models.execution import ExecutionSpan
-    import uuid
-    from datetime import datetime, timezone
 
     total_tokens = prompt_tokens + completion_tokens
     cost = _compute_cost(model, prompt_tokens, completion_tokens)
@@ -69,14 +73,13 @@ def _add_llm_span(
         except Exception:
             pass
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     span = ExecutionSpan(
         span_id=str(uuid.uuid4()),
         parent_span_id=None,
         name=f"llm:{model}",
-        start_time=datetime.fromtimestamp(time.time() - duration_ms / 1000, tz=timezone.utc),
+        start_time=datetime.fromtimestamp(time.time() - duration_ms / 1000, tz=UTC),
         end_time=now,
-        duration_ms=duration_ms,
         status="error" if error else "success",
         error=error,
         attributes=attrs,

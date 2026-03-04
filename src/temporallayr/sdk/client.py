@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
+from typing import Any
 
 from temporallayr.config import TemporalLayrConfig, resolve_config
 from temporallayr.sdk.batching import SpanBatcher
@@ -26,6 +27,7 @@ class TemporalLayrSDK:
             batch_size=50,
             flush_interval=5.0,
         )
+        self.transport: Any = self.batcher
         self._started = False
 
     async def start(self) -> None:

@@ -1,8 +1,9 @@
 import os
 import sys
+from typing import Any
 
 
-def register(subparsers) -> None:
+def register(subparsers: Any) -> None:
     login_parser = subparsers.add_parser(
         "login", help="Set and securely save your TemporalLayr API Key."
     )
@@ -15,9 +16,9 @@ def register(subparsers) -> None:
     login_parser.set_defaults(func=_run_login)
 
 
-def _run_login(args) -> None:
+def _run_login(args: Any) -> None:
     """Interactively save the TemporalLayr API Key into temporallayr.yaml for the workspace."""
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 
     print("=" * 40)
     print("Temporallayr Enterprise Login")
@@ -33,19 +34,21 @@ def _run_login(args) -> None:
         sys.exit(1)
 
     config_path = "temporallayr.yaml"
-    existing_config = {}
+    existing_config: dict[str, Any] = {}
 
     if os.path.exists(config_path):
         try:
             with open(config_path, encoding="utf-8") as f:
-                existing_config = yaml.safe_load(f) or {}
+                loaded = yaml.safe_load(f)
+                if isinstance(loaded, dict):
+                    existing_config = loaded
         except Exception:
             pass
 
     existing_config["api_key"] = api_key
 
     with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(existing_config, f, default_flow_style=False)
+        yaml.safe_dump(existing_config, f, default_flow_style=False)
 
     print(f"✓ API Key securely saved to {os.path.abspath(config_path)}\n")
     print("Run `temporallayr doctor` to verify your connection.")

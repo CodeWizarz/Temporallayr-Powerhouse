@@ -14,8 +14,8 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Any, Literal
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,10 @@ def fire_webhook(
         if config.provider == "slack":
             body = json.dumps(_build_slack_body(incident)).encode()
         elif config.provider == "pagerduty":
-            rk = config.routing_key or os.getenv("TEMPORALLAYR_PAGERDUTY_ROUTING_KEY", "")
+            rk = config.routing_key or os.getenv("TEMPORALLAYR_PAGERDUTY_ROUTING_KEY") or ""
+            if not rk:
+                logger.warning("PagerDuty routing key missing")
+                return False
             body = json.dumps(_build_pagerduty_body(incident, rk)).encode()
         else:
             body = json.dumps(_build_generic_body(incident, event_type)).encode()

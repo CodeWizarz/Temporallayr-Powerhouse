@@ -19,7 +19,9 @@ class TreeBuilder:
         Maintains chronological sorting determinism strictly based on internal temporal bounds.
         """
         # Bootstrap the dictionary mapping retaining native payload shapes.
-        node_map = {node.id: {"node": node, "children": []} for node in nodes}
+        node_map: dict[str, dict[str, Any]] = {
+            node.id: {"node": node, "children": []} for node in nodes
+        }
 
         roots: list[dict[str, Any]] = []
 

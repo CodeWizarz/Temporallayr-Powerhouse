@@ -11,13 +11,17 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-try:
-    import anthropic as _anthropic
+_anthropic: Any = None
 
+try:
+    import anthropic as _anthropic_imported  # type: ignore[import-not-found]
+
+    _anthropic = _anthropic_imported
     _ANTHROPIC_AVAILABLE = True
 except ImportError:
     _ANTHROPIC_AVAILABLE = False
@@ -53,10 +57,11 @@ def _add_anthropic_span(
     if graph is None:
         return
 
+    import uuid
+    from datetime import datetime
+
     from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
     from temporallayr.models.execution import ExecutionSpan
-    import uuid
-    from datetime import datetime, timezone
 
     cost = _compute_anthropic_cost(model, input_tokens, output_tokens)
     total = input_tokens + output_tokens
@@ -75,14 +80,13 @@ def _add_anthropic_span(
     if cost is not None:
         attrs["cost_usd"] = cost
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     span = ExecutionSpan(
         span_id=str(uuid.uuid4()),
         parent_span_id=None,
         name=f"llm:{model}",
-        start_time=datetime.fromtimestamp(time.time() - duration_ms / 1000, tz=timezone.utc),
+        start_time=datetime.fromtimestamp(time.time() - duration_ms / 1000, tz=UTC),
         end_time=now,
-        duration_ms=duration_ms,
         status="error" if error else "success",
         error=error,
         attributes=attrs,

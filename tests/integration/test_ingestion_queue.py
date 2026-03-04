@@ -2,10 +2,10 @@
 Integration tests for the Redis queue-based ingestion pipeline.
 """
 
-import asyncio
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -35,46 +35,55 @@ async def test_rest_api_pushes_to_queue(mock_redis):
     """Test that /v1/ingest pushes the valid spans to the Redis queue."""
     # We must set REDIS_URL so the queue module recognizes it's activated
     os.environ["TEMPORALLAYR_REDIS_URL"] = "redis://mock:6379"
+    previous_quota = os.environ.get("TEMPORALLAYR_DEFAULT_QUOTA")
+    os.environ["TEMPORALLAYR_DEFAULT_QUOTA"] = "100000"
 
     from temporallayr.server.app import app
     from temporallayr.server.auth.api_keys import map_api_key_to_tenant
 
-    map_api_key_to_tenant("qt-test-key", "qt-tenant")
+    tenant_id = f"qt-tenant-{uuid4().hex[:8]}"
+    api_key = f"qt-test-key-{uuid4().hex[:8]}"
+    map_api_key_to_tenant(api_key, tenant_id)
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        headers = {
-            "Authorization": "Bearer qt-test-key",
-            "Content-Type": "application/json",
-        }
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
 
-        payload = {
-            "events": [
-                {
-                    "trace_id": "queue-trace-1",
-                    "tenant_id": "qt-tenant",
-                    "spans": [{"name": "test_span", "span_id": "span-1"}],
-                }
-            ]
-        }
+            payload = {
+                "events": [
+                    {
+                        "trace_id": "queue-trace-1",
+                        "tenant_id": tenant_id,
+                        "spans": [{"name": "test_span", "span_id": "span-1"}],
+                    }
+                ]
+            }
 
-        r = await c.post("/v1/ingest", json=payload, headers=headers)
-        assert r.status_code == 202
-        assert r.json()["processed"] == 1
+            r = await c.post("/v1/ingest", json=payload, headers=headers)
+            assert r.status_code == 202
+            assert r.json()["processed"] == 1
 
-        # Verify the graph was pushed to the Redis queue
-        mock_redis.rpush.assert_called_once()
-        args = mock_redis.rpush.call_args[0]
-        queue_name = args[0]
-        dumped_graph = args[1]
-        assert queue_name == "temporallayr:ingest_queue"
+            # Verify the graph was pushed to the Redis queue
+            mock_redis.rpush.assert_called_once()
+            args = mock_redis.rpush.call_args[0]
+            queue_name = args[0]
+            dumped_graph = args[1]
+            assert queue_name == "temporallayr:ingest_queue"
 
-        # Verify the payload represents the graph
-        data = json.loads(dumped_graph)
-        assert data["trace_id"] == "queue-trace-1"
-        assert data["tenant_id"] == "qt-tenant"
-        assert len(data["spans"]) == 1
-
-    del os.environ["TEMPORALLAYR_REDIS_URL"]
+            # Verify the payload represents the graph
+            data = json.loads(dumped_graph)
+            assert data["trace_id"] == "queue-trace-1"
+            assert data["tenant_id"] == tenant_id
+            assert len(data["spans"]) == 1
+    finally:
+        del os.environ["TEMPORALLAYR_REDIS_URL"]
+        if previous_quota is None:
+            os.environ.pop("TEMPORALLAYR_DEFAULT_QUOTA", None)
+        else:
+            os.environ["TEMPORALLAYR_DEFAULT_QUOTA"] = previous_quota
 
 
 @pytest.mark.asyncio

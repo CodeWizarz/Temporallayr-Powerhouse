@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import time
 from collections import defaultdict, deque
-from typing import Any
 
 
 class SlidingWindowRateLimiter:
@@ -59,3 +58,10 @@ def check_api_rate(tenant_id: str) -> tuple[bool, dict[str, str]]:
 
 def check_admin_rate(ip: str) -> tuple[bool, dict[str, str]]:
     return _admin_limiter.is_allowed(ip, limit=10)
+
+
+def reset_rate_limiters() -> None:
+    """Clear in-memory limiter windows (used by tests)."""
+    _ingest_limiter._windows.clear()
+    _api_limiter._windows.clear()
+    _admin_limiter._windows.clear()

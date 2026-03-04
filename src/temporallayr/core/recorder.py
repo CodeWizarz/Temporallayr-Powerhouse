@@ -1,6 +1,7 @@
 """
 Execution recorder — builds and persists temporal execution graphs.
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,6 +39,7 @@ class ExecutionRecorder:
         self.run_id = run_id or str(uuid.uuid4())
 
         from temporallayr.config import get_tenant_id
+
         tenant_id = get_context().tenant_id or get_tenant_id()
         if not tenant_id:
             raise ValueError(
@@ -47,6 +49,7 @@ class ExecutionRecorder:
 
         if not ExecutionRecorder._diagnostics_printed:
             from temporallayr.config import get_api_key, get_server_url
+
             logger.info(
                 "TemporalLayr recorder initialised",
                 extra={
@@ -58,9 +61,10 @@ class ExecutionRecorder:
             ExecutionRecorder._diagnostics_printed = True
 
         from temporallayr.transport import get_transport
+
         get_transport()
 
-        self._graph = ExecutionGraph(id=self.run_id, tenant_id=tenant_id)
+        self._graph = ExecutionGraph(trace_id=self.run_id, tenant_id=tenant_id)
 
     def _create_node(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
         current_graph = _current_graph.get()
@@ -70,10 +74,10 @@ class ExecutionRecorder:
             )
         parent_id = _current_parent_id.get()
         node = ExecutionNode(
-            id=str(uuid.uuid4()),
+            span_id=str(uuid.uuid4()),
             name=name,
-            metadata=metadata or {},
-            parent_id=parent_id,
+            attributes=metadata or {},
+            parent_span_id=parent_id,
         )
         current_graph.add_node(node)
         return node
@@ -89,17 +93,21 @@ class ExecutionRecorder:
         finally:
             _current_parent_id.reset(token)
 
-    async def record_model_call(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
+    async def record_model_call(
+        self, name: str, metadata: dict[str, Any] | None = None
+    ) -> ExecutionNode:
         return self._create_node(f"model_call:{name}", metadata)
 
-    async def record_tool_call(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
+    async def record_tool_call(
+        self, name: str, metadata: dict[str, Any] | None = None
+    ) -> ExecutionNode:
         return self._create_node(f"tool_call:{name}", metadata)
 
     @property
     def graph(self) -> ExecutionGraph:
         return self._graph
 
-    async def __aenter__(self) -> "ExecutionRecorder":
+    async def __aenter__(self) -> ExecutionRecorder:
         if _current_graph.get() is not None:
             raise RecorderStateError("Cannot nest ExecutionRecorder contexts.")
         self._graph_token = _current_graph.set(self._graph)
@@ -124,11 +132,14 @@ class ExecutionRecorder:
         # Ship to server transport (async, fire-and-forget)
         try:
             from temporallayr.transport import get_transport
+
             transport = get_transport()
-            await transport.send_event({
-                "type": "execution_graph",
-                "tenant_id": self.tenant_id,
-                "graph": self.graph.model_dump(mode="json"),
-            })
+            await transport.send_event(
+                {
+                    "type": "execution_graph",
+                    "tenant_id": self.tenant_id,
+                    "graph": self.graph.model_dump(mode="json"),
+                }
+            )
         except Exception as e:
             logger.warning("Failed to enqueue execution for transport", extra={"error": str(e)})

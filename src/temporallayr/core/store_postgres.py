@@ -25,9 +25,11 @@ async def _get_pool():
     global _pool
     if _pool is None:
         try:
-            import asyncpg
-        except ImportError:
-            raise RuntimeError("asyncpg not installed. Run: pip install temporallayr[postgres]")
+            import asyncpg  # type: ignore[import-untyped]
+        except ImportError as exc:
+            raise RuntimeError(
+                "asyncpg not installed. Run: pip install temporallayr[postgres]"
+            ) from exc
         import os
 
         dsn = os.environ["TEMPORALLAYR_POSTGRES_DSN"]
@@ -103,6 +105,25 @@ class PostgresStore(ExecutionStore):
                 loop.run_until_complete(self.save_execution_async(graph))
         except Exception as e:
             logger.warning("PostgreSQL save_execution failed", extra={"error": str(e)})
+
+    def bulk_save_executions(self, graphs: list[ExecutionGraph]) -> None:
+        import asyncio
+
+        if not graphs:
+            return
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(self._bulk_save_executions_async(graphs))
+            else:
+                loop.run_until_complete(self._bulk_save_executions_async(graphs))
+        except Exception as e:
+            logger.warning("PostgreSQL bulk_save_executions failed", extra={"error": str(e)})
+
+    async def _bulk_save_executions_async(self, graphs: list[ExecutionGraph]) -> None:
+        for graph in graphs:
+            await self.save_execution_async(graph)
 
     async def save_execution_async(self, graph: ExecutionGraph) -> None:
         from temporallayr.core.fingerprint import Fingerprinter

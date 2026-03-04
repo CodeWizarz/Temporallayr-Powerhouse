@@ -15,6 +15,7 @@ Fixes applied:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import time
@@ -240,7 +241,9 @@ async def _enqueue_graph(graph: ExecutionGraph) -> None:
     if redis_client:
         try:
             # Pushing the full serialized graph allows worker to parse it entirely standalone.
-            await redis_client.rpush("temporallayr:ingest_queue", graph.model_dump_json())
+            push_result = redis_client.rpush("temporallayr:ingest_queue", graph.model_dump_json())
+            if inspect.isawaitable(push_result):
+                await push_result
         except Exception as e:
             logger.warning(
                 "Failed to enqueue graph to Redis, falling back to sync process",

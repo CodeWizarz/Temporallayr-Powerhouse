@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 class TransportProtocol(Protocol):
     async def send_batch(self, batch: list[dict[str, Any]]) -> bool: ...
 
+    async def shutdown(self) -> None: ...
+
 
 class SpanBatcher:
     """Queues spans and flushes them in batches via background worker."""
@@ -46,6 +48,14 @@ class SpanBatcher:
             return
 
         await self._queue.put(item)
+
+    async def enqueue(self, item: Any) -> None:
+        """Compatibility alias used by legacy codepaths."""
+        await self.add(item)
+
+    async def send_event(self, event: dict[str, Any]) -> None:
+        """Compatibility alias used by recorder transport calls."""
+        await self.add(event)
 
     async def _worker_loop(self) -> None:
         """Continuously flush batches based on time or size limits."""

@@ -1,5 +1,8 @@
 import sys
 
+import certifi
+import httpx
+
 
 def register(subparsers) -> None:
     doctor_parser = subparsers.add_parser(
@@ -21,7 +24,7 @@ def _run_doctor(args) -> None:
 
     print(f"1. Target Server URL: {target_url}")
     print(f"2. Local Flush Interval: {config.flush_interval}s")
-    print(f"3. Local Max Queue Size: {config.queue_size}")
+    print(f"3. Local Max Queue Size: {config.max_queue_size}")
 
     api_key_str = get_api_key()
     api_key_masked = f"...{api_key_str[-4:]}" if api_key_str and len(api_key_str) > 4 else "NOT SET"
@@ -36,9 +39,6 @@ def _run_doctor(args) -> None:
 
     print("\nAttempting handshake with TemporalLayr server...")
     try:
-        import certifi
-        import httpx
-
         headers = {"Authorization": f"Bearer {api_key_str}", "Content-Type": "application/json"}
         res = httpx.get(
             f"{target_url}/handshake",

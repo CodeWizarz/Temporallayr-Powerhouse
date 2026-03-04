@@ -14,7 +14,7 @@ def _run_test(args) -> None:
     print("Bootstrapping dummy payload validation for Temporallayr...")
     init()
 
-    @track(type="test_probe")
+    @track(name="test_probe")
     def _test_operation() -> str:
         time.sleep(0.1)
         return "Probe Completed"

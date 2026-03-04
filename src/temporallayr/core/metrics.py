@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from threading import Lock
-from typing import Any
+from typing import Protocol
+
+
+class _Renderable(Protocol):
+    def render(self) -> str: ...
 
 
 class _Counter:
@@ -18,14 +22,17 @@ class _Counter:
         self._lock = Lock()
 
     def inc(self, amount: float = 1.0, **kw: str) -> None:
-        key = tuple(kw.get(l, "") for l in self.labels)
+        key = tuple(kw.get(label_name, "") for label_name in self.labels)
         with self._lock:
             self._values[key] += amount
 
     def render(self) -> str:
         lines = [f"# HELP {self.name} {self.help}", f"# TYPE {self.name} counter"]
         for key, val in self._values.items():
-            ls = ",".join(f'{l}="{v}"' for l, v in zip(self.labels, key))
+            ls = ",".join(
+                f'{label_name}="{value}"'
+                for label_name, value in zip(self.labels, key, strict=True)
+            )
             lines.append(f"{self.name}{{{ls}}} {val}")
         return "\n".join(lines)
 
@@ -89,7 +96,7 @@ incidents_total = _Counter("tl_incidents_total", "Incidents created", ["severity
 incidents_open = _Gauge("tl_incidents_open", "Open incidents")
 request_duration = _Histogram("tl_request_duration_ms", "Request latency ms")
 
-_REGISTRY = [
+_REGISTRY: list[_Renderable] = [
     spans_ingested,
     api_requests,
     rate_limit_hits,
