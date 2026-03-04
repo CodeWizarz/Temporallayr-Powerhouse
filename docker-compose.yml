@@ -2,31 +2,26 @@ version: "3.9"
 
 services:
   temporallayr:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/server/Dockerfile
     ports:
       - "8000:8000"
     environment:
-      TEMPORALLAYR_API_KEYS: ${TEMPORALLAYR_API_KEYS:-dev-key-123=default}
-      TEMPORALLAYR_ADMIN_KEY: ${TEMPORALLAYR_ADMIN_KEY:-admin-key-456}
+      TEMPORALLAYR_API_KEY: ${TEMPORALLAYR_API_KEY:-dev-key-change-me}
+      TEMPORALLAYR_ADMIN_KEY: ${TEMPORALLAYR_ADMIN_KEY:-admin-key-change-me}
+      TEMPORALLAYR_TENANT_ID: ${TEMPORALLAYR_TENANT_ID:-default}
       TEMPORALLAYR_DATA_DIR: /data/.temporallayr
-      # ClickHouse Cloud — set these in .env
-      TEMPORALLAYR_CLICKHOUSE_HOST: ${TEMPORALLAYR_CLICKHOUSE_HOST:-clickhouse}
-      TEMPORALLAYR_CLICKHOUSE_PORT: ${TEMPORALLAYR_CLICKHOUSE_PORT:-8123}
-      TEMPORALLAYR_CLICKHOUSE_SECURE: ${TEMPORALLAYR_CLICKHOUSE_SECURE:-false}
+      TEMPORALLAYR_CLICKHOUSE_HOST: ${TEMPORALLAYR_CLICKHOUSE_HOST:-}
+      TEMPORALLAYR_CLICKHOUSE_PORT: ${TEMPORALLAYR_CLICKHOUSE_PORT:-8443}
+      TEMPORALLAYR_CLICKHOUSE_SECURE: ${TEMPORALLAYR_CLICKHOUSE_SECURE:-true}
       TEMPORALLAYR_CLICKHOUSE_USER: ${TEMPORALLAYR_CLICKHOUSE_USER:-default}
       TEMPORALLAYR_CLICKHOUSE_PASSWORD: ${TEMPORALLAYR_CLICKHOUSE_PASSWORD:-}
-      # OTLP — point at Phoenix or Jaeger
       TEMPORALLAYR_OTLP_ENDPOINT: ${TEMPORALLAYR_OTLP_ENDPOINT:-}
-      TEMPORALLAYR_RETENTION_DAYS: ${TEMPORALLAYR_RETENTION_DAYS:-30}
       TEMPORALLAYR_LOG_LEVEL: ${TEMPORALLAYR_LOG_LEVEL:-INFO}
     volumes:
-      # Persistent SQLite data across deploys
       - temporallayr_data:/data
     restart: unless-stopped
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-        required: false
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -35,7 +30,18 @@ services:
       start_period: 15s
       retries: 3
 
-  # Optional: self-hosted ClickHouse (omit if using ClickHouse Cloud)
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/dashboard/Dockerfile
+      args:
+        VITE_API_URL: /api
+    ports:
+      - "3000:80"
+    depends_on:
+      - temporallayr
+    restart: unless-stopped
+
   clickhouse:
     image: clickhouse/clickhouse-server:24.3-alpine
     profiles: ["local-clickhouse"]
@@ -48,13 +54,13 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Optional: self-hosted Phoenix UI (trace viewer)
   phoenix:
     image: arizephoenix/phoenix:latest
     profiles: ["phoenix"]
