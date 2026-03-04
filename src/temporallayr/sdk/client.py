@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Coroutine
 
 from temporallayr.config import TemporalLayrConfig, resolve_config
-from temporallayr.sdk.batching import BatchingTransport
+from temporallayr.sdk.batching import SpanBatcher
 from temporallayr.sdk.transport import HTTPTransport
 
 
@@ -21,7 +21,7 @@ class TemporalLayrSDK:
             server_url=config.server_url,
             api_key=config.api_key,
         )
-        self.transport = BatchingTransport(
+        self.batcher = SpanBatcher(
             transport=http_layer,
             batch_size=50,
             flush_interval=5.0,
@@ -31,13 +31,15 @@ class TemporalLayrSDK:
     async def start(self) -> None:
         """Initialize background transport."""
         if not self._started:
-            self.transport.start()
+            self.batcher.start()
             self._started = True
 
     async def shutdown(self) -> None:
         """Flush pending events and kill transport."""
         if self._started:
-            await self.transport.shutdown()
+            await self.batcher.shutdown()
+            if hasattr(self.batcher.transport, "shutdown"):
+                await self.batcher.transport.shutdown()
             self._started = False
 
 
