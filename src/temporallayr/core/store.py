@@ -103,10 +103,11 @@ def get_default_store() -> ExecutionStore:
     if _default_store is None:
         import os
 
-        if os.getenv("TEMPORALLAYR_POSTGRES_DSN"):
-            from temporallayr.core.store_postgres import PostgresStore
+        database_url = os.getenv("DATABASE_URL") or os.getenv("TEMPORALLAYR_POSTGRES_DSN")
+        if database_url:
+            from temporallayr.storage.postgres_store import PostgresStore
 
-            _default_store = PostgresStore()
+            _default_store = PostgresStore(dsn=database_url)
         else:
             from temporallayr.core.store_sqlite import SQLiteStore
 
