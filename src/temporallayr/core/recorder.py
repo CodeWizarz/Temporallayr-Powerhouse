@@ -4,11 +4,12 @@ Execution recorder — builds and persists temporal execution graphs.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from typing import Any
 
 from temporallayr.context import get_context
@@ -33,8 +34,6 @@ class ExecutionRecorder:
     Thread-safe via ContextVar isolation.
     """
 
-    _diagnostics_printed = False
-
     def __init__(self, run_id: str | None = None) -> None:
         self.run_id = run_id or str(uuid.uuid4())
 
@@ -47,24 +46,25 @@ class ExecutionRecorder:
             )
         self.tenant_id = tenant_id
 
-        if not ExecutionRecorder._diagnostics_printed:
-            from temporallayr.config import get_api_key, get_server_url
+        from temporallayr.config import get_api_key, get_server_url
 
-            logger.info(
-                "TemporalLayr recorder initialised",
-                extra={
-                    "server_url": get_server_url(),
-                    "api_key_present": bool(get_api_key()),
-                    "tenant_id": tenant_id,
-                },
-            )
-            ExecutionRecorder._diagnostics_printed = True
+        logger.info(
+            "TemporalLayr recorder initialised",
+            extra={
+                "server_url": get_server_url(),
+                "api_key_present": bool(get_api_key()),
+                "tenant_id": tenant_id,
+            },
+        )
 
         from temporallayr.transport import get_transport
 
         get_transport()
 
         self._graph = ExecutionGraph(trace_id=self.run_id, tenant_id=tenant_id)
+        self._graph_token: Token[ExecutionGraph | None] | None = None
+        self._parent_token: Token[str | None] | None = None
+        self._owner_token: Token[int | None] | None = None
 
     def _create_node(self, name: str, metadata: dict[str, Any] | None = None) -> ExecutionNode:
         current_graph = _current_graph.get()
@@ -108,10 +108,16 @@ class ExecutionRecorder:
         return self._graph
 
     async def __aenter__(self) -> ExecutionRecorder:
-        if _current_graph.get() is not None:
+        task = asyncio.current_task()
+        task_id = id(task) if task is not None else None
+        existing_owner_task = _current_owner_task_id.get()
+
+        if _current_graph.get() is not None and existing_owner_task == task_id:
             raise RecorderStateError("Cannot nest ExecutionRecorder contexts.")
+
         self._graph_token = _current_graph.set(self._graph)
         self._parent_token = _current_parent_id.set(None)
+        self._owner_token = _current_owner_task_id.set(task_id)
         return self
 
     async def __aexit__(
@@ -120,8 +126,12 @@ class ExecutionRecorder:
         exc_val: BaseException | None,
         exc_tb: Any | None,
     ) -> None:
-        _current_graph.reset(self._graph_token)
-        _current_parent_id.reset(self._parent_token)
+        if self._graph_token is not None:
+            _current_graph.reset(self._graph_token)
+        if self._parent_token is not None:
+            _current_parent_id.reset(self._parent_token)
+        if self._owner_token is not None:
+            _current_owner_task_id.reset(self._owner_token)
 
         # Persist locally (sync SQLite — always safe)
         try:
@@ -143,3 +153,6 @@ class ExecutionRecorder:
             )
         except Exception as e:
             logger.warning("Failed to enqueue execution for transport", extra={"error": str(e)})
+
+
+_current_owner_task_id: ContextVar[int | None] = ContextVar("_current_owner_task_id", default=None)
