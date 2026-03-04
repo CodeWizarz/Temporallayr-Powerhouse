@@ -1,22 +1,24 @@
-"""Queue-based batching transport using asyncio."""
+"""Span batching queue taking spans and flushing them."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
-
-from temporallayr.sdk.transport import HTTPTransport
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
 
-class BatchingTransport:
-    """Queues events and flushes them in batches via an asyncio background task."""
+class TransportProtocol(Protocol):
+    async def send_batch(self, batch: list[dict[str, Any]]) -> bool: ...
+
+
+class SpanBatcher:
+    """Queues spans and flushes them in batches via background worker."""
 
     def __init__(
         self,
-        transport: HTTPTransport,
+        transport: TransportProtocol,
         batch_size: int = 50,
         flush_interval: float = 5.0,
     ) -> None:
@@ -29,19 +31,18 @@ class BatchingTransport:
         self._worker_task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
-        """Start the background flush worker."""
+        """Start the background worker."""
         if self._worker_task is None:
             self._worker_task = asyncio.create_task(self._worker_loop())
 
-    async def enqueue(self, event: Any) -> None:
-        """Add an event to the queue asynchronously."""
-        # Convert models to dict if needed
-        if hasattr(event, "model_dump"):
-            item = event.model_dump(mode="json")
-        elif isinstance(event, dict):
-            item = event
+    async def add(self, span: Any) -> None:
+        """Add a span to the batching queue."""
+        if hasattr(span, "model_dump"):
+            item = span.model_dump(mode="json")
+        elif isinstance(span, dict):
+            item = span
         else:
-            logger.warning("BatchingTransport: dropping unknown item type %s", type(event))
+            logger.warning("SpanBatcher: unknown span type %s", type(span))
             return
 
         await self._queue.put(item)
@@ -51,38 +52,42 @@ class BatchingTransport:
         while not self._stop_event.is_set() or not self._queue.empty():
             batch: list[dict[str, Any]] = []
             try:
-                # If we're shutting down, don't sleep the full flush_interval
                 timeout = 0.1 if self._stop_event.is_set() else self.flush_interval
-
-                # Wait for the first item
                 item = await asyncio.wait_for(self._queue.get(), timeout=timeout)
                 batch.append(item)
                 self._queue.task_done()
 
-                # Grab remaining items up to batch_size
                 while len(batch) < self.batch_size and not self._queue.empty():
                     batch.append(self._queue.get_nowait())
                     self._queue.task_done()
 
             except TimeoutError:
-                # Expected when flush_interval hits and no new items arrived
                 pass
             except asyncio.CancelledError:
                 break
 
             if batch:
-                await self._flush_batch(batch)
+                await self.flush(batch)
 
-    async def _flush_batch(self, batch: list[dict[str, Any]]) -> None:
-        """Send a single batch using the underlying transport."""
-        await self.transport.send_batch(batch)
+    async def flush(self, batch: list[dict[str, Any]] | None = None) -> None:
+        """Flush a specific batch, or all remaining items if batch is None."""
+        if batch is not None:
+            await self.transport.send_batch(batch)
+        else:
+            # Drain current queue entirely
+            all_items: list[dict[str, Any]] = []
+            while not self._queue.empty():
+                all_items.append(self._queue.get_nowait())
+                self._queue.task_done()
+            if all_items:
+                for i in range(0, len(all_items), self.batch_size):
+                    await self.transport.send_batch(all_items[i : i + self.batch_size])
 
     async def shutdown(self) -> None:
-        """Signal the worker to stop, wait for flush, and close transport."""
+        """Stop worker and flush remaining."""
         self._stop_event.set()
         if self._worker_task is not None:
             try:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
-        await self.transport.shutdown()
