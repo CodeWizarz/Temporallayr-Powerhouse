@@ -1,4 +1,4 @@
-"""HTTP Transport with retry logic."""
+"""Async HTTP transport with retry."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ class HTTPTransport:
         api_key: str | None,
         max_retries: int = 3,
         base_backoff: float = 0.5,
+        timeout: float = 10.0,
     ) -> None:
         self.server_url = server_url.rstrip("/")
         self.headers = {"Content-Type": "application/json"}
@@ -27,10 +28,10 @@ class HTTPTransport:
             self.headers["Authorization"] = f"Bearer {api_key}"
         self.max_retries = max_retries
         self.base_backoff = base_backoff
-        self._client = httpx.AsyncClient(timeout=10.0)
+        self._client = httpx.AsyncClient(timeout=timeout)
 
     async def send_batch(self, batch: list[dict[str, Any]]) -> bool:
-        """Send a batch of events to the ingest endpoint with retries."""
+        """Send batch to ingest endpoint with retries and timeout."""
         if not batch:
             return True
 
@@ -44,14 +45,18 @@ class HTTPTransport:
                 )
                 response.raise_for_status()
                 return True
+            except httpx.TimeoutException as e:
+                logger.warning("Transport timeout on attempt %d: %s", attempt + 1, e)
             except Exception as e:
                 logger.warning("Transport error on attempt %d: %s", attempt + 1, e)
-                if attempt < self.max_retries:
-                    # Exponential backoff
-                    await asyncio.sleep(self.base_backoff * (2**attempt))
+
+            if attempt < self.max_retries:
+                # Exponential backoff
+                await asyncio.sleep(self.base_backoff * (2**attempt))
+
         logger.error("Failed to send batch after %d retries", self.max_retries)
         return False
 
     async def shutdown(self) -> None:
-        """Close the underlying HTTP client."""
+        """Close the HTTP client."""
         await self._client.aclose()
