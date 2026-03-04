@@ -55,18 +55,26 @@ jobs:
         run: |
           python -m coverage run --rcfile="${COVERAGE_RCFILE}" -m pytest
           python -m coverage xml --rcfile="${COVERAGE_RCFILE}" -o "$COVERAGE_XML"
-          python -m coverage report --rcfile="${COVERAGE_RCFILE}" --fail-under=80
+          python -m coverage report --rcfile="${COVERAGE_RCFILE}" --fail-under=80 | tee reports/coverage.txt
 
-      - name: Upload test and coverage artifacts
+      - name: Upload JUnit artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reports-${{ matrix.os }}-py${{ matrix.python-version }}
+          name: junit-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: reports/junit.xml
+          if-no-files-found: error
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
           path: |
-            reports/junit.xml
             reports/coverage.xml
+            reports/coverage.txt
             .coverage
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload coverage to Codecov (optional)
         if: always() && matrix.os == 'ubuntu-latest'

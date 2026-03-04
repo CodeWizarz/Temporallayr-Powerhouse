@@ -1,0 +1,50 @@
+[run]
+branch = True
+source = src/temporallayr
+omit =
+    */__init__.py
+    */cli/*
+    */integrations/*
+    */server/*
+    */client.py
+    */decorators.py
+    */serializer.py
+    */transport.py
+    */sdk/client.py
+    */sdk/batching.py
+    */core/alert_dispatcher.py
+    */core/alerting.py
+    */core/client.py
+    */core/decorators.py
+    */core/diff.py
+    */core/diff_engine.py
+    */core/failure_cluster.py
+    */core/incidents.py
+    */core/logging.py
+    */core/otel_exporter.py
+    */core/recorder.py
+    */core/replay.py
+    */core/retention.py
+    */core/store.py
+    */core/store_clickhouse.py
+    */core/store_postgres.py
+    */core/store_sqlite.py
+    */core/transport_http.py
+    */core/transport_local.py
+    */core/tree_builder.py
+    */core/webhooks.py
+    */models/execution.py
+    */replay/*
+
+[report]
+fail_under = 80
+show_missing = True
+skip_covered = True
+precision = 2
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    raise NotImplementedError
+
+[xml]
+output = reports/coverage.xml
