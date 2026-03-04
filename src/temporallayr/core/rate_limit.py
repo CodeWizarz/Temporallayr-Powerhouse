@@ -1,75 +1,61 @@
 """
-Per-tenant rate limiting using in-memory sliding window.
-No Redis needed. Resets on server restart (acceptable for single-worker).
+Per-tenant sliding window rate limiter.
+No Redis required — resets on restart, fine for single-worker.
+Scale to Redis if you go multi-worker later.
 """
 
 from __future__ import annotations
 
+import os
 import time
 from collections import defaultdict, deque
 from typing import Any
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 class SlidingWindowRateLimiter:
-    """Thread-safe sliding window rate limiter."""
-
     def __init__(self) -> None:
-        # tenant_id -> deque of timestamps
         self._windows: dict[str, deque] = defaultdict(deque)
 
     def is_allowed(
-        self, tenant_id: str, limit: int, window_seconds: int = 60
-    ) -> tuple[bool, dict[str, Any]]:
+        self, key: str, limit: int, window_seconds: int = 60
+    ) -> tuple[bool, dict[str, str]]:
         now = time.monotonic()
-        window = self._windows[tenant_id]
-
-        # Evict expired entries
+        window = self._windows[key]
         cutoff = now - window_seconds
         while window and window[0] < cutoff:
             window.popleft()
 
         count = len(window)
-        remaining = max(0, limit - count)
         reset_at = int(time.time()) + window_seconds
-
-        if count >= limit:
-            return False, {
-                "X-RateLimit-Limit": str(limit),
-                "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(reset_at),
-                "Retry-After": str(window_seconds),
-            }
-
-        window.append(now)
-        return True, {
+        headers = {
             "X-RateLimit-Limit": str(limit),
-            "X-RateLimit-Remaining": str(remaining - 1),
+            "X-RateLimit-Remaining": str(max(0, limit - count - 1)),
             "X-RateLimit-Reset": str(reset_at),
         }
 
+        if count >= limit:
+            headers["Retry-After"] = str(window_seconds)
+            headers["X-RateLimit-Remaining"] = "0"
+            return False, headers
 
-# Global limiter instances
+        window.append(now)
+        return True, headers
+
+
 _ingest_limiter = SlidingWindowRateLimiter()
 _api_limiter = SlidingWindowRateLimiter()
 _admin_limiter = SlidingWindowRateLimiter()
 
 
-def check_ingest_rate(tenant_id: str) -> tuple[bool, dict[str, Any]]:
-    """1000 req/min per tenant on /v1/ingest."""
-    limit = int(__import__("os").getenv("TEMPORALLAYR_INGEST_RATE_LIMIT", "1000"))
-    return _ingest_limiter.is_allowed(tenant_id, limit=limit, window_seconds=60)
+def check_ingest_rate(tenant_id: str) -> tuple[bool, dict[str, str]]:
+    limit = int(os.getenv("TEMPORALLAYR_INGEST_RATE_LIMIT", "1000"))
+    return _ingest_limiter.is_allowed(tenant_id, limit=limit)
 
 
-def check_api_rate(tenant_id: str) -> tuple[bool, dict[str, Any]]:
-    """200 req/min per tenant on general API endpoints."""
-    limit = int(__import__("os").getenv("TEMPORALLAYR_API_RATE_LIMIT", "200"))
-    return _api_limiter.is_allowed(tenant_id, limit=limit, window_seconds=60)
+def check_api_rate(tenant_id: str) -> tuple[bool, dict[str, str]]:
+    limit = int(os.getenv("TEMPORALLAYR_API_RATE_LIMIT", "200"))
+    return _api_limiter.is_allowed(tenant_id, limit=limit)
 
 
-def check_admin_rate(ip: str) -> tuple[bool, dict[str, Any]]:
-    """10 req/min on admin endpoints (keyed by IP)."""
-    return _admin_limiter.is_allowed(ip, limit=10, window_seconds=60)
+def check_admin_rate(ip: str) -> tuple[bool, dict[str, str]]:
+    return _admin_limiter.is_allowed(ip, limit=10)
