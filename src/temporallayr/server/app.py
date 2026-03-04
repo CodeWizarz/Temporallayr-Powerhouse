@@ -129,22 +129,17 @@ async def lifespan(app: FastAPI):
     if otlp:
         logger.info("OTLP export enabled", extra={"endpoint": otlp.endpoint})
 
-    retention_days = int(os.getenv("TEMPORALLAYR_RETENTION_DAYS", "30"))
+    # Start data retention background job
+    from temporallayr.core.retention import start_retention_job
 
-    async def _retention_worker() -> None:
-        while True:
-            try:
-                cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-                deleted = get_default_store().delete_old_executions(cutoff)
-                if deleted:
-                    logger.info("Retention GC complete", extra={"deleted": deleted})
-            except Exception as e:
-                logger.warning("Retention worker error", extra={"error": str(e)})
-            await asyncio.sleep(3600)
+    start_retention_job()
+    logger.info("Data retention job started")
 
-    task = asyncio.create_task(_retention_worker())
     yield
-    task.cancel()
+
+    from temporallayr.core.retention import stop_retention_job
+
+    stop_retention_job()
     logger.info("TemporalLayr server shutting down")
 
 
@@ -247,8 +242,18 @@ async def _process_graph(graph: ExecutionGraph) -> None:
         if clusters:
             async with _incidents_lock:
                 global _INCIDENTS
+                old_incidents = len(_INCIDENTS)
                 _INCIDENTS = IncidentEngine.detect_incidents(clusters, _INCIDENTS)
                 await _persist_incidents_locked(_INCIDENTS)
+                new_incidents = (
+                    _INCIDENTS[old_incidents:] if len(_INCIDENTS) > old_incidents else []
+                )
+
+            if new_incidents:
+                from temporallayr.core.webhooks import dispatch_incident_async
+
+                for inc in new_incidents:
+                    asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
     except Exception as e:
         logger.warning("Incident detection error", extra={"error": str(e)})
 
@@ -309,6 +314,24 @@ async def ingest_events(
             headers=rl_headers,
         )
 
+    # Quota enforcement
+    from temporallayr.core.quotas import check_quota, record_spans
+
+    quota_ok, quota_info = check_quota(authed_tenant)
+    if not quota_ok:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Daily quota exceeded ({quota_info['spans_today']}/{quota_info['quota']} spans). Resets at midnight UTC.",
+            headers={
+                "X-Quota-Used": str(quota_info["spans_today"]),
+                "X-Quota-Limit": str(quota_info["quota"]),
+            },
+        )
+    # Track usage
+    total_spans = sum(len(e.get("spans", [])) for e in request.events)
+    if total_spans > 0:
+        record_spans(authed_tenant, total_spans)
+
     effective_tenant = authed_tenant
     store = get_default_store()
     processed, errors = 0, 0
@@ -323,6 +346,15 @@ async def ingest_events(
         except Exception as e:
             logger.warning("Ingest event error", extra={"error": str(e)})
             errors += 1
+
+    # Audit chain entry
+    from temporallayr.core.audit_chain import append as audit_append
+
+    audit_append(
+        "ingest",
+        {"tenant_id": authed_tenant, "events": len(request.events)},
+        tenant_id=authed_tenant,
+    )
 
     return {"processed": processed, "errors": errors}
 
@@ -610,6 +642,69 @@ async def rotate_key(
 @app.get("/admin/tenants", tags=["admin"])
 async def list_tenants(_: None = Depends(verify_admin_key)) -> list[dict[str, Any]]:
     return list_all_tenants()
+
+
+@app.get("/admin/audit-chain", tags=["admin"])
+async def get_audit_chain(
+    limit: int = 100,
+    offset: int = 0,
+    tenant_id: str | None = None,
+    _: None = Depends(verify_admin_key),
+) -> dict:
+    """Paginated audit chain log. Every entry is cryptographically linked."""
+    from temporallayr.core.audit_chain import get_entries
+
+    entries = get_entries(tenant_id=tenant_id, limit=limit, offset=offset)
+    return {"items": entries, "total": len(entries), "limit": limit, "offset": offset}
+
+
+@app.get("/admin/audit-chain/verify", tags=["admin"])
+async def verify_audit_chain(_: None = Depends(verify_admin_key)) -> dict:
+    """Verify the integrity of the entire audit chain. Returns broken entry seq if tampered."""
+    from temporallayr.core.audit_chain import verify
+
+    is_valid, broken_at = verify()
+    return {
+        "valid": is_valid,
+        "broken_at_seq": broken_at,
+        "message": "Chain intact" if is_valid else f"Chain broken at seq {broken_at}",
+    }
+
+
+@app.get("/admin/audit-chain/proof/{entry_hash}", tags=["admin"])
+async def audit_proof(entry_hash: str, _: None = Depends(verify_admin_key)) -> dict:
+    """Export cryptographic proof-of-existence for a specific audit entry."""
+    from temporallayr.core.audit_chain import export_proof
+
+    proof = export_proof(entry_hash)
+    if not proof:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return proof
+
+
+# ── Tenant Limits & Usage ──────────────────────────────────────────────
+
+
+@app.get("/usage", tags=["tenant"])
+async def get_usage(tenant: str = Depends(verify_api_key)) -> dict:
+    """Current tenant's daily span usage vs quota."""
+    from temporallayr.core.quotas import check_quota
+
+    _, info = check_quota(tenant)
+    return info
+
+
+@app.post("/admin/tenants/{tenant_id}/quota", tags=["admin"])
+async def set_quota(
+    tenant_id: str,
+    daily_limit: int,
+    _: None = Depends(verify_admin_key),
+) -> dict:
+    """Set daily span quota for a tenant."""
+    from temporallayr.core.quotas import set_tenant_quota
+
+    set_tenant_quota(tenant_id, daily_limit)
+    return {"tenant_id": tenant_id, "daily_limit": daily_limit, "status": "updated"}
 
 
 # ── Keys ───────────────────────────────────────────────────────────────
