@@ -1,0 +1,10 @@
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0;
+  background: #0d0d0d; color: #e0e0e0;
+  font-family: 'Inter', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#root { height: 100vh; }
+.react-flow__renderer { background: #0a0a0a; }
+.react-flow__controls-button { background: #111; border-color: #333; fill: #888; }
