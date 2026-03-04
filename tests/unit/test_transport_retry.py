@@ -12,8 +12,9 @@ from temporallayr.sdk.transport import HTTPTransport
 async def test_transport_success():
     """Test successful send_batch without retries."""
     transport = HTTPTransport("http://test", "key")
-    transport._client.post = AsyncMock()
-    transport._client.post.return_value.raise_for_status = lambda: None
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = lambda: None
+    transport._client.post.return_value = mock_response
 
     success = await transport.send_batch([{"id": 1}])
     assert success is True
