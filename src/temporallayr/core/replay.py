@@ -32,11 +32,11 @@ class DivergenceComparator:
                 divergence_details=f"Expected error '{orig_err}', got '{rep_err}'",
             )
 
-        if orig_out != rep_out:
+        if str(orig_out) != str(rep_out):
             return NodeReplayResult(
                 node_id=original.id,
                 success=False,
-                actual_output=rep_out,
+                actual_output=str(rep_out),
                 divergence_type=DivergenceType.OUTPUT_MISMATCH,
                 divergence_details=f"Expected output '{orig_out}', got '{rep_out}'",
             )

@@ -26,9 +26,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
 from starlette.responses import Response
 
-from temporallayr.core.alerting import AlertEngine
 from temporallayr.core.audit import AuditLogger
-from temporallayr.core.diff_engine import ExecutionDiffer
 from temporallayr.core.failure_cluster import FailureClusterEngine
 from temporallayr.core.incidents import IncidentEngine
 from temporallayr.core.logging import configure_logging
@@ -36,12 +34,10 @@ from temporallayr.core.metrics import rate_limit_hits
 from temporallayr.core.metrics import render_all as render_metrics
 from temporallayr.core.otel_exporter import get_otlp_exporter
 from temporallayr.core.rate_limit import check_ingest_rate
-from temporallayr.core.replay import ReplayEngine
 from temporallayr.core.store import get_default_store
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.store_sqlite import SQLiteStore
 from temporallayr.models.execution import ExecutionGraph
-from temporallayr.models.replay import ReplayReport
 from temporallayr.server.auth import verify_admin_key, verify_api_key
 from temporallayr.server.auth.api_keys import (
     generate_api_key,
@@ -57,6 +53,7 @@ from temporallayr.server.replay_routes import router as replay_router
 from temporallayr.server.routes.admin import router as admin_router
 from temporallayr.server.routes.analytics import router as analytics_router
 from temporallayr.server.routes.status import router as status_router
+from temporallayr.server.routes.traces import router as traces_router
 from temporallayr.workers.clickhouse_worker import (
     configure_clickhouse_worker,
     get_clickhouse_worker,
@@ -164,6 +161,7 @@ app.include_router(replay_router)
 app.include_router(analytics_router)
 app.include_router(status_router)
 app.include_router(admin_router)
+app.include_router(traces_router)
 
 
 # ── Health & Metrics ──────────────────────────────────────────────────
@@ -376,103 +374,6 @@ async def ingest_events(
     )
 
     return {"processed": processed, "errors": errors}
-
-
-# ── Executions ─────────────────────────────────────────────────────────
-
-
-class DiffRequest(BaseModel):
-    execution_a: str
-    execution_b: str
-
-
-@app.post("/executions", status_code=201, tags=["executions"])
-async def create_execution(
-    graph: ExecutionGraph,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, str]:
-    if graph.tenant_id != tenant_id:
-        raise HTTPException(status_code=400, detail="tenant_id mismatch")
-    store = get_default_store()
-    try:
-        previous_ids = store.list_executions(tenant_id)
-        previous_id = next((pid for pid in previous_ids if pid != graph.id), None)
-        store.save_execution(graph)
-        if previous_id:
-            try:
-                prev = store.load_execution(previous_id, tenant_id)
-                alerts = AlertEngine.check_execution(graph, prev)
-                if alerts:
-                    logger.info(
-                        "Alerts triggered", extra={"count": len(alerts), "graph_id": graph.id}
-                    )
-            except Exception as e:
-                logger.warning("Alert check failed", extra={"error": str(e)})
-        asyncio.create_task(_enqueue_graph(graph))
-        return {"execution_id": graph.id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.get("/executions", tags=["executions"])
-async def list_executions(
-    tenant_id: str = Depends(verify_api_key),
-    limit: int = 50,
-    offset: int = 0,
-) -> dict[str, Any]:
-    ids = get_default_store().list_executions(tenant_id)
-    page = ids[offset : offset + limit]
-    return {
-        "items": page,
-        "total": len(ids),
-        "limit": limit,
-        "offset": offset,
-        "has_more": (offset + limit) < len(ids),
-    }
-
-
-@app.get("/executions/{execution_id}", response_model=ExecutionGraph, tags=["executions"])
-async def get_execution(
-    execution_id: str,
-    tenant_id: str = Depends(verify_api_key),
-) -> ExecutionGraph:
-    try:
-        return get_default_store().load_execution(execution_id, tenant_id)
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404, detail=f"Execution '{execution_id}' not found"
-        ) from None
-
-
-@app.post("/executions/{execution_id}/replay", response_model=ReplayReport, tags=["executions"])
-async def replay_execution(
-    execution_id: str,
-    tenant_id: str = Depends(verify_api_key),
-) -> ReplayReport:
-    try:
-        graph = get_default_store().load_execution(execution_id, tenant_id)
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404, detail=f"Execution '{execution_id}' not found"
-        ) from None
-    return await ReplayEngine(graph).replay()
-
-
-@app.post("/executions/diff", response_model=dict[str, list[Any]], tags=["executions"])
-async def diff_executions(
-    request: DiffRequest,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, list[Any]]:
-    store = get_default_store()
-    try:
-        exec_a = store.load_execution(request.execution_a, tenant_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"'{request.execution_a}' not found") from None
-    try:
-        exec_b = store.load_execution(request.execution_b, tenant_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"'{request.execution_b}' not found") from None
-    return ExecutionDiffer.diff(exec_a, exec_b)
 
 
 # ── Clusters & Analytics ───────────────────────────────────────────────
