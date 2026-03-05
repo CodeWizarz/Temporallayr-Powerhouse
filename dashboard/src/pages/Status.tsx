@@ -18,8 +18,8 @@ export default function StatusPage() {
     setError(null)
     try {
       const [h, r] = await Promise.all([
-        api.system.check(),
-        api.system.ready(),
+        api.health.check(),
+        api.health.ready(),
       ])
       setHealth(h)
       setReady(r)
