@@ -75,7 +75,6 @@ class SQLiteStore(ExecutionStore):
         if not graphs:
             return
         from temporallayr.core.fingerprint import Fingerprinter
-
         batch = []
         for g in graphs:
             try:
@@ -134,11 +133,7 @@ class SQLiteStore(ExecutionStore):
             conn.execute(
                 "INSERT OR REPLACE INTO incidents (incident_id, tenant_id, data, updated_at) "
                 "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-                (
-                    incident["incident_id"],
-                    incident.get("tenant_id", "default"),
-                    json.dumps(incident),
-                ),
+                (incident["incident_id"], incident.get("tenant_id", "default"), json.dumps(incident)),
             )
             conn.commit()
 
@@ -149,10 +144,7 @@ class SQLiteStore(ExecutionStore):
             conn.executemany(
                 "INSERT OR REPLACE INTO incidents (incident_id, tenant_id, data, updated_at) "
                 "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-                [
-                    (i["incident_id"], i.get("tenant_id", "default"), json.dumps(i))
-                    for i in incidents
-                ],
+                [(i["incident_id"], i.get("tenant_id", "default"), json.dumps(i)) for i in incidents],
             )
             conn.commit()
 

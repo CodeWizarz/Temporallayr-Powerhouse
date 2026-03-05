@@ -1,244 +1,134 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import {
-    ReactFlow,
-    Background,
-    Controls,
-    Node,
-    Edge,
-    useNodesState,
-    useEdgesState,
-    Position,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import styled from 'styled-components';
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { api, type Trace, type Span, type ReplayReport } from '../api/client'
+import styled from 'styled-components'
 
-const PageContainer = styled.div`
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background-color: #f9f9f9;
-`;
+const Page = styled.div`color:#e0e0e0;`
+const Back = styled.button`background:none;border:none;color:#facc15;cursor:pointer;font-size:13px;margin-bottom:20px;padding:0;&:hover{opacity:.7;}`
+const Card = styled.div`background:#111;border:1px solid #1e1e1e;border-radius:10px;padding:20px;margin-bottom:20px;`
+const CardTitle = styled.h3`font-size:13px;color:#555;margin:0 0 14px;text-transform:uppercase;letter-spacing:.05em;`
+const Meta = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:16px;`
+const MetaItem = styled.div``
+const MetaLabel = styled.div`font-size:11px;color:#555;margin-bottom:4px;`
+const MetaValue = styled.div`font-size:14px;color:#e0e0e0;font-weight:500;`
+const Badge = styled.span<{$v:'success'|'error'}>`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${p=>p.$v==='success'?'#0d2a1a':'#2a0d0d'};color:${p=>p.$v==='success'?'#4caf6e':'#e55'};`
+const Btn = styled.button<{$primary?:boolean,$danger?:boolean}>`padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer;border:none;transition:all .15s;background:${p=>p.$primary?'#facc15':p.$danger?'#3a0d0d':'#1a1a1a'};color:${p=>p.$primary?'#000':p.$danger?'#e55':'#888'};&:hover{opacity:.85;}&:disabled{opacity:.4;cursor:default;}`
+const SpanRow = styled.div<{$depth:number,$err:boolean}>`padding:10px 14px;padding-left:${p=>14+p.$depth*24}px;border-bottom:1px solid #161616;font-size:12px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .1s;&:hover{background:#141414;background:${p=>p.$err?'#1a0a0a':'#141414'};}`
+const SpanName = styled.span`flex:1;color:#ddd;font-family:monospace;`
+const SpanDur = styled.span`color:#666;`
+const SpanErr = styled.div`background:#1a0808;border:1px solid #3a1010;border-radius:6px;padding:10px 14px;font-size:12px;color:#e88;font-family:monospace;margin-top:4px;`
+const ReplayCard = styled(Card)`border-color:${p=>p.theme?.ok?'#1a3a1a':'#3a1a0a'};`
+const Mono = styled.span`font-family:monospace;font-size:11px;color:#666;`
 
-const Header = styled.div`
-    padding: 20px;
-    background: white;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-`;
+const fmtDur = (s: string, e: string|null) => { if (!e) return '—'; const ms = new Date(e).getTime()-new Date(s).getTime(); return ms<1000?`${ms}ms`:`${(ms/1000).toFixed(2)}s` }
+const fmtTime = (t: string) => new Date(t).toLocaleString()
 
-const TitleBox = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-`;
-
-const FlowContainer = styled.div`
-    flex: 1;
-    position: relative;
-`;
-
-const ReplayPanel = styled.div`
-    height: 300px;
-    background: white;
-    border-top: 1px solid #ccc;
-    padding: 20px;
-    overflow-y: auto;
-    font-family: monospace;
-    font-size: 13px;
-    white-space: pre-wrap;
-`;
-
-const Button = styled.button`
-    background: #007bff;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    &:hover { background: #0056b3; }
-    &:disabled { background: #ccc; cursor: not-allowed; }
-`;
-
-const NodeLayout = styled.div<{ $status: string }>`
-    background: white;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid ${p => p.$status === 'error' ? '#dc3545' : '#ccc'};
-    border-left: 4px solid ${p => p.$status === 'error' ? '#dc3545' : '#28a745'};
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    min-width: 200px;
-    font-size: 12px;
-`;
-
-const NodeTitle = styled.div`font-weight: 600; margin-bottom: 4px;`;
-const NodeMetrics = styled.div`color: #666; font-size: 11px; display: flex; gap: 8px;`;
-
-// Custom Node to render span details nicely
-const SpanNode = ({ data }: any) => {
-    return (
-        <NodeLayout $status={data.status}>
-            <NodeTitle>{data.name}</NodeTitle>
-            <NodeMetrics>
-                {data.duration_ms && <span>🕚 {data.duration_ms}ms</span>}
-                {data.tokens && <span>🪙 {data.tokens} tkns</span>}
-                {data.cost && <span>💰 ${data.cost}</span>}
-            </NodeMetrics>
-            {data.status === 'error' && <div style={{ color: '#dc3545', marginTop: 4 }}>{data.error_msg}</div>}
-        </NodeLayout>
-    );
-};
-
-const nodeTypes = { span: SpanNode };
-
-// Layout algorithm: very simple depth-based cascading
-function buildGraphLayout(spans: any[]) {
-    const nodes: Node[] = [];
-    const edges: Edge[] = [];
-
-    // Build tree
-    const rootSpans = spans.filter(s => !s.parent_span_id);
-    const childrenByParent: Record<string, any[]> = {};
-    spans.forEach(s => {
-        if (s.parent_span_id) {
-            if (!childrenByParent[s.parent_span_id]) childrenByParent[s.parent_span_id] = [];
-            childrenByParent[s.parent_span_id].push(s);
-        }
-    });
-
-    let currentY = 50;
-
-    const traverse = (span: any, depth: number) => {
-        const attrs = span.attributes || {};
-        const duration = attrs.duration_ms;
-        const tokens = attrs['llm.token_count.total'];
-        const cost = attrs.cost_usd;
-
-        nodes.push({
-            id: span.span_id,
-            type: 'span',
-            position: { x: depth * 250 + 50, y: currentY },
-            data: {
-                name: span.name,
-                status: span.status,
-                duration_ms: duration,
-                tokens,
-                cost,
-                error_msg: attrs.error
-            },
-            sourcePosition: Position.Right,
-            targetPosition: Position.Left,
-        });
-
-        currentY += 100; // Step down for the next node (even siblings)
-
-        const children = childrenByParent[span.span_id] || [];
-        children.forEach((child: any) => {
-            edges.push({
-                id: `e-${span.span_id}-${child.span_id}`,
-                source: span.span_id,
-                target: child.span_id,
-                animated: true,
-                style: { stroke: '#999' }
-            });
-            traverse(child, depth + 1);
-        });
-    };
-
-    rootSpans.forEach(rs => traverse(rs, 0));
-    return { initialNodes: nodes, initialEdges: edges };
+function buildTree(spans: Span[]): Array<{span: Span, depth: number}> {
+    const byId = new Map(spans.map(s=>[s.span_id, s]))
+    const getDepth = (s: Span, d=0): number => {
+        if (!s.parent_span_id || !byId.has(s.parent_span_id)) return d
+        return getDepth(byId.get(s.parent_span_id)!, d+1)
+    }
+    return spans.map(s=>({span:s, depth: getDepth(s)}))
+        .sort((a,b)=>new Date(a.span.start_time).getTime()-new Date(b.span.start_time).getTime())
 }
 
 export default function TraceDetailPage() {
-    const { traceId } = useParams();
-    const [graphData, setGraphData] = useState<any>(null);
-    const [replayReport, setReplayReport] = useState<any>(null);
-    const [replaying, setReplaying] = useState(false);
-
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const { traceId } = useParams<{traceId: string}>()
+    const nav = useNavigate()
+    const [trace, setTrace] = useState<Trace|null>(null)
+    const [loading, setLoading] = useState(true)
+    const [expanded, setExpanded] = useState<Set<string>>(new Set())
+    const [replaying, setReplaying] = useState(false)
+    const [replay, setReplay] = useState<ReplayReport|null>(null)
+    const [replayErr, setReplayErr] = useState<string|null>(null)
 
     useEffect(() => {
-        const fetchGraph = async () => {
-            try {
-                // Hardcoded dev tenant/key for demo purposes since we just want it to work
-                const res = await fetch(`http://localhost:8000/executions/${traceId}`, {
-                    headers: { 'Authorization': 'Bearer dev-key' }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setGraphData(data);
-                    const { initialNodes, initialEdges } = buildGraphLayout(data.spans || []);
-                    setNodes(initialNodes);
-                    setEdges(initialEdges);
-                }
-            } catch (err) {
-                console.error("Failed to fetch trace", err);
-            }
-        };
-        if (traceId) fetchGraph();
-    }, [traceId]);
+        if (!traceId) return
+        api.executions.get(traceId).then(t=>{ setTrace(t); setLoading(false) }).catch(()=>setLoading(false))
+    }, [traceId])
 
-    const handleReplay = async () => {
-        if (!traceId) return;
-        setReplaying(true);
-        setReplayReport(null);
-        try {
-            const res = await fetch(`http://localhost:8000/executions/${traceId}/replay`, {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer dev-key' }
-            });
-            const data = await res.json();
-            setReplayReport(data);
-        } catch (err) {
-            console.error("Replay failed", err);
-            setReplayReport({ error: String(err) });
-        } finally {
-            setReplaying(false);
-        }
-    };
+    const toggleSpan = (id: string) => setExpanded(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n })
 
-    if (!graphData) return <PageContainer><div style={{ padding: 20 }}>Loading Trace {traceId}...</div></PageContainer>;
+    const runReplay = async () => {
+        if (!traceId) return
+        setReplaying(true); setReplay(null); setReplayErr(null)
+        try { setReplay(await api.executions.replay(traceId)) }
+        catch(e:any) { setReplayErr(e.message) }
+        finally { setReplaying(false) }
+    }
+
+    if (loading) return <Page><div style={{color:'#555',padding:'60px 0',textAlign:'center'}}>Loading trace…</div></Page>
+    if (!trace) return <Page><div style={{color:'#e55',padding:'60px 0',textAlign:'center'}}>Trace not found</div></Page>
+
+    const tree = buildTree(trace.spans)
+    const hasErr = trace.spans.some(s=>s.status==='error')
+    const errCount = trace.spans.filter(s=>s.status==='error').length
+    const dur = fmtDur(trace.start_time, trace.end_time)
 
     return (
-        <PageContainer>
-            <Header>
-                <TitleBox>
-                    <h2>Trace DAG: {traceId}</h2>
-                    <div style={{ color: '#666' }}>Tenant: {graphData.tenant_id} | Spans: {graphData.spans?.length || 0}</div>
-                </TitleBox>
-                <Button onClick={handleReplay} disabled={replaying}>
-                    {replaying ? "Replaying..." : "▶ Replay Execution"}
-                </Button>
-            </Header>
+        <Page>
+            <Back onClick={()=>nav('/traces')}>← Back to Traces</Back>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+                <div>
+                    <h1 style={{fontSize:18,fontWeight:600,color:'#facc15',margin:0}}>Trace Detail</h1>
+                    <Mono style={{display:'block',marginTop:4}}>{trace.trace_id}</Mono>
+                </div>
+                <Btn $primary onClick={runReplay} disabled={replaying}>
+                    {replaying ? '⏳ Replaying…' : '▶ Run Replay'}
+                </Btn>
+            </div>
 
-            <FlowContainer>
-                <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    nodeTypes={nodeTypes}
-                    fitView
-                    attributionPosition="bottom-right"
-                >
-                    <Background color="#ccc" gap={16} />
-                    <Controls />
-                </ReactFlow>
-            </FlowContainer>
+            <Card>
+                <CardTitle>Summary</CardTitle>
+                <Meta>
+                    <MetaItem><MetaLabel>Status</MetaLabel><MetaValue><Badge $v={hasErr?'error':'success'}>{hasErr?'error':'success'}</Badge></MetaValue></MetaItem>
+                    <MetaItem><MetaLabel>Tenant</MetaLabel><MetaValue style={{fontSize:12,color:'#888'}}>{trace.tenant_id}</MetaValue></MetaItem>
+                    <MetaItem><MetaLabel>Duration</MetaLabel><MetaValue>{dur}</MetaValue></MetaItem>
+                    <MetaItem><MetaLabel>Spans</MetaLabel><MetaValue>{trace.spans.length} <span style={{color:'#e55',fontSize:12}}>({errCount} errors)</span></MetaValue></MetaItem>
+                </Meta>
+                <div style={{marginTop:14,display:'flex',gap:20,fontSize:12,color:'#666'}}>
+                    <span>Started: {fmtTime(trace.start_time)}</span>
+                    {trace.end_time && <span>Ended: {fmtTime(trace.end_time)}</span>}
+                </div>
+            </Card>
 
-            {replayReport && (
-                <ReplayPanel>
-                    <h3 style={{ marginTop: 0, color: replayReport.is_deterministic ? '#28a745' : '#dc3545' }}>
-                        {replayReport.is_deterministic ? "✅ Deterministic - No Divergences" : `❌ Divergence Detected (${replayReport.divergences_found})`}
-                    </h3>
-                    <pre>{JSON.stringify(replayReport, null, 2)}</pre>
-                </ReplayPanel>
+            {replay && (
+                <Card>
+                    <CardTitle>Replay Report</CardTitle>
+                    <div style={{display:'flex',gap:20,marginBottom:16,flexWrap:'wrap'}}>
+                        <MetaItem><MetaLabel>Deterministic</MetaLabel><MetaValue><Badge $v={replay.is_deterministic?'success':'error'}>{replay.is_deterministic?'YES':'NO'}</Badge></MetaValue></MetaItem>
+                        <MetaItem><MetaLabel>Spans Replayed</MetaLabel><MetaValue>{replay.nodes_replayed}/{replay.total_nodes}</MetaValue></MetaItem>
+                        <MetaItem><MetaLabel>Divergences</MetaLabel><MetaValue style={{color:replay.divergences_found>0?'#e55':'#4caf6e'}}>{replay.divergences_found}</MetaValue></MetaItem>
+                    </div>
+                    {replay.results.filter(r=>!r.success).map(r=>(
+                        <SpanErr key={r.node_id}>⚠ Node {r.node_id.slice(0,8)}: [{r.divergence_type}] {r.divergence_details}</SpanErr>
+                    ))}
+                </Card>
             )}
-        </PageContainer>
-    );
+            {replayErr && <SpanErr style={{marginBottom:16}}>Replay failed: {replayErr}</SpanErr>}
+
+            <Card>
+                <CardTitle>Execution Spans ({trace.spans.length})</CardTitle>
+                {tree.map(({span, depth}) => (
+                    <div key={span.span_id}>
+                        <SpanRow $depth={depth} $err={span.status==='error'} onClick={()=>toggleSpan(span.span_id)}>
+                            <span style={{color:span.status==='error'?'#e55':'#333',fontSize:10}}>{expanded.has(span.span_id)?'▼':'▶'}</span>
+                            <SpanName>{span.name}</SpanName>
+                            <Badge $v={span.status==='error'?'error':'success'}>{span.status}</Badge>
+                            <SpanDur>{fmtDur(span.start_time, span.end_time)}</SpanDur>
+                        </SpanRow>
+                        {expanded.has(span.span_id) && (
+                            <div style={{padding:'10px 20px 10px 38px',background:'#0d0d0d',borderBottom:'1px solid #161616'}}>
+                                {span.error && <SpanErr style={{marginBottom:10}}>Error: {span.error}</SpanErr>}
+                                <div style={{fontSize:11,color:'#555',fontFamily:'monospace',whiteSpace:'pre-wrap',maxHeight:300,overflow:'auto'}}>
+                                    {JSON.stringify(span.attributes, null, 2)}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </Card>
+        </Page>
+    )
 }

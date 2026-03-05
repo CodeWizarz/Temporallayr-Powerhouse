@@ -20,7 +20,10 @@ from temporallayr.core.queue import get_redis_client
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.webhooks import dispatch_incident_async
 from temporallayr.models.execution import ExecutionGraph
-from temporallayr.server.app import _INCIDENTS  # type: ignore
+
+# Worker-local incident state — isolated from server process (no shared memory across processes)
+# In a distributed system, incidents are persisted to the DB and read from there.
+_WORKER_INCIDENTS: list = []
 
 # Configure logging
 logging.basicConfig(
@@ -41,14 +44,11 @@ async def _handle_incidents(graphs: list[ExecutionGraph]) -> None:
     try:
         clusters = FailureClusterEngine.cluster_failures(graphs)
         if clusters:
-            # We must sync with global incidents if we want local worker memory,
-            # but ideally incidents are in DB. For simplicity, we just use the engine.
-            # In a distributed system, you'd pull incidents from the DB here.
-            global _INCIDENTS
-            old_incidents = len(_INCIDENTS)
-            _INCIDENTS = IncidentEngine.detect_incidents(clusters, _INCIDENTS)
+            global _WORKER_INCIDENTS
+            old_incidents = len(_WORKER_INCIDENTS)
+            _WORKER_INCIDENTS = IncidentEngine.detect_incidents(clusters, _WORKER_INCIDENTS)
 
-            new_incidents = _INCIDENTS[old_incidents:] if len(_INCIDENTS) > old_incidents else []
+            new_incidents = _WORKER_INCIDENTS[old_incidents:] if len(_WORKER_INCIDENTS) > old_incidents else []
             for inc in new_incidents:
                 asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
     except Exception as e:

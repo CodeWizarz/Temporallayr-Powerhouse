@@ -3,6 +3,8 @@
 import os
 import uuid
 
+import pytest
+
 os.environ["TEMPORALLAYR_DATA_DIR"] = "/tmp/tl-quota-test"
 os.environ["TEMPORALLAYR_DEFAULT_QUOTA"] = "10"
 

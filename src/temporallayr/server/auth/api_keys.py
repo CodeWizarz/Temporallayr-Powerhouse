@@ -19,7 +19,6 @@ def _hash_api_key(api_key: str) -> str:
 
 def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
     from temporallayr.core.store_sqlite import SQLiteStore
-
     key_hash = _hash_api_key(api_key)
     store = SQLiteStore()
     with store._get_connection() as conn:
@@ -33,11 +32,12 @@ def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
 
 def validate_api_key(api_key: str) -> str | None:
     from temporallayr.core.store_sqlite import SQLiteStore
-
     key_hash = _hash_api_key(api_key)
     store = SQLiteStore()
     with store._get_connection() as conn:
-        cursor = conn.execute("SELECT tenant_id FROM api_keys WHERE key_hash = ?", (key_hash,))
+        cursor = conn.execute(
+            "SELECT tenant_id FROM api_keys WHERE key_hash = ?", (key_hash,)
+        )
         row = cursor.fetchone()
         if row:
             return row["tenant_id"]
@@ -47,17 +47,17 @@ def validate_api_key(api_key: str) -> str | None:
 def revoke_keys_for_tenant(tenant_id: str) -> int:
     """Delete all API keys for a tenant. Returns count deleted."""
     from temporallayr.core.store_sqlite import SQLiteStore
-
     store = SQLiteStore()
     with store._get_connection() as conn:
-        cursor = conn.execute("DELETE FROM api_keys WHERE tenant_id = ?", (tenant_id,))
+        cursor = conn.execute(
+            "DELETE FROM api_keys WHERE tenant_id = ?", (tenant_id,)
+        )
         conn.commit()
         return cursor.rowcount
 
 
 def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
     from temporallayr.core.store_sqlite import SQLiteStore
-
     store = SQLiteStore()
     with store._get_connection() as conn:
         cursor = conn.execute(
@@ -71,11 +71,12 @@ def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
 def list_all_tenants() -> list[dict[str, Any]]:
     """Return distinct tenants with key count and earliest created_at."""
     from temporallayr.core.store_sqlite import SQLiteStore
-
     store = SQLiteStore()
     with store._get_connection() as conn:
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT tenant_id, COUNT(*) as key_count, MIN(created_at) as created_at
             FROM api_keys GROUP BY tenant_id ORDER BY created_at DESC
-            """)
+            """
+        )
         return [dict(row) for row in cursor.fetchall()]

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def _get_retention_days() -> int:
 async def run_retention_once() -> dict[str, int]:
     """Run one retention sweep. Returns counts of deleted records."""
     days = _get_retention_days()
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     deleted: dict[str, int] = {}
 
     # SQLite store retention

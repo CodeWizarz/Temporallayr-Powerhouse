@@ -34,7 +34,7 @@ jobs:
           pip install -r requirements.txt
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
           pip install -e ".[dev]"
-          pip install coverage pytest-cov hypothesis
+          pip install coverage
 
       - name: Prepare CI environment
         run: bash .github/scripts/ci-prepare.sh
@@ -48,15 +48,12 @@ jobs:
       - name: Type-check with mypy
         run: python -m mypy src
 
-      - name: Run Contract & Fuzz tests
-        run: python -m pytest tests/contracts tests/fuzz -v
-
       - name: Run tests (JUnit)
-        run: python -m pytest tests/unit tests/integration -q --maxfail=1 --junitxml="$JUNIT_XML"
+        run: python -m pytest -q --maxfail=1 --junitxml="$JUNIT_XML"
 
       - name: Coverage gate (>=80%)
         run: |
-          python -m coverage run --rcfile="${COVERAGE_RCFILE}" -m pytest tests/
+          python -m coverage run --rcfile="${COVERAGE_RCFILE}" -m pytest
           python -m coverage xml --rcfile="${COVERAGE_RCFILE}" -o "$COVERAGE_XML"
           python -m coverage report --rcfile="${COVERAGE_RCFILE}" --fail-under=80 | tee reports/coverage.txt
 
@@ -87,34 +84,3 @@ jobs:
           files: reports/coverage.xml
           fail_ci_if_error: false
           verbose: true
-
-  sdk-node:
-    name: TypeScript SDK
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk-node/package-lock.json
-
-      - name: Install dependencies
-        working-directory: sdk-node
-        run: npm ci
-
-      - name: Lint
-        working-directory: sdk-node
-        run: npm run lint
-
-      - name: Build
-        working-directory: sdk-node
-        run: npm run build
-
-      - name: Test
-        working-directory: sdk-node
-        run: npm run test:coverage

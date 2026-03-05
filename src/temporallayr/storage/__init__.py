@@ -1,5 +1,9 @@
-"""Storage backend implementations."""
+"""Storage backend implementations.
 
-from temporallayr.storage.postgres_store import PostgresStore, normalize_database_url
+PostgresStore has been consolidated to temporallayr.core.store_postgres.
+This module re-exports for backward compatibility.
+"""
 
-__all__ = ["PostgresStore", "normalize_database_url"]
+from temporallayr.core.store_postgres import PostgresStore
+
+__all__ = ["PostgresStore"]

@@ -20,10 +20,6 @@ async def server_lifespan(_: FastAPI) -> AsyncIterator[None]:
     from temporallayr.core.otel_exporter import get_otlp_exporter
     from temporallayr.core.retention import start_retention_job, stop_retention_job
     from temporallayr.core.store_clickhouse import get_clickhouse_store
-    from temporallayr.workers.clickhouse_worker import (
-        configure_clickhouse_worker,
-        shutdown_clickhouse_worker,
-    )
 
     cfg = get_config()
     configure_logging(cfg.log_level)
@@ -33,8 +29,6 @@ async def server_lifespan(_: FastAPI) -> AsyncIterator[None]:
     if ch is not None:
         try:
             await asyncio.to_thread(ch.initialize_schema)
-            worker = configure_clickhouse_worker(ch)
-            await worker.start()
             logger.info("ClickHouse schema ready")
         except Exception as exc:
             logger.exception("ClickHouse schema initialization failed")
@@ -60,6 +54,5 @@ async def server_lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await shutdown_clickhouse_worker()
         stop_retention_job()
         logger.info("TemporalLayr server shutting down")

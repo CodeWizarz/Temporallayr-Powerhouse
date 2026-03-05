@@ -2,13 +2,10 @@
 Unit tests for integrations — mock everything, no real API calls.
 """
 
-import importlib.util
-from unittest.mock import MagicMock, patch
-
 import pytest
-
-from temporallayr.core.recorder import _current_graph
+from unittest.mock import MagicMock, AsyncMock, patch
 from temporallayr.models.execution import ExecutionGraph
+from temporallayr.core.recorder import _current_graph
 
 
 def _make_graph():
@@ -31,9 +28,8 @@ def test_langchain_handler_import():
 
 def test_langchain_llm_end_adds_span():
     try:
-        from langchain_core.outputs import Generation, LLMResult
-
         from temporallayr.integrations.langchain import TemporalLayrCallbackHandler
+        from langchain_core.outputs import LLMResult, Generation
     except ImportError:
         pytest.skip("langchain-core not installed")
 
@@ -75,7 +71,9 @@ def test_langchain_llm_end_adds_span():
 
 
 def test_openai_wrapper_tracks_span():
-    if importlib.util.find_spec("openai") is None:
+    try:
+        import openai
+    except ImportError:
         pytest.skip("openai not installed")
 
     from temporallayr.integrations.openai_wrapper import OpenAI

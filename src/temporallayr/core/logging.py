@@ -2,7 +2,6 @@
 Structured JSON logging for TemporalLayr.
 Replaces all print() calls in server code with proper log levels.
 """
-
 from __future__ import annotations
 
 import json

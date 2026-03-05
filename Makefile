@@ -31,3 +31,35 @@ coverage:
 	coverage report -m --fail-under=80
 
 ci: lint typecheck test coverage
+
+# ── Dashboard ────────────────────────────────────────────────────────────────
+
+dashboard-install:
+	cd dashboard && npm install
+
+dashboard-dev:
+	cd dashboard && npm run dev
+
+dashboard-build:
+	cd dashboard && npm run build
+
+dashboard-preview:
+	cd dashboard && npm run preview
+
+# ── Workers ──────────────────────────────────────────────────────────────────
+
+worker:
+	python workers/ingest_worker.py
+
+worker-docker-build:
+	docker build -f docker/worker/Dockerfile -t temporallayr-worker:latest .
+
+# ── Full stack (dev) ──────────────────────────────────────────────────────────
+
+dev-server:
+	TEMPORALLAYR_LOG_LEVEL=DEBUG uvicorn temporallayr.server.app:app --reload --port 8000
+
+dev-all:
+	@echo "Start backend: make dev-server"
+	@echo "Start dashboard: make dashboard-dev"
+	@echo "Start worker: make worker"

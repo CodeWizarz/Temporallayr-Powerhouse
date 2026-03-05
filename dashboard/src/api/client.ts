@@ -36,56 +36,13 @@ export interface LatencyRow {
     p95_ms: number; p99_ms: number; avg_ms: number
     error_count: number; error_rate_pct: number
 }
-export interface LatencySummary {
-    p50_ms: number; p95_ms: number; p99_ms: number
-    avg_ms: number; error_rate_pct: number
-    span_groups: number; calls: number
-}
 export interface Paginated<T> {
     items: T[]; total: number; limit: number; offset: number; has_more: boolean
-}
-export interface LatencySummaryResponse extends Paginated<LatencyRow> {
-    summary: LatencySummary
-}
-export interface StatusResponse {
-    status: string
-    version: string
-    uptime_seconds: number
-    uptime_human: string
-    started_at: string
-    python_version: string
-    platform: string
-    components: Record<string, { status: string; type: string; error?: string }>
-    metrics: string
-}
-export interface HealthHistoryPoint {
-    time: string
-    status: string
-}
-export interface StatusHistoryResponse {
-    history: HealthHistoryPoint[]
-    max_points: number
 }
 export interface ReplayReport {
     graph_id: string; total_nodes: number; nodes_replayed: number
     divergences_found: number; is_deterministic: boolean
     results: Array<{ node_id: string; success: boolean; divergence_type?: string; divergence_details?: string }>
-}
-
-export interface UptimeSummary {
-    service: string
-    uptime_percentage: number
-    history: Array<{
-        date: string
-        uptime_percentage: number
-        status: string
-        errors: string[]
-    }>
-}
-
-export interface PublicStatusResponse {
-    days: number
-    services: UptimeSummary[]
 }
 
 export const api = {
@@ -106,10 +63,6 @@ export const api = {
         list: (hours = 24) => req<Paginated<Cluster>>(`/clusters?hours=${hours}&limit=50`),
     },
     analytics: {
-        p50: (hours = 24, limit = 200, offset = 0) =>
-            req<LatencySummaryResponse>(
-                `/analytics/p50?hours=${hours}&limit=${limit}&offset=${offset}`,
-            ),
         latency: (hours = 24) => req<Paginated<LatencyRow>>(`/analytics/latency?hours=${hours}&limit=200`),
         trends: (hours = 168) => req<unknown[]>(`/analytics/trends?hours=${hours}`),
     },
@@ -132,15 +85,4 @@ export const api = {
         check: () => req<{ status: string }>('/health'),
         ready: () => req<{ status: string; backends: Record<string, string> }>('/ready'),
     },
-    status: {
-        get: () => req<StatusResponse>('/status'),
-        history: () => req<StatusHistoryResponse>('/status/history'),
-    },
-    publicStatus: {
-        get: async () => {
-            const res = await fetch(`${BASE}/public/status`)
-            if (!res.ok) throw new Error(`HTTP ${res.status}`)
-            return res.json() as Promise<PublicStatusResponse>
-        }
-    }
 }

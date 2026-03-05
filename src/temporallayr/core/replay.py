@@ -23,20 +23,20 @@ class DivergenceComparator:
         rep_out = replayed.attributes.get("output")
         rep_err = replayed.attributes.get("error")
 
-        if str(orig_err) != str(rep_err):
+        if orig_err != rep_err:
             return NodeReplayResult(
                 node_id=original.id,
                 success=False,
-                actual_error=str(rep_err) if rep_err is not None else None,
+                actual_error=rep_err,
                 divergence_type=DivergenceType.ERROR_MISMATCH,
                 divergence_details=f"Expected error '{orig_err}', got '{rep_err}'",
             )
 
-        if str(orig_out) != str(rep_out):
+        if orig_out != rep_out:
             return NodeReplayResult(
                 node_id=original.id,
                 success=False,
-                actual_output=str(rep_out),
+                actual_output=rep_out,
                 divergence_type=DivergenceType.OUTPUT_MISMATCH,
                 divergence_details=f"Expected output '{orig_out}', got '{rep_out}'",
             )

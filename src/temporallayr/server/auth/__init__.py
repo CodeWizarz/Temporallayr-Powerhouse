@@ -27,7 +27,6 @@ async def verify_api_key(credentials: CredentialsDep) -> str:
     raw_token = _strip_bearer(credentials.credentials)
 
     from temporallayr.server.auth.api_keys import validate_api_key
-
     tenant_id = validate_api_key(raw_token)
 
     if not tenant_id:

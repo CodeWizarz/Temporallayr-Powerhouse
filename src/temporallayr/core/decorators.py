@@ -25,16 +25,46 @@ F = TypeVar("F", bound=Callable[..., Any])
 # LLM provider pricing table (per 1M tokens, USD)
 # Extend this as needed — used for cost_usd calculation in @track_llm
 _TOKEN_COST_PER_1M: dict[str, dict[str, float]] = {
-    "gpt-4o": {"prompt": 5.0, "completion": 15.0},
+    # OpenAI
+    "gpt-4o": {"prompt": 2.50, "completion": 10.0},
     "gpt-4o-mini": {"prompt": 0.15, "completion": 0.60},
     "gpt-4-turbo": {"prompt": 10.0, "completion": 30.0},
     "gpt-4": {"prompt": 30.0, "completion": 60.0},
     "gpt-3.5-turbo": {"prompt": 0.50, "completion": 1.50},
+    "o1": {"prompt": 15.0, "completion": 60.0},
+    "o1-mini": {"prompt": 3.0, "completion": 12.0},
+    "o3": {"prompt": 10.0, "completion": 40.0},
+    "o3-mini": {"prompt": 1.10, "completion": 4.40},
+    # Anthropic - Claude 4 (2025-2026)
+    "claude-opus-4": {"prompt": 15.0, "completion": 75.0},
+    "claude-sonnet-4": {"prompt": 3.0, "completion": 15.0},
+    "claude-haiku-4": {"prompt": 0.80, "completion": 4.0},
+    # Anthropic - Claude 3.7/3.5
+    "claude-3-7-sonnet": {"prompt": 3.0, "completion": 15.0},
     "claude-3-5-sonnet": {"prompt": 3.0, "completion": 15.0},
+    "claude-3-5-haiku": {"prompt": 0.80, "completion": 4.0},
     "claude-3-opus": {"prompt": 15.0, "completion": 75.0},
     "claude-3-haiku": {"prompt": 0.25, "completion": 1.25},
-    "gemini-1.5-pro": {"prompt": 3.50, "completion": 10.50},
+    # Google Gemini
+    "gemini-2.0-flash": {"prompt": 0.10, "completion": 0.40},
+    "gemini-2.0-pro": {"prompt": 1.25, "completion": 5.0},
+    "gemini-1.5-pro": {"prompt": 1.25, "completion": 5.0},
     "gemini-1.5-flash": {"prompt": 0.075, "completion": 0.30},
+    # Meta Llama
+    "llama-3.1-405b": {"prompt": 5.0, "completion": 15.0},
+    "llama-3.1-70b": {"prompt": 0.59, "completion": 0.79},
+    "llama-3.1-8b": {"prompt": 0.05, "completion": 0.08},
+    "llama-3.3-70b": {"prompt": 0.59, "completion": 0.79},
+    # Mistral
+    "mistral-large": {"prompt": 2.0, "completion": 6.0},
+    "mistral-small": {"prompt": 0.10, "completion": 0.30},
+    "mixtral-8x7b": {"prompt": 0.24, "completion": 0.24},
+    # DeepSeek
+    "deepseek-r1": {"prompt": 0.55, "completion": 2.19},
+    "deepseek-v3": {"prompt": 0.27, "completion": 1.10},
+    # Cohere
+    "command-r-plus": {"prompt": 2.50, "completion": 10.0},
+    "command-r": {"prompt": 0.15, "completion": 0.60},
 }
 
 

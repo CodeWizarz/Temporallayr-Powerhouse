@@ -16,18 +16,17 @@ import hashlib
 import json
 import logging
 import os
-import sqlite3
-import threading
 import time
-from enum import StrEnum
-from typing import Any
+from enum import Enum
+from functools import wraps
+from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 
 
-class Role(StrEnum):
+class Role(str, Enum):
     ADMIN = "admin"
     DEVELOPER = "developer"
     VIEWER = "viewer"
@@ -110,21 +109,10 @@ def verify_jwt(token: str, secret: str) -> dict[str, Any]:
     return payload
 
 
-def issue_admin_jwt(user_id: str, secret: str, expires_in: int = 3600) -> str:
-    """Issue a JWT for an admin user (role=admin)."""
-    return create_jwt({"sub": user_id, "role": Role.ADMIN.value}, secret, expires_in)
-
-
-def issue_service_token(tenant_id: str, secret: str, expires_in: int = 86400) -> str:
-    """Issue a service JWT for a tenant (role=developer, carries tenant claim)."""
-    return create_jwt(
-        {"sub": f"svc:{tenant_id}", "role": Role.DEVELOPER.value, "tenant": tenant_id},
-        secret,
-        expires_in,
-    )
-
-
 # ── Role storage (in-memory + SQLite backed) ──────────────────────────
+
+import sqlite3
+import threading
 
 _rbac_lock = threading.Lock()
 _RBAC_DB: str | None = None
@@ -207,7 +195,7 @@ def require_permission(permission: str):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail=str(e),
-                    ) from e
+                    )
 
         # Fall back to API key role lookup
         from temporallayr.server.auth import _strip_bearer

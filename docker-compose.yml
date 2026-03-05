@@ -56,8 +56,6 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.d/temporallayr.xml:ro
-      - ./docker/clickhouse/schema.sql:/docker-entrypoint-initdb.d/01-temporallayr-schema.sql:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
