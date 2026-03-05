@@ -34,7 +34,7 @@ jobs:
           pip install -r requirements.txt
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
           pip install -e ".[dev]"
-          pip install coverage
+          pip install coverage pytest-cov hypothesis
 
       - name: Prepare CI environment
         run: bash .github/scripts/ci-prepare.sh
@@ -48,12 +48,15 @@ jobs:
       - name: Type-check with mypy
         run: python -m mypy src
 
+      - name: Run Contract & Fuzz tests
+        run: python -m pytest tests/contracts tests/fuzz -v
+
       - name: Run tests (JUnit)
-        run: python -m pytest -q --maxfail=1 --junitxml="$JUNIT_XML"
+        run: python -m pytest tests/unit tests/integration -q --maxfail=1 --junitxml="$JUNIT_XML"
 
       - name: Coverage gate (>=80%)
         run: |
-          python -m coverage run --rcfile="${COVERAGE_RCFILE}" -m pytest
+          python -m coverage run --rcfile="${COVERAGE_RCFILE}" -m pytest tests/
           python -m coverage xml --rcfile="${COVERAGE_RCFILE}" -o "$COVERAGE_XML"
           python -m coverage report --rcfile="${COVERAGE_RCFILE}" --fail-under=80 | tee reports/coverage.txt
 
