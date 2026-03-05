@@ -25,61 +25,42 @@ F = TypeVar("F", bound=Callable[..., Any])
 # LLM provider pricing table (per 1M tokens, USD)
 # Extend this as needed — used for cost_usd calculation in @track_llm
 _TOKEN_COST_PER_1M: dict[str, dict[str, float]] = {
-    # OpenAI
-    "gpt-4o": {"prompt": 2.50, "completion": 10.0},
+    "gpt-4o": {"prompt": 5.0, "completion": 15.0},
     "gpt-4o-mini": {"prompt": 0.15, "completion": 0.60},
     "gpt-4-turbo": {"prompt": 10.0, "completion": 30.0},
     "gpt-4": {"prompt": 30.0, "completion": 60.0},
     "gpt-3.5-turbo": {"prompt": 0.50, "completion": 1.50},
-    "o1": {"prompt": 15.0, "completion": 60.0},
-    "o1-mini": {"prompt": 3.0, "completion": 12.0},
-    "o3": {"prompt": 10.0, "completion": 40.0},
-    "o3-mini": {"prompt": 1.10, "completion": 4.40},
-    # Anthropic - Claude 4 (2025-2026)
-    "claude-opus-4": {"prompt": 15.0, "completion": 75.0},
-    "claude-sonnet-4": {"prompt": 3.0, "completion": 15.0},
-    "claude-haiku-4": {"prompt": 0.80, "completion": 4.0},
-    # Anthropic - Claude 3.7/3.5
-    "claude-3-7-sonnet": {"prompt": 3.0, "completion": 15.0},
     "claude-3-5-sonnet": {"prompt": 3.0, "completion": 15.0},
-    "claude-3-5-haiku": {"prompt": 0.80, "completion": 4.0},
     "claude-3-opus": {"prompt": 15.0, "completion": 75.0},
     "claude-3-haiku": {"prompt": 0.25, "completion": 1.25},
-    # Google Gemini
-    "gemini-2.0-flash": {"prompt": 0.10, "completion": 0.40},
-    "gemini-2.0-pro": {"prompt": 1.25, "completion": 5.0},
-    "gemini-1.5-pro": {"prompt": 1.25, "completion": 5.0},
+    # Claude 4 family
+    "claude-opus-4": {"prompt": 15.0, "completion": 75.0},
+    "claude-sonnet-4": {"prompt": 3.0, "completion": 15.0},
+    "claude-haiku-4": {"prompt": 0.25, "completion": 1.25},
+    # Gemini family
+    "gemini-1.5-pro": {"prompt": 3.50, "completion": 10.50},
     "gemini-1.5-flash": {"prompt": 0.075, "completion": 0.30},
-    # Meta Llama
-    "llama-3.1-405b": {"prompt": 5.0, "completion": 15.0},
-    "llama-3.1-70b": {"prompt": 0.59, "completion": 0.79},
-    "llama-3.1-8b": {"prompt": 0.05, "completion": 0.08},
-    "llama-3.3-70b": {"prompt": 0.59, "completion": 0.79},
-    # Mistral
-    "mistral-large": {"prompt": 2.0, "completion": 6.0},
-    "mistral-small": {"prompt": 0.10, "completion": 0.30},
-    "mixtral-8x7b": {"prompt": 0.24, "completion": 0.24},
-    # DeepSeek
-    "deepseek-r1": {"prompt": 0.55, "completion": 2.19},
-    "deepseek-v3": {"prompt": 0.27, "completion": 1.10},
-    # Cohere
-    "command-r-plus": {"prompt": 2.50, "completion": 10.0},
-    "command-r": {"prompt": 0.15, "completion": 0.60},
+    "gemini-2.0-flash": {"prompt": 0.075, "completion": 0.30},
 }
 
 
-def _compute_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
+def _compute_cost(
+    model: str, prompt_tokens: int, completion_tokens: int
+) -> float | None:
     """Return estimated USD cost or None if model not in pricing table."""
     for key, costs in _TOKEN_COST_PER_1M.items():
         if key in model.lower():
             cost = (
-                prompt_tokens * costs["prompt"] + completion_tokens * costs["completion"]
+                prompt_tokens * costs["prompt"]
+                + completion_tokens * costs["completion"]
             ) / 1_000_000
             return round(cost, 8)
     return None
 
 
-def _extract_arguments(func: Callable[..., Any], *args: Any, **kwargs: Any) -> dict[str, Any]:
+def _extract_arguments(
+    func: Callable[..., Any], *args: Any, **kwargs: Any
+) -> dict[str, Any]:
     try:
         sig = inspect.signature(func)
         bound = sig.bind(*args, **kwargs)
@@ -99,7 +80,9 @@ def _mod_name(func: Callable[..., Any]) -> str:
     return mod
 
 
-def _build_node(name: str, attributes: dict[str, Any], parent_id: str | None) -> ExecutionNode:
+def _build_node(
+    name: str, attributes: dict[str, Any], parent_id: str | None
+) -> ExecutionNode:
     return ExecutionNode(
         span_id=str(uuid.uuid4()),
         name=name,
@@ -137,7 +120,10 @@ def track(func: F | None = None, *, name: str | None = None) -> Callable[[F], F]
                 parent_id = _current_parent_id.get()
                 attrs: dict[str, Any] = {
                     "inputs": _extract_arguments(wrapped_func, *args, **kwargs),
-                    "code": {"name": wrapped_func.__name__, "module": _mod_name(wrapped_func)},
+                    "code": {
+                        "name": wrapped_func.__name__,
+                        "module": _mod_name(wrapped_func),
+                    },
                     SpanAttributes.OPENINFERENCE_SPAN_KIND: SpanKind.CHAIN,
                 }
                 node = _build_node(node_name, attrs, parent_id)
@@ -200,7 +186,10 @@ def track(func: F | None = None, *, name: str | None = None) -> Callable[[F], F]
                 parent_id = _current_parent_id.get()
                 attrs: dict[str, Any] = {
                     "inputs": _extract_arguments(wrapped_func, *args, **kwargs),
-                    "code": {"name": wrapped_func.__name__, "module": _mod_name(wrapped_func)},
+                    "code": {
+                        "name": wrapped_func.__name__,
+                        "module": _mod_name(wrapped_func),
+                    },
                     SpanAttributes.OPENINFERENCE_SPAN_KIND: SpanKind.CHAIN,
                 }
                 node = _build_node(node_name, attrs, parent_id)
@@ -267,7 +256,9 @@ def track_llm(func: F) -> F: ...
 def track_llm(*, name: str | None = None) -> Callable[[F], F]: ...
 
 
-def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F], F] | F:
+def track_llm(
+    func: F | None = None, *, name: str | None = None
+) -> Callable[[F], F] | F:
     """
     LLM call decorator. Captures:
       - Prompt/completion/total token counts (from return value or attributes)
@@ -284,7 +275,9 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
     def decorator(wrapped_func: F) -> F:
         node_name = name or f"llm:{wrapped_func.__name__}"
 
-        def _extract_llm_attrs(result: Any, base_attrs: dict[str, Any]) -> dict[str, Any]:
+        def _extract_llm_attrs(
+            result: Any, base_attrs: dict[str, Any]
+        ) -> dict[str, Any]:
             attrs = dict(base_attrs)
             # Extract from dict return
             if isinstance(result, dict):
@@ -294,7 +287,7 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                             attrs[
                                 getattr(
                                     SpanAttributes,
-                                    f"LLM_TOKEN_COUNT_{field.upper().replace('_TOKENS','').replace('PROMPT','PROMPT').replace('COMPLETION','COMPLETION').replace('TOTAL','TOTAL')}",
+                                    f"LLM_TOKEN_COUNT_{field.upper().replace('_TOKENS', '').replace('PROMPT', 'PROMPT').replace('COMPLETION', 'COMPLETION').replace('TOTAL', 'TOTAL')}",
                                     field,
                                 )
                             ] = int(result[field])
@@ -302,13 +295,17 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                             pass
                 # Map to proper SpanAttributes
                 if "prompt_tokens" in result:
-                    attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = int(result["prompt_tokens"])
+                    attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = int(
+                        result["prompt_tokens"]
+                    )
                 if "completion_tokens" in result:
                     attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = int(
                         result["completion_tokens"]
                     )
                 if "total_tokens" in result:
-                    attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = int(result["total_tokens"])
+                    attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = int(
+                        result["total_tokens"]
+                    )
                 if "model" in result:
                     attrs[SpanAttributes.LLM_MODEL_NAME] = str(result["model"])
                 attrs["output"] = result.get("output", result.get("content", result))
@@ -318,7 +315,9 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                 if hasattr(usage, "prompt_tokens"):
                     attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = usage.prompt_tokens
                 if hasattr(usage, "completion_tokens"):
-                    attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = usage.completion_tokens
+                    attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = (
+                        usage.completion_tokens
+                    )
                 if hasattr(usage, "total_tokens"):
                     attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens
                 if hasattr(result, "model"):
@@ -350,7 +349,10 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                 parent_id = _current_parent_id.get()
                 base_attrs: dict[str, Any] = {
                     "inputs": _extract_arguments(wrapped_func, *args, **kwargs),
-                    "code": {"name": wrapped_func.__name__, "module": _mod_name(wrapped_func)},
+                    "code": {
+                        "name": wrapped_func.__name__,
+                        "module": _mod_name(wrapped_func),
+                    },
                     SpanAttributes.OPENINFERENCE_SPAN_KIND: SpanKind.LLM,
                 }
                 node = _build_node(node_name, base_attrs, parent_id)
@@ -360,7 +362,9 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                     result = await wrapped_func(*args, **kwargs)
                     end = datetime.now(UTC)
                     new_attrs = _extract_llm_attrs(result, node.attributes)
-                    new_attrs["duration_ms"] = round((end - start).total_seconds() * 1000, 3)
+                    new_attrs["duration_ms"] = round(
+                        (end - start).total_seconds() * 1000, 3
+                    )
                     graph.update_node(
                         node.id,
                         node.model_copy(
@@ -410,7 +414,10 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                 parent_id = _current_parent_id.get()
                 base_attrs: dict[str, Any] = {
                     "inputs": _extract_arguments(wrapped_func, *args, **kwargs),
-                    "code": {"name": wrapped_func.__name__, "module": _mod_name(wrapped_func)},
+                    "code": {
+                        "name": wrapped_func.__name__,
+                        "module": _mod_name(wrapped_func),
+                    },
                     SpanAttributes.OPENINFERENCE_SPAN_KIND: SpanKind.LLM,
                 }
                 node = _build_node(node_name, base_attrs, parent_id)
@@ -420,7 +427,9 @@ def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F]
                     result = wrapped_func(*args, **kwargs)
                     end = datetime.now(UTC)
                     new_attrs = _extract_llm_attrs(result, node.attributes)
-                    new_attrs["duration_ms"] = round((end - start).total_seconds() * 1000, 3)
+                    new_attrs["duration_ms"] = round(
+                        (end - start).total_seconds() * 1000, 3
+                    )
                     graph.update_node(
                         node.id,
                         node.model_copy(
@@ -471,7 +480,9 @@ def track_tool(func: F) -> F: ...
 
 
 @overload
-def track_tool(*, name: str | None = None, description: str | None = None) -> Callable[[F], F]: ...
+def track_tool(
+    *, name: str | None = None, description: str | None = None
+) -> Callable[[F], F]: ...
 
 
 def track_tool(
@@ -504,7 +515,10 @@ def track_tool(
                 parent_id = _current_parent_id.get()
                 attrs: dict[str, Any] = {
                     "inputs": _extract_arguments(wrapped_func, *args, **kwargs),
-                    "code": {"name": wrapped_func.__name__, "module": _mod_name(wrapped_func)},
+                    "code": {
+                        "name": wrapped_func.__name__,
+                        "module": _mod_name(wrapped_func),
+                    },
                     SpanAttributes.OPENINFERENCE_SPAN_KIND: SpanKind.TOOL,
                     SpanAttributes.TOOL_NAME: tool_name,
                 }
@@ -570,7 +584,10 @@ def track_tool(
                 parent_id = _current_parent_id.get()
                 attrs: dict[str, Any] = {
                     "inputs": _extract_arguments(wrapped_func, *args, **kwargs),
-                    "code": {"name": wrapped_func.__name__, "module": _mod_name(wrapped_func)},
+                    "code": {
+                        "name": wrapped_func.__name__,
+                        "module": _mod_name(wrapped_func),
+                    },
                     SpanAttributes.OPENINFERENCE_SPAN_KIND: SpanKind.TOOL,
                     SpanAttributes.TOOL_NAME: tool_name,
                 }
