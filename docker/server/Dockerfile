@@ -1,7 +1,7 @@
 # ── Stage 1: dependency install ──────────────────────────────────────
 FROM python:3.11-slim AS deps
 WORKDIR /app
-COPY pyproject.toml requirements.txt ./
+COPY pyproject.toml requirements.txt README.md ./
 COPY src/ ./src/
 RUN pip install --no-cache-dir -e ".[clickhouse,postgres]" && \
     pip install --no-cache-dir uvicorn[standard]
