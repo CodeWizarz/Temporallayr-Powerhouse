@@ -215,10 +215,16 @@ async def health() -> dict[str, str]:
 async def ready() -> dict[str, Any]:
     details: dict[str, str] = {}
     try:
-        get_default_store().list_executions("__probe__")
-        details["sqlite"] = "ok"
+        store = get_default_store()
+        # Call async version directly if available (PostgresStore),
+        # otherwise wrap sync SQLiteStore call in a thread to avoid blocking
+        if hasattr(store, "list_executions_async"):
+            await store.list_executions_async("__probe__", limit=1)
+        else:
+            await asyncio.to_thread(store.list_executions, "__probe__", 1, 0)
+        details["postgres"] = "ok"
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"SQLite not ready: {e}") from e
+        raise HTTPException(status_code=503, detail=f"Store not ready: {e}") from e
 
     ch = get_clickhouse_store()
     if ch:

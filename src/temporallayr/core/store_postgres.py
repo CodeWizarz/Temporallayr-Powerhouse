@@ -8,6 +8,7 @@ and the server auto-selects this over SQLite.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -32,10 +33,30 @@ async def _get_pool():
             ) from exc
         import os
 
-        dsn = os.environ["TEMPORALLAYR_POSTGRES_DSN"]
+        dsn = os.environ.get("TEMPORALLAYR_POSTGRES_DSN") or os.environ.get("DATABASE_URL")
+        if not dsn:
+            raise RuntimeError("No PostgreSQL DSN configured")
         _pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
         logger.info("PostgreSQL connection pool created")
     return _pool
+
+
+def _run_async(coro):
+    """
+    Safe async runner that works both inside and outside a running event loop.
+    Inside FastAPI (loop already running): uses run_coroutine_threadsafe via a thread.
+    Outside (scripts, tests): uses asyncio.run().
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        # We're inside a running loop — can't call run_until_complete.
+        # Submit to the loop from a new thread context.
+        import concurrent.futures
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result(timeout=30)
+    except RuntimeError:
+        # No running loop — safe to use asyncio.run()
+        return asyncio.run(coro)
 
 
 _SCHEMA = """
@@ -84,48 +105,24 @@ async def init_schema() -> None:
 
 
 class PostgresStore(ExecutionStore):
-    """
-    Async-native PostgreSQL store.
-    Note: save_execution() is intentionally sync-compatible via asyncio.run_coroutine_threadsafe
-    but the server should call save_execution_async() directly for best performance.
-    """
-
-    def __init__(self, dsn: str | None = None) -> None:
-        if dsn is not None:
-            import os
-
-            os.environ["TEMPORALLAYR_POSTGRES_DSN"] = dsn
 
     # ── Executions ──────────────────────────────────────────────────
 
     def save_execution(self, graph: ExecutionGraph) -> None:
-        """Sync wrapper — runs async version in event loop. Use save_execution_async() in async contexts."""
-        import asyncio
-
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # We're inside an async context (FastAPI) — schedule as task
-                asyncio.create_task(self.save_execution_async(graph))
-            else:
-                loop.run_until_complete(self.save_execution_async(graph))
-        except Exception as e:
-            logger.warning("PostgreSQL save_execution failed", extra={"error": str(e)})
+            loop = asyncio.get_running_loop()
+            asyncio.ensure_future(self.save_execution_async(graph), loop=loop)
+        except RuntimeError:
+            asyncio.run(self.save_execution_async(graph))
 
     def bulk_save_executions(self, graphs: list[ExecutionGraph]) -> None:
-        import asyncio
-
         if not graphs:
             return
-
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self._bulk_save_executions_async(graphs))
-            else:
-                loop.run_until_complete(self._bulk_save_executions_async(graphs))
-        except Exception as e:
-            logger.warning("PostgreSQL bulk_save_executions failed", extra={"error": str(e)})
+            loop = asyncio.get_running_loop()
+            asyncio.ensure_future(self._bulk_save_executions_async(graphs), loop=loop)
+        except RuntimeError:
+            asyncio.run(self._bulk_save_executions_async(graphs))
 
     async def _bulk_save_executions_async(self, graphs: list[ExecutionGraph]) -> None:
         for graph in graphs:
@@ -133,12 +130,10 @@ class PostgresStore(ExecutionStore):
 
     async def save_execution_async(self, graph: ExecutionGraph) -> None:
         from temporallayr.core.fingerprint import Fingerprinter
-
         try:
             fp = Fingerprinter.fingerprint_execution(graph)["fingerprint"]
         except Exception:
             fp = None
-
         pool = await _get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
@@ -149,37 +144,25 @@ class PostgresStore(ExecutionStore):
                   SET fingerprint = EXCLUDED.fingerprint,
                       data = EXCLUDED.data
                 """,
-                graph.id,
-                graph.tenant_id,
-                fp,
-                graph.model_dump_json(),
+                graph.id, graph.tenant_id, fp, graph.model_dump_json(),
             )
 
     def load_execution(self, graph_id: str, tenant_id: str) -> ExecutionGraph:
-        import asyncio
-
-        return asyncio.get_event_loop().run_until_complete(
-            self.load_execution_async(graph_id, tenant_id)
-        )
+        return _run_async(self.load_execution_async(graph_id, tenant_id))
 
     async def load_execution_async(self, graph_id: str, tenant_id: str) -> ExecutionGraph:
         pool = await _get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT data FROM executions WHERE id = $1 AND tenant_id = $2",
-                graph_id,
-                tenant_id,
+                graph_id, tenant_id,
             )
         if row is None:
             raise FileNotFoundError(f"Execution '{graph_id}' not found for tenant '{tenant_id}'")
         return ExecutionGraph.model_validate_json(json.dumps(dict(row["data"])))
 
     def list_executions(self, tenant_id: str, limit: int = 1000, offset: int = 0) -> list[str]:
-        import asyncio
-
-        return asyncio.get_event_loop().run_until_complete(
-            self.list_executions_async(tenant_id, limit, offset)
-        )
+        return _run_async(self.list_executions_async(tenant_id, limit, offset))
 
     async def list_executions_async(
         self, tenant_id: str, limit: int = 50, offset: int = 0
@@ -188,16 +171,12 @@ class PostgresStore(ExecutionStore):
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT id FROM executions WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-                tenant_id,
-                limit,
-                offset,
+                tenant_id, limit, offset,
             )
         return [r["id"] for r in rows]
 
     def delete_old_executions(self, cutoff: datetime) -> int:
-        import asyncio
-
-        return asyncio.get_event_loop().run_until_complete(self._delete_old_async(cutoff))
+        return _run_async(self._delete_old_async(cutoff))
 
     async def _delete_old_async(self, cutoff: datetime) -> int:
         pool = await _get_pool()
@@ -208,12 +187,11 @@ class PostgresStore(ExecutionStore):
     # ── Incidents ────────────────────────────────────────────────────
 
     def save_incident(self, incident: dict[str, Any]) -> None:
-        import asyncio
-
         try:
-            asyncio.create_task(self._save_incident_async(incident))
+            loop = asyncio.get_running_loop()
+            asyncio.ensure_future(self._save_incident_async(incident), loop=loop)
         except RuntimeError:
-            asyncio.get_event_loop().run_until_complete(self._save_incident_async(incident))
+            asyncio.run(self._save_incident_async(incident))
 
     async def _save_incident_async(self, incident: dict[str, Any]) -> None:
         pool = await _get_pool()
@@ -231,12 +209,11 @@ class PostgresStore(ExecutionStore):
             )
 
     def bulk_save_incidents(self, incidents: list[dict[str, Any]]) -> None:
-        import asyncio
-
         try:
-            asyncio.create_task(self._bulk_incidents_async(incidents))
+            loop = asyncio.get_running_loop()
+            asyncio.ensure_future(self._bulk_incidents_async(incidents), loop=loop)
         except RuntimeError:
-            asyncio.get_event_loop().run_until_complete(self._bulk_incidents_async(incidents))
+            asyncio.run(self._bulk_incidents_async(incidents))
 
     async def _bulk_incidents_async(self, incidents: list[dict[str, Any]]) -> None:
         if not incidents:
@@ -250,16 +227,11 @@ class PostgresStore(ExecutionStore):
                 ON CONFLICT (incident_id) DO UPDATE
                   SET data = EXCLUDED.data, updated_at = NOW()
                 """,
-                [
-                    (i["incident_id"], i.get("tenant_id", "default"), json.dumps(i))
-                    for i in incidents
-                ],
+                [(i["incident_id"], i.get("tenant_id", "default"), json.dumps(i)) for i in incidents],
             )
 
     def load_incidents(self, tenant_id: str) -> list[dict[str, Any]]:
-        import asyncio
-
-        return asyncio.get_event_loop().run_until_complete(self._load_incidents_async(tenant_id))
+        return _run_async(self._load_incidents_async(tenant_id))
 
     async def _load_incidents_async(self, tenant_id: str) -> list[dict[str, Any]]:
         pool = await _get_pool()
@@ -271,9 +243,7 @@ class PostgresStore(ExecutionStore):
         return [dict(r["data"]) for r in rows]
 
     def load_all_incidents(self) -> list[dict[str, Any]]:
-        import asyncio
-
-        return asyncio.get_event_loop().run_until_complete(self._load_all_incidents_async())
+        return _run_async(self._load_all_incidents_async())
 
     async def _load_all_incidents_async(self) -> list[dict[str, Any]]:
         pool = await _get_pool()

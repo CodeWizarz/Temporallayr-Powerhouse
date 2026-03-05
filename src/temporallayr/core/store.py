@@ -105,7 +105,9 @@ def get_default_store() -> ExecutionStore:
 
         database_url = os.getenv("DATABASE_URL") or os.getenv("TEMPORALLAYR_POSTGRES_DSN")
         if database_url:
-            os.environ["TEMPORALLAYR_POSTGRES_DSN"] = database_url
+            # Normalise: store_postgres reads TEMPORALLAYR_POSTGRES_DSN or DATABASE_URL
+            if not os.getenv("TEMPORALLAYR_POSTGRES_DSN"):
+                os.environ["TEMPORALLAYR_POSTGRES_DSN"] = database_url
             from temporallayr.core.store_postgres import PostgresStore
 
             _default_store = PostgresStore()
