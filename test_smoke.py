@@ -1,8 +1,8 @@
+import json
+import os
 import subprocess
 import time
 import urllib.request
-import json
-import os
 
 env = os.environ.copy()
 env["TEMPORALLAYR_API_KEYS"] = "dev-key-123=my-tenant"

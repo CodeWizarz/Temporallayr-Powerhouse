@@ -8,7 +8,6 @@ import inspect
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
-from temporallayr.sdk.client import get_sdk
 from temporallayr.context import (
     get_context,
     get_current_span_id,
@@ -18,6 +17,7 @@ from temporallayr.context import (
     set_current_trace,
 )
 from temporallayr.models.execution import Span, Trace, utc_now
+from temporallayr.sdk.client import get_sdk
 from temporallayr.serializer import safe_serialize
 
 F = TypeVar("F", bound=Callable[..., Any])

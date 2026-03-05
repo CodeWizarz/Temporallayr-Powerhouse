@@ -1,9 +1,9 @@
 """Unit tests for webhook payload builders."""
 
 from temporallayr.core.webhooks import (
-    _build_slack_body,
-    _build_pagerduty_body,
     _build_generic_body,
+    _build_pagerduty_body,
+    _build_slack_body,
     _sign_payload,
 )
 

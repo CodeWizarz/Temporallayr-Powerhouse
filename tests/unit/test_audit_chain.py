@@ -1,6 +1,8 @@
 """Unit tests for cryptographic audit chain."""
 
-import os, pytest
+import os
+
+import pytest
 
 os.environ["TEMPORALLAYR_DATA_DIR"] = "/tmp/tl-audit-test"
 
