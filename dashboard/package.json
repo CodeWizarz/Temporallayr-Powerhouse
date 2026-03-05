@@ -7,7 +7,9 @@
         "dev": "vite",
         "build": "tsc && vite build",
         "preview": "vite preview",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "test": "playwright test",
+        "test:ui": "playwright test --ui"
     },
     "dependencies": {
         "@clickhouse/click-ui": "latest",
@@ -20,6 +22,7 @@
         "styled-components": "^6.1.0"
     },
     "devDependencies": {
+        "@playwright/test": "^1.58.2",
         "@types/react": "^18.3.0",
         "@types/react-dom": "^18.3.0",
         "@vitejs/plugin-react": "^4.3.0",

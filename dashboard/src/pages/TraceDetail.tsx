@@ -17,7 +17,7 @@ const SpanRow = styled.div<{$depth:number,$err:boolean}>`padding:10px 14px;paddi
 const SpanName = styled.span`flex:1;color:#ddd;font-family:monospace;`
 const SpanDur = styled.span`color:#666;`
 const SpanErr = styled.div`background:#1a0808;border:1px solid #3a1010;border-radius:6px;padding:10px 14px;font-size:12px;color:#e88;font-family:monospace;margin-top:4px;`
-const ReplayCard = styled(Card)`border-color:${p=>p.theme?.ok?'#1a3a1a':'#3a1a0a'};`
+const ReplayCard = styled(Card)`border-color:#1a3a1a;`
 const Mono = styled.span`font-family:monospace;font-size:11px;color:#666;`
 
 const fmtDur = (s: string, e: string|null) => { if (!e) return '—'; const ms = new Date(e).getTime()-new Date(s).getTime(); return ms<1000?`${ms}ms`:`${(ms/1000).toFixed(2)}s` }

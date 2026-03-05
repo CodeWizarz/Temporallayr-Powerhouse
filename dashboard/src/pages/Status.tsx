@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import { api } from '../api/client'
-import { Title, Text, Card, Status as ClickUIStatus } from '@clickhouse/click-ui'
+import { Title, Text, CardHorizontal as Card, Badge } from '@clickhouse/click-ui'
 
 const Page = styled.div`color:#e0e0e0;`
 const Header = styled.div`margin-bottom:32px;`
@@ -74,9 +74,7 @@ export default function StatusPage() {
                                 <ServiceName>{svc.replace('_', ' ')}</ServiceName>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                     <LatencyText>{data.latency_ms}ms</LatencyText>
-                                    <ClickUIStatus type={data.status === 'ok' ? 'success' : data.status === 'degraded' ? 'warning' : 'danger'}>
-                                        {data.status.toUpperCase()}
-                                    </ClickUIStatus>
+                                    <Badge text={data.status.toUpperCase()} state={data.status === 'ok' ? 'success' : data.status === 'degraded' ? 'warning' : 'danger'} size="sm" />
                                 </div>
                             </ServiceHeader>
 
@@ -100,7 +98,7 @@ export default function StatusPage() {
                 <div style={{ marginTop: 32 }}>
                     <Title type="h4" style={{ marginBottom: 16 }}>Active Incidents</Title>
                     <IncidentCard>
-                        <ClickUIStatus type="warning">DEGRADED</ClickUIStatus>
+                        <Badge text="DEGRADED" state="warning" size="sm" />
                         <div>
                             <Text style={{ fontWeight: 600, display: 'block' }}>Worker Queue Backlog</Text>
                             <Text size="sm" color="muted">Queue size is currently {status.worker_queue.queue_size}. Ingestion latency may be increased.</Text>
