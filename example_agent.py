@@ -1,6 +1,10 @@
 """
 TemporalLayr example agent — demonstrates all decorator types.
 
+Demo script for generating traces:
+  Run this script to generate traces that can be viewed
+  in the TraceDetail react-flow DAG dashboard and replayed.
+
 Shows:
   @track          — generic function tracing
   @track_llm      — LLM call with token/cost capture
