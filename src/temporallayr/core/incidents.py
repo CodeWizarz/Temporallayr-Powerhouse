@@ -3,11 +3,32 @@ Engine for managing the lifecycle of deterministic execution failures.
 """
 
 import hashlib
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from temporallayr.core.alert_dispatcher import AlertDispatcher
 from temporallayr.core.audit import AuditLogger
+
+
+@dataclass
+class Incident:
+    """Lightweight dataclass mirroring the incident dict schema."""
+
+    incident_id: str
+    tenant_id: str
+    cluster_id: str
+    severity: str
+    status: str
+    count: int
+    first_seen: str
+    last_seen: str
+    failing_node: str = ""
+    escalated: bool = False
+    initial_count: int = field(default=0)
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 class IncidentEngine:

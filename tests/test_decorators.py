@@ -1,19 +1,21 @@
 """Tests for @track, @track_llm, @track_tool, @track_pipeline decorators."""
+
 from __future__ import annotations
 
 import asyncio
 import os
+
 import pytest
 
 os.environ.setdefault("TEMPORALLAYR_TENANT_ID", "test-dec-tenant")
 
 from temporallayr.core.decorators import track, track_llm, track_pipeline, track_tool
-from temporallayr.core.recorder import ExecutionRecorder, _current_graph, _current_parent_id
-from temporallayr.models.execution import ExecutionGraph
+from temporallayr.core.recorder import _current_graph
 from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
-
+from temporallayr.models.execution import ExecutionGraph
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
 
 def _make_graph() -> ExecutionGraph:
     return ExecutionGraph(id="test-dec-001", tenant_id="test-dec-tenant", spans=[])
@@ -21,11 +23,14 @@ def _make_graph() -> ExecutionGraph:
 
 # ── @track ──────────────────────────────────────────────────────────
 
+
 def test_track_sync_outside_context():
     """@track is transparent outside recorder context."""
+
     @track
     def add(a: int, b: int) -> int:
         return a + b
+
     assert add(1, 2) == 3
 
 
@@ -34,6 +39,7 @@ async def test_track_sync_captures_timing():
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track(name="my_step")
         def slow_add(a, b):
             return a + b
@@ -57,6 +63,7 @@ async def test_track_async_captures_error():
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track
         async def fail_fn():
             raise ValueError("boom")
@@ -75,11 +82,13 @@ async def test_track_async_captures_error():
 
 # ── @track_llm ──────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_track_llm_captures_tokens_and_cost():
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track_llm
         async def call_llm(prompt: str) -> dict:
             return {
@@ -112,6 +121,7 @@ async def test_track_llm_no_tokens_no_cost():
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track_llm
         def simple_llm() -> str:
             return "just a string"
@@ -125,11 +135,13 @@ async def test_track_llm_no_tokens_no_cost():
 
 # ── @track_tool ─────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_track_tool_sync():
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track_tool(name="database_query", description="Queries the user DB")
         def query_db(user_id: str) -> dict:
             return {"id": user_id, "name": "Alice"}
@@ -148,12 +160,14 @@ async def test_track_tool_sync():
 
 # ── @track_pipeline ──────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_track_pipeline_is_track_alias():
     """@track_pipeline behaves identically to @track."""
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track_pipeline
         async def my_pipeline(x: int) -> int:
             return x * 2
@@ -168,12 +182,14 @@ async def test_track_pipeline_is_track_alias():
 
 # ── Nested spans / parent tracking ───────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_nested_spans_parent_ids():
     """Inner span should have outer span as parent_span_id."""
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track(name="outer")
         async def outer_fn():
             return await inner_fn()
@@ -193,13 +209,14 @@ async def test_nested_spans_parent_ids():
 
 # ── Timing correctness ───────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_timing_is_accurate():
     """duration_ms should reflect actual function runtime, not decorator overhead."""
-    import time as time_mod
     graph = _make_graph()
     token = _current_graph.set(graph)
     try:
+
         @track
         async def timed_fn():
             await asyncio.sleep(0.05)

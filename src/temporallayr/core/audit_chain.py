@@ -25,7 +25,7 @@ import os
 import sqlite3
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -225,7 +225,7 @@ class AuditChain:
         return [
             {
                 "seq": r[0],
-                "timestamp": datetime.fromtimestamp(r[1], tz=timezone.utc).isoformat(),
+                "timestamp": datetime.fromtimestamp(r[1], tz=UTC).isoformat(),
                 "event_type": r[2],
                 "tenant_id": r[3],
                 "entry_hash": r[4],
@@ -256,7 +256,7 @@ class AuditChain:
 
         return {
             "seq": row[0],
-            "timestamp": datetime.fromtimestamp(row[1], tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(row[1], tz=UTC).isoformat(),
             "event_type": row[2],
             "tenant_id": row[3],
             "payload": json.loads(row[4]),

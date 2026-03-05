@@ -2,22 +2,22 @@
 Server API route tests.
 Tests all major endpoints: health, ingest, executions, incidents, admin, auth.
 """
+
 from __future__ import annotations
 
-import asyncio
+import os
+
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from temporallayr.server.app import app
 from temporallayr.server.auth.api_keys import map_api_key_to_tenant
-
 
 TEST_TENANT = "test-route-tenant"
 TEST_KEY = "route-test-key-abc123"
 ADMIN_KEY = "test-admin-key-xyz"
 
-import os
 os.environ["TEMPORALLAYR_ADMIN_KEY"] = ADMIN_KEY
 os.environ["TEMPORALLAYR_API_KEY"] = TEST_KEY
 os.environ["TEMPORALLAYR_TENANT_ID"] = TEST_TENANT
@@ -50,6 +50,7 @@ async def admin_client():
 
 # ── Health ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_health(client: AsyncClient):
     r = await client.get("/health")
@@ -67,6 +68,7 @@ async def test_ready(client: AsyncClient):
 
 
 # ── Auth ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_reject_invalid_key():
@@ -90,6 +92,7 @@ async def test_reject_no_key():
 
 
 # ── Ingest ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_ingest_valid(client: AsyncClient):
@@ -115,7 +118,7 @@ async def test_ingest_tenant_isolation():
             json={"events": [{"tenant_id": "other-tenant", "spans": []}]},
             headers={
                 "Authorization": f"Bearer {TEST_KEY}",
-                "X-Tenant-Id": "other-tenant",   # Mismatch → should 401
+                "X-Tenant-Id": "other-tenant",  # Mismatch → should 401
             },
         )
         assert r.status_code == 401
@@ -129,6 +132,7 @@ async def test_ingest_no_auth():
 
 
 # ── Executions ──────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_list_executions(client: AsyncClient):
@@ -149,6 +153,7 @@ async def test_get_execution_not_found(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_create_and_get_execution(client: AsyncClient):
     from temporallayr.models.execution import ExecutionGraph
+
     graph = ExecutionGraph(id="test-exec-001", tenant_id=TEST_TENANT, spans=[])
     r = await client.post(
         "/executions",
@@ -163,6 +168,7 @@ async def test_create_and_get_execution(client: AsyncClient):
 
 
 # ── Incidents ───────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_list_incidents(client: AsyncClient):
@@ -181,6 +187,7 @@ async def test_ack_nonexistent_incident(client: AsyncClient):
 
 # ── Clusters ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_clusters(client: AsyncClient):
     r = await client.get("/clusters")
@@ -190,6 +197,7 @@ async def test_clusters(client: AsyncClient):
 
 
 # ── Admin ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_admin_register_tenant(admin_client: AsyncClient):
@@ -239,6 +247,7 @@ async def test_admin_no_key():
 
 
 # ── Keys ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_list_keys(client: AsyncClient):

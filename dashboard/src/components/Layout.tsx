@@ -22,6 +22,7 @@ const NAV = [
     { to: '/incidents', label: 'Incidents', icon: '●' },
     { to: '/analytics', label: 'Analytics', icon: '▦' },
     { to: '/replay', label: 'Replay', icon: '▶' },
+    { to: '/status', label: 'Status', icon: '⚡' },
     { to: '/settings', label: 'Settings', icon: '⚙' },
 ]
 
@@ -40,7 +41,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                     </NavItem>
                 ))}
                 <div style={{ flex: 1 }} />
-                <Separator />
+                <Separator size="xs" />
                 <div style={{ padding: '12px 20px' }}>
                     <Text size="xs" style={{ color: '#333' }}>v0.2.1 · TemporalLayr</Text>
                 </div>

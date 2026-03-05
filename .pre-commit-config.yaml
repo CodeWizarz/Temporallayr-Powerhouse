@@ -1,23 +1,28 @@
 repos:
-  - repo: local
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.4
     hooks:
       - id: ruff
-        name: ruff
-        entry: ruff check src/temporallayr/__init__.py src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/transport.py src/temporallayr/models src/temporallayr/core/transport_http.py tests
-        language: system
-        pass_filenames: false
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
       - id: black
-        name: black
-        entry: black --check src/temporallayr/__init__.py src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/transport.py src/temporallayr/models src/temporallayr/core/transport_http.py tests
-        language: system
-        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.9.0
+    hooks:
       - id: mypy
-        name: mypy
-        entry: mypy src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/models tests
-        language: system
-        pass_filenames: false
+        additional_dependencies: [types-requests, types-setuptools, pydantic]
+        args: [--ignore-missing-imports]
+
+  - repo: local
+    hooks:
       - id: pytest
         name: pytest
-        entry: PYTHONPATH=src pytest
+        entry: pytest
         language: system
         pass_filenames: false
+        always_run: true

@@ -30,7 +30,9 @@ async def get_trace_dag(trace_id: str) -> dict[str, list[Any]]:
         if ch is None:
             raise RuntimeError("ClickHouse client not available")
 
-        from temporallayr.storage.clickhouse_dag import query_dag  # noqa: PLC0415
+        from temporallayr.storage.clickhouse_dag import (
+            query_dag,  # noqa: E402, PLC0415 # type: ignore[import-untyped, PLC0415]
+        )
 
         result = await query_dag(ch, trace_id)
         nodes = [ExecutionNode(**n) for n in result["nodes"]]

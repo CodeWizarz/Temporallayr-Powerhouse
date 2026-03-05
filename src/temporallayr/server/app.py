@@ -37,6 +37,7 @@ from temporallayr.core.incidents import IncidentEngine
 from temporallayr.core.logging import configure_logging
 from temporallayr.core.metrics import (
     api_requests,
+    ingestion_rate,
     rate_limit_hits,
     request_duration,
 )
@@ -62,6 +63,7 @@ from temporallayr.server.auth.api_keys import (
 )
 from temporallayr.server.incidents import router as incidents_router
 from temporallayr.server.replay_routes import router as replay_router
+from temporallayr.services.health_monitor import monitor, start_monitoring, stop_monitoring
 
 logger = logging.getLogger(__name__)
 
@@ -139,11 +141,15 @@ async def lifespan(app: FastAPI):
     start_retention_job()
     logger.info("Data retention job started")
 
+    # Start health monitoring
+    start_monitoring(interval=60)
+
     yield
 
     from temporallayr.core.retention import stop_retention_job
 
     stop_retention_job()
+    stop_monitoring()
     logger.info("TemporalLayr server shutting down")
 
 
@@ -201,6 +207,12 @@ async def metrics() -> Response:
 @app.get("/health", tags=["ops"])
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/status/services", tags=["ops"])
+async def service_status() -> dict[str, Any]:
+    """Exposes current health status and latency for all backend services."""
+    return monitor.get_latest()
 
 
 @app.get("/ready", tags=["ops"])
@@ -375,7 +387,9 @@ async def ingest_events(
             graph = ExecutionGraph.model_validate(event)
             store.save_execution(graph)
             asyncio.create_task(_enqueue_graph(graph))
+            ingestion_rate.inc(tenant_id=effective_tenant)
             processed += 1
+
         except Exception as e:
             logger.warning("Ingest event error", extra={"error": str(e)})
             errors += 1

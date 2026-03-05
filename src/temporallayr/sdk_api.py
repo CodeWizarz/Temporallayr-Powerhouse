@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -122,7 +122,7 @@ _span_stack_var: ContextVar[tuple[str, ...]] = ContextVar("_span_stack_var", def
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _validate_config(config: TemporalLayrConfig) -> None:

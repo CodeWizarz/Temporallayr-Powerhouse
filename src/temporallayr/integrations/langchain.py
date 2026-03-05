@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Union
+from datetime import UTC
+from typing import Any
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -106,10 +107,11 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
         completion_tokens = usage.get("completion_tokens", 0)
         total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
 
+        import uuid
+        from datetime import datetime
+
         from temporallayr.core.decorators import _compute_cost
         from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
-        import uuid
-        from datetime import datetime, timezone
 
         model = pending.get("model", "unknown")
         cost = _compute_cost(model, prompt_tokens, completion_tokens)
@@ -127,13 +129,13 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
         if cost is not None:
             attrs["cost_usd"] = cost
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._add_span(
             {
                 "span_id": str(uuid.uuid4()),
                 "parent_span_id": None,
                 "name": f"llm:{model}",
-                "start_time": datetime.fromtimestamp(start, tz=timezone.utc),
+                "start_time": datetime.fromtimestamp(start, tz=UTC),
                 "end_time": now,
                 "duration_ms": duration_ms,
                 "status": "success",
@@ -153,17 +155,18 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
         start = pending.get("start_time", time.time())
         duration_ms = (time.time() - start) * 1000
 
-        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
 
         self._add_span(
             {
                 "span_id": str(uuid.uuid4()),
                 "parent_span_id": None,
                 "name": f"llm:{pending.get('model', 'unknown')}",
-                "start_time": datetime.fromtimestamp(start, tz=timezone.utc),
-                "end_time": datetime.now(timezone.utc),
+                "start_time": datetime.fromtimestamp(start, tz=UTC),
+                "end_time": datetime.now(UTC),
                 "duration_ms": duration_ms,
                 "status": "error",
                 "error": str(error),
@@ -202,9 +205,10 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
         start = pending.get("start_time", time.time())
         duration_ms = (time.time() - start) * 1000
 
-        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
 
         tool_name = pending.get("tool_name", "unknown_tool")
         self._add_span(
@@ -212,8 +216,8 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
                 "span_id": str(uuid.uuid4()),
                 "parent_span_id": None,
                 "name": f"tool:{tool_name}",
-                "start_time": datetime.fromtimestamp(start, tz=timezone.utc),
-                "end_time": datetime.now(timezone.utc),
+                "start_time": datetime.fromtimestamp(start, tz=UTC),
+                "end_time": datetime.now(UTC),
                 "duration_ms": duration_ms,
                 "status": "success",
                 "attributes": {
@@ -237,9 +241,10 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
         pending = self._pending.pop(run_key, {})
         start = pending.get("start_time", time.time())
 
-        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from temporallayr.core.semantic_conventions import SpanAttributes, SpanKind
 
         tool_name = pending.get("tool_name", "unknown_tool")
         self._add_span(
@@ -247,8 +252,8 @@ class TemporalLayrCallbackHandler(BaseCallbackHandler):
                 "span_id": str(uuid.uuid4()),
                 "parent_span_id": None,
                 "name": f"tool:{tool_name}",
-                "start_time": datetime.fromtimestamp(start, tz=timezone.utc),
-                "end_time": datetime.now(timezone.utc),
+                "start_time": datetime.fromtimestamp(start, tz=UTC),
+                "end_time": datetime.now(UTC),
                 "duration_ms": (time.time() - start) * 1000,
                 "status": "error",
                 "error": str(error),

@@ -1,14 +1,12 @@
 """Integration test for webhook delivery pipeline."""
+
 from __future__ import annotations
 
-import asyncio
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from temporallayr.core.webhooks import WebhookConfig, dispatch_incident_async
-from temporallayr.models.execution import ExecutionGraph
+from temporallayr.core.webhooks import dispatch_incident_async
 
 
 @pytest.fixture

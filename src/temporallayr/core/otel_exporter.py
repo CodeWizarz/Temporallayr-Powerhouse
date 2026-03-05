@@ -1,6 +1,7 @@
 """
 OTLP/OpenInference exporter — ships TemporalLayr traces to Phoenix, Jaeger, Tempo, etc.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,15 @@ from temporallayr.models.execution import ExecutionGraph, Span
 logger = logging.getLogger(__name__)
 
 _OTLP_SPAN_KIND_INTERNAL = 1
-_OTLP_KIND_MAP = {"AGENT": 1, "CHAIN": 1, "TOOL": 1, "LLM": 1, "RETRIEVER": 1, "SERVER": 2, "CLIENT": 3}
+_OTLP_KIND_MAP = {
+    "AGENT": 1,
+    "CHAIN": 1,
+    "TOOL": 1,
+    "LLM": 1,
+    "RETRIEVER": 1,
+    "SERVER": 2,
+    "CLIENT": 3,
+}
 
 
 def _to_otlp_trace_id(tid: str) -> str:
@@ -63,10 +72,17 @@ def _span_to_otlp(span: Span, trace_id: str, tenant_id: str) -> dict[str, Any]:
     if attrs.get("output") is not None:
         try:
             out = attrs["output"]
-            otlp_attrs.append(_str_attr(SpanAttributes.OUTPUT_VALUE,
-                                        out if isinstance(out, str) else json.dumps(out)))
-            otlp_attrs.append(_str_attr(SpanAttributes.OUTPUT_MIME_TYPE,
-                                        MimeType.TEXT if isinstance(out, str) else MimeType.JSON))
+            otlp_attrs.append(
+                _str_attr(
+                    SpanAttributes.OUTPUT_VALUE, out if isinstance(out, str) else json.dumps(out)
+                )
+            )
+            otlp_attrs.append(
+                _str_attr(
+                    SpanAttributes.OUTPUT_MIME_TYPE,
+                    MimeType.TEXT if isinstance(out, str) else MimeType.JSON,
+                )
+            )
         except Exception:
             pass
 
@@ -82,7 +98,9 @@ def _span_to_otlp(span: Span, trace_id: str, tenant_id: str) -> dict[str, Any]:
                 pass
 
     if SpanAttributes.LLM_MODEL_NAME in attrs:
-        otlp_attrs.append(_str_attr(SpanAttributes.LLM_MODEL_NAME, str(attrs[SpanAttributes.LLM_MODEL_NAME])))
+        otlp_attrs.append(
+            _str_attr(SpanAttributes.LLM_MODEL_NAME, str(attrs[SpanAttributes.LLM_MODEL_NAME]))
+        )
 
     if attrs.get("cost_usd") is not None:
         otlp_attrs.append(_dbl_attr("temporallayr.cost_usd", float(attrs["cost_usd"])))
@@ -97,14 +115,16 @@ def _span_to_otlp(span: Span, trace_id: str, tenant_id: str) -> dict[str, Any]:
     events = []
     if has_error:
         error_msg = span.error or str(attrs.get("error", ""))
-        events.append({
-            "name": "exception",
-            "timeUnixNano": str(_to_nanos(span.end_time or span.start_time)),
-            "attributes": [
-                _str_attr(SpanAttributes.EXCEPTION_MESSAGE, error_msg),
-                _str_attr(SpanAttributes.EXCEPTION_TYPE, "Exception"),
-            ],
-        })
+        events.append(
+            {
+                "name": "exception",
+                "timeUnixNano": str(_to_nanos(span.end_time or span.start_time)),
+                "attributes": [
+                    _str_attr(SpanAttributes.EXCEPTION_MESSAGE, error_msg),
+                    _str_attr(SpanAttributes.EXCEPTION_TYPE, "Exception"),
+                ],
+            }
+        )
 
     end_time = span.end_time or span.start_time
     return {
@@ -124,18 +144,22 @@ def _span_to_otlp(span: Span, trace_id: str, tenant_id: str) -> dict[str, Any]:
 def trace_to_otlp_payload(graph: ExecutionGraph) -> dict[str, Any]:
     otlp_spans = [_span_to_otlp(span, graph.trace_id, graph.tenant_id) for span in graph.spans]
     return {
-        "resourceSpans": [{
-            "resource": {
-                "attributes": [
-                    _str_attr("service.name", "temporallayr"),
-                    _str_attr("temporallayr.tenant_id", graph.tenant_id),
-                ]
-            },
-            "scopeSpans": [{
-                "scope": {"name": "temporallayr.sdk", "version": "0.2.0"},
-                "spans": otlp_spans,
-            }],
-        }]
+        "resourceSpans": [
+            {
+                "resource": {
+                    "attributes": [
+                        _str_attr("service.name", "temporallayr"),
+                        _str_attr("temporallayr.tenant_id", graph.tenant_id),
+                    ]
+                },
+                "scopeSpans": [
+                    {
+                        "scope": {"name": "temporallayr.sdk", "version": "0.2.0"},
+                        "spans": otlp_spans,
+                    }
+                ],
+            }
+        ]
     }
 
 
@@ -147,14 +171,17 @@ class OTLPExporter:
     async def export(self, graph: ExecutionGraph) -> bool:
         try:
             import httpx
+
             payload = trace_to_otlp_payload(graph)
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
                     f"{self.endpoint}/v1/traces", json=payload, headers=self._headers
                 )
                 if resp.status_code >= 400:
-                    logger.warning("OTLP export failed",
-                                   extra={"status": resp.status_code, "body": resp.text[:200]})
+                    logger.warning(
+                        "OTLP export failed",
+                        extra={"status": resp.status_code, "body": resp.text[:200]},
+                    )
                     return False
             return True
         except Exception as e:
@@ -174,6 +201,7 @@ def get_otlp_exporter() -> OTLPExporter | None:
     global _otlp_exporter
     if _otlp_exporter is None:
         from temporallayr.config import get_config
+
         cfg = get_config()
         if cfg.otlp_endpoint:
             hdrs = {"api_key": cfg.otlp_api_key} if cfg.otlp_api_key else None

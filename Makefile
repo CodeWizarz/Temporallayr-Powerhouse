@@ -1,16 +1,16 @@
-.PHONY: lint format typecheck test coverage ci
+.PHONY: lint format typecheck test coverage ci security help
 
-QUALITY_PATHS = \
-	src/temporallayr/__init__.py \
-	src/temporallayr/client.py \
-	src/temporallayr/config.py \
-	src/temporallayr/context.py \
-	src/temporallayr/decorators.py \
-	src/temporallayr/serializer.py \
-	src/temporallayr/transport.py \
-	src/temporallayr/models \
-	src/temporallayr/core/transport_http.py \
-	tests
+QUALITY_PATHS = src tests
+
+help:
+	@echo "Available commands:"
+	@echo "  make lint       : Run lint checks (ruff, black check)"
+	@echo "  make format     : Run auto-formatters (black, ruff fix)"
+	@echo "  make typecheck  : Run static type analysis (mypy)"
+	@echo "  make test       : Run unit and integration tests"
+	@echo "  make coverage   : Run tests with coverage report"
+	@echo "  make security   : Run security scans (bandit, pip-audit)"
+	@echo "  make ci         : Run full quality gate (lint, typecheck, test, coverage, security)"
 
 lint:
 	ruff check $(QUALITY_PATHS)
@@ -21,16 +21,20 @@ format:
 	ruff check --fix $(QUALITY_PATHS)
 
 typecheck:
-	mypy src/temporallayr/client.py src/temporallayr/config.py src/temporallayr/context.py src/temporallayr/decorators.py src/temporallayr/serializer.py src/temporallayr/models tests
+	mypy src tests
 
 test:
-	PYTHONPATH=src pytest
+	pytest
 
 coverage:
-	PYTHONPATH=src coverage run -m pytest
+	coverage run -m pytest
 	coverage report -m --fail-under=80
 
-ci: lint typecheck test coverage
+security:
+	bandit -r src/ -ll
+	pip-audit
+
+ci: lint typecheck test coverage security
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
 

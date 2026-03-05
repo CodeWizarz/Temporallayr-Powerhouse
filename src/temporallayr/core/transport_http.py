@@ -102,7 +102,7 @@ class AsyncHTTPTransport:
                 if attempt >= self.max_retries:
                     logger.warning("Dropping %d events after max retries", len(batch))
                     return
-                await asyncio.sleep(self.base_backoff * (2 ** attempt))
+                await asyncio.sleep(self.base_backoff * (2**attempt))
 
     async def shutdown(self) -> None:
         self._stop.set()

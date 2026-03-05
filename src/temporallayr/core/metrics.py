@@ -95,6 +95,8 @@ rate_limit_hits = _Counter("tl_rate_limit_hits_total", "Rate limit rejections", 
 incidents_total = _Counter("tl_incidents_total", "Incidents created", ["severity"])
 incidents_open = _Gauge("tl_incidents_open", "Open incidents")
 request_duration = _Histogram("tl_request_duration_ms", "Request latency ms")
+queue_size = _Gauge("tl_queue_size", "Current items in ingestion queue")
+ingestion_rate = _Counter("tl_ingestion_rate_total", "Ingestion throughput", ["tenant_id"])
 
 _REGISTRY: list[_Renderable] = [
     spans_ingested,
@@ -103,6 +105,8 @@ _REGISTRY: list[_Renderable] = [
     incidents_total,
     incidents_open,
     request_duration,
+    queue_size,
+    ingestion_rate,
 ]
 
 

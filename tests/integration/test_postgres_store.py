@@ -6,8 +6,8 @@ from uuid import uuid4
 
 import pytest
 
+from temporallayr.core.store_postgres import PostgresStore, normalize_database_url
 from temporallayr.models.execution import ExecutionGraph, Span
-from temporallayr.core.store_postgres import PostgresStore
 
 
 @pytest.mark.integration

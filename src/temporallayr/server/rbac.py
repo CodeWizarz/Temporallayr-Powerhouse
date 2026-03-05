@@ -12,21 +12,35 @@ Set TEMPORALLAYR_JWT_SECRET to enable JWT auth.
 
 from __future__ import annotations
 
+import enum
 import hashlib
 import json
 import logging
 import os
+import sqlite3
+import threading
 import time
-from enum import Enum
-from functools import wraps
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from enum import StrEnum
+else:
+    import enum
+
+    # Fallback for Python < 3.11
+    StrEnum = getattr(enum, "StrEnum", None)
+    if StrEnum is None:
+
+        class StrEnum(str, enum.Enum):  # noqa: UP042
+            pass
+
 
 from fastapi import Depends, HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     ADMIN = "admin"
     DEVELOPER = "developer"
     VIEWER = "viewer"
@@ -111,9 +125,6 @@ def verify_jwt(token: str, secret: str) -> dict[str, Any]:
 
 # ── Role storage (in-memory + SQLite backed) ──────────────────────────
 
-import sqlite3
-import threading
-
 _rbac_lock = threading.Lock()
 _RBAC_DB: str | None = None
 
@@ -195,7 +206,7 @@ def require_permission(permission: str):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail=str(e),
-                    )
+                    ) from e
 
         # Fall back to API key role lookup
         from temporallayr.server.auth import _strip_bearer

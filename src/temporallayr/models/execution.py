@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import Field, model_validator
+
 from temporallayr.models.base import TemporalLayrBaseModel
 
 SpanStatus = Literal["success", "error"]
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Span(TemporalLayrBaseModel):

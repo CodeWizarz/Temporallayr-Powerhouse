@@ -84,5 +84,6 @@ export const api = {
     health: {
         check: () => req<{ status: string }>('/health'),
         ready: () => req<{ status: string; backends: Record<string, string> }>('/ready'),
+        services: () => req<Record<string, any>>('/status/services'),
     },
 }
