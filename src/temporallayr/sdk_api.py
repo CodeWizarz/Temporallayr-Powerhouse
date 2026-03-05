@@ -15,9 +15,7 @@ import httpx
 from temporallayr.config import TemporalLayrConfig
 
 # Runtime context variables required by tests and integrations
-_runtime_var: ContextVar[TemporalLayrConfig | None] = ContextVar(
-    "_runtime_var", default=None
-)
+_runtime_var: ContextVar[TemporalLayrConfig | None] = ContextVar("_runtime_var", default=None)
 _trace_var: ContextVar[_TraceState | None] = ContextVar("_trace_var", default=None)  # type: ignore[name-defined]
 _span_stack_var: ContextVar[list] = ContextVar("_span_stack_var", default=[])
 
@@ -43,9 +41,7 @@ class _TraceState:
 class _AsyncTransport:
     def __init__(self, config: TemporalLayrConfig) -> None:
         self._config = config
-        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(
-            maxsize=config.max_queue_size
-        )
+        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=config.max_queue_size)
         self._dropped_events = 0
         self._stop = asyncio.Event()
         self._worker: asyncio.Task[None] | None = None

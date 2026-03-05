@@ -111,7 +111,7 @@ async def test_worker_processes_batch(mock_redis):
     # We need to simulate the worker loop running for just one batch cycle
     with patch("workers.ingest_worker.get_clickhouse_store") as mock_get_ch:
         mock_ch = MagicMock()
-        mock_ch.insert_trace = MagicMock()
+        mock_ch.bulk_insert_traces = MagicMock()
         mock_get_ch.return_value = mock_ch
 
         # Run worker loop but break early to prevent infinite loop in tests
@@ -120,10 +120,11 @@ async def test_worker_processes_batch(mock_redis):
         failed = await worker._process_batch([payload])
 
         assert len(failed) == 0
-        mock_ch.insert_trace.assert_called_once()
-        inserted_graph = mock_ch.insert_trace.call_args[0][0]
+        mock_ch.bulk_insert_traces.assert_called_once()
+        inserted_graphs = mock_ch.bulk_insert_traces.call_args[0][0]
 
-        assert inserted_graph.trace_id == "worker-trace-1"
+        assert len(inserted_graphs) == 1
+        assert inserted_graphs[0].trace_id == "worker-trace-1"
 
 
 @pytest.mark.asyncio

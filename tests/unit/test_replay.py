@@ -117,9 +117,7 @@ async def test_core_replay_engine_detects_error_divergence() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_deterministic_replay_engine_reuses_llm_recording_and_reports_divergence() -> (
-    None
-):
+async def test_deterministic_replay_engine_reuses_llm_recording_and_reports_divergence() -> None:
     graph = ExecutionGraph(
         trace_id="deterministic-llm-tool",
         tenant_id="tenant-a",

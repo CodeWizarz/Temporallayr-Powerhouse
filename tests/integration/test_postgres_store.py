@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from temporallayr.core.store_postgres import PostgresStore, normalize_database_url
+from temporallayr.core.store_postgres import PostgresStore
 from temporallayr.models.execution import ExecutionGraph, Span
 
 
@@ -24,9 +24,7 @@ def test_postgres_store_round_trip_with_testcontainer() -> None:
         pytest.skip(f"testcontainers not installed: {exc}")
 
     with PostgresContainer("postgres:16-alpine") as postgres:
-        dsn = postgres.get_connection_url().replace(
-            "postgresql+psycopg2://", "postgresql://"
-        )
+        dsn = postgres.get_connection_url().replace("postgresql+psycopg2://", "postgresql://")
         os.environ["TEMPORALLAYR_POSTGRES_DSN"] = dsn
         tenant_id = f"tenant-{uuid4().hex[:8]}"
         trace_id = f"trace-{uuid4().hex[:8]}"

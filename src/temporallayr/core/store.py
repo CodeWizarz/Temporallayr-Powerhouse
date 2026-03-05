@@ -61,9 +61,7 @@ class LocalJSONStore(ExecutionStore):
                 content = p.read_text(encoding="utf-8")
                 graph = ExecutionGraph.model_validate_json(content)
                 if graph.tenant_id != tenant_id:
-                    raise FileNotFoundError(
-                        f"Execution not found for tenant {tenant_id}"
-                    )
+                    raise FileNotFoundError(f"Execution not found for tenant {tenant_id}")
                 return graph
         raise FileNotFoundError(f"Could not resolve {reference} for tenant {tenant_id}")
 
@@ -82,9 +80,7 @@ class LocalJSONStore(ExecutionStore):
                 continue
             for filepath in tenant_dir.glob("*.json"):
                 try:
-                    graph = ExecutionGraph.model_validate_json(
-                        filepath.read_text(encoding="utf-8")
-                    )
+                    graph = ExecutionGraph.model_validate_json(filepath.read_text(encoding="utf-8"))
                     if graph.created_at < cutoff:
                         filepath.unlink()
                         deleted += 1
@@ -107,9 +103,7 @@ def get_default_store() -> ExecutionStore:
     if _default_store is None:
         import os
 
-        database_url = os.getenv("DATABASE_URL") or os.getenv(
-            "TEMPORALLAYR_POSTGRES_DSN"
-        )
+        database_url = os.getenv("DATABASE_URL") or os.getenv("TEMPORALLAYR_POSTGRES_DSN")
         if database_url:
             os.environ["TEMPORALLAYR_POSTGRES_DSN"] = database_url
             from temporallayr.core.store_postgres import PostgresStore

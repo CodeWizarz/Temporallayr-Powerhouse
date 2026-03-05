@@ -90,9 +90,7 @@ class DeterministicReplayEngine:
                 replayed_spans.append(span.model_copy(update={"attributes": new_attrs}))
 
         actual = graph.model_copy(update={"spans": replayed_spans})
-        return ReplayRun(
-            trace_id=graph.trace_id, expected=graph, actual=actual, steps=steps
-        )
+        return ReplayRun(trace_id=graph.trace_id, expected=graph, actual=actual, steps=steps)
 
     async def replay_trace(self, trace_id: str, tenant_id: str) -> ReplayRun:
         """Load a trace from store and replay it."""

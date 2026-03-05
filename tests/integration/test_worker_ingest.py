@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from temporallayr.models.execution import ExecutionGraph
 from workers.ingest_worker import _process_batch
 
 
@@ -41,10 +40,11 @@ async def test_worker_process_batch_success(sample_graph_json):
 
                 assert len(failed) == 0
                 assert mock_thread.call_count == 1
-                # First arg is the function, second is the graph object
+                # First arg is the function (bulk_insert_traces), second is the list of graphs
                 args, _ = mock_thread.call_args
-                assert isinstance(args[1], ExecutionGraph)
-                assert args[1].trace_id == "test-trace-789"
+                assert isinstance(args[1], list)
+                assert len(args[1]) == 1
+                assert args[1][0].trace_id == "test-trace-789"
 
 
 @pytest.mark.asyncio

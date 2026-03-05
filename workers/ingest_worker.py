@@ -82,15 +82,23 @@ async def _process_batch(batch: list[str]) -> list[str]:
     ch = get_clickhouse_store()
     if ch:
         try:
-            # ClickHouse batch insert is more efficient, but insert_trace currently takes one.
-            # In a real system, you'd batch inject. We'll iterate for now since the SDK uses an array.
-            logger.info(f"Writing {len(graphs)} graphs to ClickHouse")
-            for g in graphs:
-                await asyncio.to_thread(ch.insert_trace, g)
+            logger.info(f"Bulk-writing {len(graphs)} graphs to ClickHouse")
+            await asyncio.to_thread(ch.bulk_insert_traces, graphs)
         except Exception as e:
-            logger.error(f"ClickHouse insert failed for batch: {e}")
+            logger.error(f"ClickHouse bulk insert failed for batch: {e}")
             # If CH fails, we consider the whole batch failed to process
             return batch
+
+    # Update queue-size metric
+    from temporallayr.core.metrics import queue_size as _qs
+
+    try:
+        redis = get_redis_client()
+        if redis:
+            qs: int = await redis.llen(QUEUE_NAME)  # type: ignore[misc]
+            _qs.set(qs)
+    except Exception:
+        pass
 
     # Async side-effects (incidents)
     await _handle_incidents(graphs)

@@ -223,6 +223,123 @@ class ClickHouseAnalyticsStore:
             ],
         )
 
+    def bulk_insert_traces(self, graphs: list[Any]) -> None:
+        """Bulk-insert an entire batch of ExecutionGraphs in exactly 2 ClickHouse calls.
+
+        This is far more efficient than calling insert_trace() in a loop because
+        ClickHouse performs best with large batches — a single INSERT outperforms
+        N individual INSERTs by a wide margin.
+        """
+        if not graphs:
+            return
+
+        all_span_rows: list[list[Any]] = []
+        all_trace_rows: list[list[Any]] = []
+
+        for graph in graphs:
+            try:
+                from temporallayr.core.fingerprint import Fingerprinter
+
+                fp_data = Fingerprinter.fingerprint_execution(graph)
+                fingerprint: str | None = fp_data["fingerprint"]
+            except Exception:
+                fingerprint = None
+
+            error_count = 0
+            for span in graph.spans:
+                attrs = span.attributes if hasattr(span, "attributes") else {}
+                input_dict = attrs.get("inputs", {})
+                input_keys = sorted(input_dict.keys()) if isinstance(input_dict, dict) else []
+                output_val = attrs.get("output", attrs.get("error"))
+                output_type = type(output_val).__name__ if output_val is not None else "NoneType"
+                has_error = bool(span.error or attrs.get("error"))
+                if has_error:
+                    error_count += 1
+
+                duration_ms: float | None = attrs.get("duration_ms")
+                if duration_ms is None and span.end_time and span.start_time:
+                    duration_ms = (span.end_time - span.start_time).total_seconds() * 1000
+
+                all_span_rows.append(
+                    [
+                        graph.tenant_id,
+                        graph.trace_id,
+                        span.span_id,
+                        span.parent_span_id,
+                        span.name,
+                        span.start_time,
+                        span.end_time,
+                        duration_ms,
+                        "error" if has_error else "success",
+                        str(span.error or attrs.get("error", "")) if has_error else None,
+                        fingerprint,
+                        input_keys,
+                        output_type,
+                        json.dumps(
+                            {
+                                k: (
+                                    str(v)
+                                    if not isinstance(v, (str, int, float, bool, type(None)))
+                                    else v
+                                )
+                                for k, v in attrs.items()
+                            }
+                        ),
+                    ]
+                )
+
+            start_t = graph.start_time if hasattr(graph, "start_time") else graph.created_at
+            end_t = getattr(graph, "end_time", None)
+            all_trace_rows.append(
+                [
+                    graph.tenant_id,
+                    graph.trace_id,
+                    start_t,
+                    end_t,
+                    len(graph.spans),
+                    error_count,
+                    fingerprint,
+                ]
+            )
+
+        client = self._get_client()
+
+        _SPAN_COLUMNS = [
+            "tenant_id",
+            "trace_id",
+            "span_id",
+            "parent_span_id",
+            "name",
+            "start_time",
+            "end_time",
+            "duration_ms",
+            "status",
+            "error",
+            "fingerprint",
+            "input_keys",
+            "output_type",
+            "attributes",
+        ]
+        _TRACE_COLUMNS = [
+            "tenant_id",
+            "trace_id",
+            "start_time",
+            "end_time",
+            "span_count",
+            "error_count",
+            "fingerprint",
+        ]
+
+        if all_span_rows:
+            client.insert("temporallayr_spans", all_span_rows, column_names=_SPAN_COLUMNS)
+        if all_trace_rows:
+            client.insert("temporallayr_traces", all_trace_rows, column_names=_TRACE_COLUMNS)
+
+        logger.info(
+            "Bulk insert complete",
+            extra={"graphs": len(graphs), "spans": len(all_span_rows)},
+        )
+
     def list_executions(self, tenant_id: str, limit: int = 100) -> list[str]:
         client = self._get_client()
         result = client.query(
@@ -309,6 +426,49 @@ class ClickHouseAnalyticsStore:
         )
         cols = ["hour", "fingerprint", "trace_count", "error_trace_count"]
         return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def get_error_trends(self, tenant_id: str, hours: int = 168) -> list[dict[str, Any]]:
+        """Return per-hour error counts grouped by fingerprint for charting."""
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT toStartOfHour(start_time) AS hour,
+                   fingerprint,
+                   count() AS span_count,
+                   countIf(status = 'error') AS error_count,
+                   round(countIf(status = 'error') / count() * 100, 2) AS error_rate_pct
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+            GROUP BY hour, fingerprint
+            ORDER BY hour ASC, error_count DESC
+            LIMIT 500
+            """,
+            parameters={"tenant_id": tenant_id, "since": since},
+        )
+        cols = ["hour", "fingerprint", "span_count", "error_count", "error_rate_pct"]
+        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def set_retention(self, table: str, days: int) -> None:
+        """Alter the TTL on an existing ClickHouse table at runtime.
+
+        Args:
+            table: One of 'temporallayr_spans', 'temporallayr_traces',
+                   or 'temporallayr_uptime_events'.
+            days: Retention period in days.
+        """
+        _ALLOWED = {"temporallayr_spans", "temporallayr_traces", "temporallayr_uptime_events"}
+        if table not in _ALLOWED:
+            raise ValueError(f"Unknown table '{table}'. Allowed: {_ALLOWED}")
+        if days < 1:
+            raise ValueError("Retention days must be >= 1")
+
+        ts_col = "timestamp" if table == "temporallayr_uptime_events" else "start_time"
+        sql = f"ALTER TABLE {table} MODIFY TTL {ts_col} + toIntervalDay({days})"
+        client = self._get_client()
+        client.command(sql)
+        logger.info("Retention updated", extra={"table": table, "days": days})
 
     def get_span_timeline(self, trace_id: str, tenant_id: str) -> list[dict[str, Any]]:
         client = self._get_client()

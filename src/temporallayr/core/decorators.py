@@ -44,23 +44,18 @@ _TOKEN_COST_PER_1M: dict[str, dict[str, float]] = {
 }
 
 
-def _compute_cost(
-    model: str, prompt_tokens: int, completion_tokens: int
-) -> float | None:
+def _compute_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
     """Return estimated USD cost or None if model not in pricing table."""
     for key, costs in _TOKEN_COST_PER_1M.items():
         if key in model.lower():
             cost = (
-                prompt_tokens * costs["prompt"]
-                + completion_tokens * costs["completion"]
+                prompt_tokens * costs["prompt"] + completion_tokens * costs["completion"]
             ) / 1_000_000
             return round(cost, 8)
     return None
 
 
-def _extract_arguments(
-    func: Callable[..., Any], *args: Any, **kwargs: Any
-) -> dict[str, Any]:
+def _extract_arguments(func: Callable[..., Any], *args: Any, **kwargs: Any) -> dict[str, Any]:
     try:
         sig = inspect.signature(func)
         bound = sig.bind(*args, **kwargs)
@@ -80,9 +75,7 @@ def _mod_name(func: Callable[..., Any]) -> str:
     return mod
 
 
-def _build_node(
-    name: str, attributes: dict[str, Any], parent_id: str | None
-) -> ExecutionNode:
+def _build_node(name: str, attributes: dict[str, Any], parent_id: str | None) -> ExecutionNode:
     return ExecutionNode(
         span_id=str(uuid.uuid4()),
         name=name,
@@ -256,9 +249,7 @@ def track_llm(func: F) -> F: ...
 def track_llm(*, name: str | None = None) -> Callable[[F], F]: ...
 
 
-def track_llm(
-    func: F | None = None, *, name: str | None = None
-) -> Callable[[F], F] | F:
+def track_llm(func: F | None = None, *, name: str | None = None) -> Callable[[F], F] | F:
     """
     LLM call decorator. Captures:
       - Prompt/completion/total token counts (from return value or attributes)
@@ -275,9 +266,7 @@ def track_llm(
     def decorator(wrapped_func: F) -> F:
         node_name = name or f"llm:{wrapped_func.__name__}"
 
-        def _extract_llm_attrs(
-            result: Any, base_attrs: dict[str, Any]
-        ) -> dict[str, Any]:
+        def _extract_llm_attrs(result: Any, base_attrs: dict[str, Any]) -> dict[str, Any]:
             attrs = dict(base_attrs)
             # Extract from dict return
             if isinstance(result, dict):
@@ -295,17 +284,13 @@ def track_llm(
                             pass
                 # Map to proper SpanAttributes
                 if "prompt_tokens" in result:
-                    attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = int(
-                        result["prompt_tokens"]
-                    )
+                    attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = int(result["prompt_tokens"])
                 if "completion_tokens" in result:
                     attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = int(
                         result["completion_tokens"]
                     )
                 if "total_tokens" in result:
-                    attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = int(
-                        result["total_tokens"]
-                    )
+                    attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = int(result["total_tokens"])
                 if "model" in result:
                     attrs[SpanAttributes.LLM_MODEL_NAME] = str(result["model"])
                 attrs["output"] = result.get("output", result.get("content", result))
@@ -315,9 +300,7 @@ def track_llm(
                 if hasattr(usage, "prompt_tokens"):
                     attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = usage.prompt_tokens
                 if hasattr(usage, "completion_tokens"):
-                    attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = (
-                        usage.completion_tokens
-                    )
+                    attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = usage.completion_tokens
                 if hasattr(usage, "total_tokens"):
                     attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = usage.total_tokens
                 if hasattr(result, "model"):
@@ -362,9 +345,7 @@ def track_llm(
                     result = await wrapped_func(*args, **kwargs)
                     end = datetime.now(UTC)
                     new_attrs = _extract_llm_attrs(result, node.attributes)
-                    new_attrs["duration_ms"] = round(
-                        (end - start).total_seconds() * 1000, 3
-                    )
+                    new_attrs["duration_ms"] = round((end - start).total_seconds() * 1000, 3)
                     graph.update_node(
                         node.id,
                         node.model_copy(
@@ -427,9 +408,7 @@ def track_llm(
                     result = wrapped_func(*args, **kwargs)
                     end = datetime.now(UTC)
                     new_attrs = _extract_llm_attrs(result, node.attributes)
-                    new_attrs["duration_ms"] = round(
-                        (end - start).total_seconds() * 1000, 3
-                    )
+                    new_attrs["duration_ms"] = round((end - start).total_seconds() * 1000, 3)
                     graph.update_node(
                         node.id,
                         node.model_copy(
@@ -480,9 +459,7 @@ def track_tool(func: F) -> F: ...
 
 
 @overload
-def track_tool(
-    *, name: str | None = None, description: str | None = None
-) -> Callable[[F], F]: ...
+def track_tool(*, name: str | None = None, description: str | None = None) -> Callable[[F], F]: ...
 
 
 def track_tool(

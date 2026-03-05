@@ -21,9 +21,7 @@ def replay_tool_add(a: int, b: int) -> int:
     return a + b
 
 
-def _build_graph(
-    tenant_id: str, trace_id: str, expected_tool_output: int
-) -> ExecutionGraph:
+def _build_graph(tenant_id: str, trace_id: str, expected_tool_output: int) -> ExecutionGraph:
     started = datetime.now(UTC)
     tool_span = Span(
         span_id=f"tool-{trace_id}",
@@ -48,15 +46,11 @@ def _build_graph(
             "output": "stored-llm-response",
         },
     )
-    return ExecutionGraph(
-        trace_id=trace_id, tenant_id=tenant_id, spans=[tool_span, llm_span]
-    )
+    return ExecutionGraph(trace_id=trace_id, tenant_id=tenant_id, spans=[tool_span, llm_span])
 
 
 @pytest.mark.asyncio
-async def test_deterministic_replay_engine_executes_tools_and_reuses_llm_outputs() -> (
-    None
-):
+async def test_deterministic_replay_engine_executes_tools_and_reuses_llm_outputs() -> None:
     tenant_id = "replay-e2e-tenant"
     trace_id = f"replay-e2e-{uuid4()}"
     graph = _build_graph(tenant_id, trace_id, expected_tool_output=5)

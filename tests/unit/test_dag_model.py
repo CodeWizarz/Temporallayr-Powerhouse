@@ -1,7 +1,6 @@
 """Unit tests for ExecutionNode (alias of Span) and ExecutionEdge models."""
 
 import pytest
-from pydantic import ValidationError
 
 from temporallayr.core.dag import ExecutionEdge, ExecutionNode
 

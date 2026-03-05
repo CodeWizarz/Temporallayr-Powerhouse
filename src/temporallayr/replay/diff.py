@@ -30,11 +30,7 @@ class DivergenceReport:
 def semantic_diff(expected: ExecutionGraph, actual: ExecutionGraph) -> DivergenceReport:
     """Compare two ExecutionGraphs and return a DivergenceReport."""
     result = ExecutionDiffer.diff(expected, actual)
-    total = (
-        len(result["changed_nodes"])
-        + len(result["added_nodes"])
-        + len(result["removed_nodes"])
-    )
+    total = len(result["changed_nodes"]) + len(result["added_nodes"]) + len(result["removed_nodes"])
     return DivergenceReport(
         diverged=total > 0,
         total_differences=total,
