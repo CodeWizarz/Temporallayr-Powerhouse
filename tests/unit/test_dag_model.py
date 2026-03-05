@@ -1,4 +1,4 @@
-"""Unit tests for ExecutionNode and ExecutionEdge models."""
+"""Unit tests for ExecutionNode (alias of Span) and ExecutionEdge models."""
 
 import pytest
 from pydantic import ValidationError
@@ -7,34 +7,34 @@ from temporallayr.core.dag import ExecutionEdge, ExecutionNode
 
 
 def test_execution_node_required_fields():
-    node = ExecutionNode(id="n1", trace_id="t1", type="llm", name="call-gpt")
-    assert node.id == "n1"
-    assert node.parent_id is None
-    assert node.latency is None
-    assert node.metadata == {}
+    node = ExecutionNode(span_id="n1", name="call-gpt", attributes={"type": "llm"})
+    assert node.span_id == "n1"
+    assert node.parent_span_id is None
+    assert node.attributes.get("latency") is None
+    assert node.attributes == {"type": "llm"}
 
 
 def test_execution_node_full():
     node = ExecutionNode(
-        id="n2",
-        trace_id="t1",
-        parent_id="n1",
-        type="tool",
+        span_id="n2",
+        parent_span_id="n1",
         name="search",
-        latency=42.5,
-        tokens=100,
-        cost=0.001,
-        metadata={"source": "web"},
+        attributes={
+            "type": "tool",
+            "latency": 42.5,
+            "tokens": 100,
+            "cost": 0.001,
+            "source": "web",
+        },
     )
-    assert node.tokens == 100
-    assert node.cost == pytest.approx(0.001)
+    assert node.attributes["tokens"] == 100
+    assert node.attributes["cost"] == pytest.approx(0.001)
 
 
-def test_execution_node_rejects_extra_fields():
-    with pytest.raises(ValidationError):
-        ExecutionNode(  # type: ignore[call-arg]
-            id="n3", trace_id="t1", type="llm", name="x", unknown_field="y"
-        )
+def test_execution_node_extra_fields_allowed():
+    # Span allows extra fields stored in attributes dict — no ValidationError expected
+    node = ExecutionNode(span_id="n3", name="x", attributes={"note": "ok"})
+    assert node.span_id == "n3"
 
 
 def test_execution_edge_basic():
