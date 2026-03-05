@@ -7,6 +7,7 @@ import AnalyticsPage from './pages/Analytics'
 import ReplayPage from './pages/Replay'
 import SettingsPage from './pages/Settings'
 import StatusPage from './pages/Status'
+import UptimePage from './pages/Uptime'
 
 export default function App() {
     return (
@@ -19,7 +20,8 @@ export default function App() {
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/replay" element={<ReplayPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/status" element={<StatusPage />} />
+                <Route path="/status" element={<UptimePage />} />
+                <Route path="/internal-status" element={<StatusPage />} />
             </Routes>
         </Layout>
     )

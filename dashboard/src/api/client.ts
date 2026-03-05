@@ -72,6 +72,22 @@ export interface ReplayReport {
     results: Array<{ node_id: string; success: boolean; divergence_type?: string; divergence_details?: string }>
 }
 
+export interface UptimeSummary {
+    service: string
+    uptime_percentage: number
+    history: Array<{
+        date: string
+        uptime_percentage: number
+        status: string
+        errors: string[]
+    }>
+}
+
+export interface PublicStatusResponse {
+    days: number
+    services: UptimeSummary[]
+}
+
 export const api = {
     executions: {
         list: (limit = 50, offset = 0) => req<Paginated<string>>(`/executions?limit=${limit}&offset=${offset}`),
@@ -120,4 +136,11 @@ export const api = {
         get: () => req<StatusResponse>('/status'),
         history: () => req<StatusHistoryResponse>('/status/history'),
     },
+    publicStatus: {
+        get: async () => {
+            const res = await fetch(`${BASE}/public/status`)
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            return res.json() as Promise<PublicStatusResponse>
+        }
+    }
 }

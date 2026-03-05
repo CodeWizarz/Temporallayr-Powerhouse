@@ -37,6 +37,7 @@ from temporallayr.core.rate_limit import check_ingest_rate
 from temporallayr.core.store import get_default_store
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.store_sqlite import SQLiteStore
+from temporallayr.health.poller import get_health_poller
 from temporallayr.models.execution import ExecutionGraph
 from temporallayr.server.auth import verify_admin_key, verify_api_key
 from temporallayr.server.auth.api_keys import (
@@ -52,6 +53,7 @@ from temporallayr.server.middleware import AuditMiddleware
 from temporallayr.server.replay_routes import router as replay_router
 from temporallayr.server.routes.admin import router as admin_router
 from temporallayr.server.routes.analytics import router as analytics_router
+from temporallayr.server.routes.public_status import router as public_status_router
 from temporallayr.server.routes.status import router as status_router
 from temporallayr.server.routes.traces import router as traces_router
 from temporallayr.workers.clickhouse_worker import (
@@ -138,12 +140,45 @@ async def lifespan(app: FastAPI):
     start_retention_job()
     logger.info("Data retention job started")
 
+    # Start health poller
+    poller = get_health_poller()
+
+    # Register checks
+    async def check_sqlite() -> bool:
+        get_default_store().list_executions("__probe__")
+        return True
+
+    async def check_clickhouse() -> bool:
+        ch_store = get_clickhouse_store()
+        if ch_store:
+            await asyncio.to_thread(ch_store._get_client().command, "SELECT 1")
+        return True
+
+    poller.register_check("server (sqlite)", check_sqlite)
+    poller.register_check("clickhouse", check_clickhouse)
+
+    # If postgres is active, we can check it
+    if cfg.postgres_dsn:
+
+        async def check_postgres() -> bool:
+            from temporallayr.core.store_postgres import _get_pool
+
+            pool = await _get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute("SELECT 1")
+            return True
+
+        poller.register_check("postgres", check_postgres)
+
+    poller.start()
+
     yield
 
     from temporallayr.core.retention import stop_retention_job
 
     await shutdown_clickhouse_worker()
     stop_retention_job()
+    poller.stop()
     logger.info("TemporalLayr server shutting down")
 
 
@@ -160,6 +195,7 @@ app.include_router(incidents_router)
 app.include_router(replay_router)
 app.include_router(analytics_router)
 app.include_router(status_router)
+app.include_router(public_status_router)
 app.include_router(admin_router)
 app.include_router(traces_router)
 
