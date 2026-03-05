@@ -90,6 +90,12 @@ class PostgresStore(ExecutionStore):
     but the server should call save_execution_async() directly for best performance.
     """
 
+    def __init__(self, dsn: str | None = None) -> None:
+        if dsn is not None:
+            import os
+
+            os.environ["TEMPORALLAYR_POSTGRES_DSN"] = dsn
+
     # ── Executions ──────────────────────────────────────────────────
 
     def save_execution(self, graph: ExecutionGraph) -> None:
