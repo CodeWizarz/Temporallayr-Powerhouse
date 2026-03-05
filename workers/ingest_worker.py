@@ -21,10 +21,6 @@ from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.webhooks import dispatch_incident_async
 from temporallayr.models.execution import ExecutionGraph
 
-# Worker-local incident state — isolated from server process (no shared memory across processes)
-# In a distributed system, incidents are persisted to the DB and read from there.
-_WORKER_INCIDENTS: list = []
-
 # Configure logging
 logging.basicConfig(
     level=os.getenv("TEMPORALLAYR_LOG_LEVEL", "INFO").upper(),
@@ -44,13 +40,23 @@ async def _handle_incidents(graphs: list[ExecutionGraph]) -> None:
     try:
         clusters = FailureClusterEngine.cluster_failures(graphs)
         if clusters:
-            global _WORKER_INCIDENTS
-            old_incidents = len(_WORKER_INCIDENTS)
-            _WORKER_INCIDENTS = IncidentEngine.detect_incidents(clusters, _WORKER_INCIDENTS)
+            from temporallayr.core.store import get_default_store
 
-            new_incidents = _WORKER_INCIDENTS[old_incidents:] if len(_WORKER_INCIDENTS) > old_incidents else []
-            for inc in new_incidents:
-                asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
+            store = get_default_store()
+            existing_incidents = []
+            if hasattr(store, "load_all_incidents"):
+                existing_incidents = store.load_all_incidents()
+
+            old_len = len(existing_incidents)
+            all_incidents = IncidentEngine.detect_incidents(clusters, existing_incidents)
+
+            if len(all_incidents) > old_len:
+                new_incidents = all_incidents[old_len:]
+                if hasattr(store, "bulk_save_incidents"):
+                    store.bulk_save_incidents(all_incidents)
+
+                for inc in new_incidents:
+                    asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
     except Exception as e:
         logger.warning(f"Incident detection error: {e}")
 
