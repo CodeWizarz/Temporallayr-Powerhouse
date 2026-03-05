@@ -5,8 +5,8 @@ import TraceDetailPage from './pages/TraceDetail'
 import IncidentsPage from './pages/Incidents'
 import AnalyticsPage from './pages/Analytics'
 import ReplayPage from './pages/Replay'
-import StatusPage from './pages/Status'
 import SettingsPage from './pages/Settings'
+import StatusPage from './pages/Status'
 
 export default function App() {
     return (

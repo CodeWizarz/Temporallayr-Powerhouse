@@ -1,111 +1,115 @@
-import { useEffect, useState } from 'react'
-import styled from 'styled-components'
+import { useState, useEffect } from 'react'
 import { api } from '../api/client'
-import { Title, Text, CardHorizontal as Card, Badge } from '@clickhouse/click-ui'
 
-const Page = styled.div`color:#e0e0e0;`
-const Header = styled.div`margin-bottom:32px;`
-const Grid = styled.div`display:grid;grid-template-columns:1fr;gap:20px;`
-
-const ServiceCard = styled(Card)`
-  background:#111;border:1px solid #1e1e1e;padding:24px;
-  display:flex;flex-direction:column;gap:16px;
-`
-
-const ServiceHeader = styled.div`display:flex;justify-content:space-between;align-items:center;`
-const ServiceName = styled.h2`font-size:18px;font-weight:600;margin:0;color:#facc15;text-transform:capitalize;`
-const LatencyText = styled.span`font-size:12px;color:#666;`
-
-const UptimeTrack = styled.div`display:flex;gap:3px;height:34px;`
-const UptimeBar = styled.div<{ $status: string }>`
-  flex:1;background:${p => p.$status === 'ok' ? '#4caf6e' : p.$status === 'degraded' ? '#facc15' : '#e55'};
-  border-radius:2px;opacity:0.8;transition:all 0.2s;
-  &:hover { opacity:1; transform:scaleY(1.1); }
-`
-
-const Legend = styled.div`display:flex;justify-content:space-between;font-size:11px;color:#444;margin-top:8px;`
-
-const IncidentCard = styled.div`
-  background:#1a0808;border:1px solid #3a1010;border-radius:8px;padding:16px;
-  display:flex;gap:16px;align-items:center;
-`
+interface BackendStatus {
+  status: string
+  backends: Record<string, string>
+}
 
 export default function StatusPage() {
-    const [status, setStatus] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+  const [health, setHealth] = useState<{ status: string } | null>(null)
+  const [ready, setReady] = useState<BackendStatus | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
 
-    const load = async () => {
-        setLoading(true)
-        try {
-            const data = await api.health.services()
-            setStatus(data)
-        } catch (e: any) {
-            setError(e.message)
-        } finally {
-            setLoading(false)
-        }
+  const fetchStatus = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [h, r] = await Promise.all([
+        api.system.check(),
+        api.system.ready(),
+      ])
+      setHealth(h)
+      setReady(r)
+      setLastChecked(new Date())
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    useEffect(() => {
-        load()
-        const timer = setInterval(load, 30000)
-        return () => clearInterval(timer)
-    }, [])
+  useEffect(() => { fetchStatus() }, [])
 
-    if (loading && !status) return <Text>Loading system status...</Text>
-    if (error) return <Text style={{ color: '#e55' }}>Error loading status: {error}</Text>
+  const dot = (ok: boolean) => (
+    <span style={{
+      display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+      background: ok ? '#22c55e' : '#ef4444', marginRight: 8
+    }} />
+  )
 
-    const services = ['api', 'redis', 'clickhouse', 'worker_queue']
-
+  const badge = (val: string) => {
+    const ok = val === 'ok' || val === 'ready'
     return (
-        <Page>
-            <Header>
-                <Title type="h2">System Status</Title>
-                <Text color="muted">Real-time health monitoring for TemporalLayr infrastructure</Text>
-            </Header>
-
-            <Grid>
-                {services.map(svc => {
-                    const data = status[svc] || { status: 'unknown', latency_ms: 0 }
-                    return (
-                        <ServiceCard key={svc}>
-                            <ServiceHeader>
-                                <ServiceName>{svc.replace('_', ' ')}</ServiceName>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <LatencyText>{data.latency_ms}ms</LatencyText>
-                                    <Badge text={data.status.toUpperCase()} state={data.status === 'ok' ? 'success' : data.status === 'degraded' ? 'warning' : 'danger'} size="sm" />
-                                </div>
-                            </ServiceHeader>
-
-                            {/* Mocking uptime bars for visual effect; in production these would come from the /status/history endpoint if implemented */}
-                            <UptimeTrack>
-                                {[...Array(60)].map((_, i) => (
-                                    <UptimeBar key={i} $status={i > 55 && data.status !== 'ok' ? data.status : 'ok'} />
-                                ))}
-                            </UptimeTrack>
-                            <Legend>
-                                <span>60 minutes ago</span>
-                                <span>100% uptime</span>
-                                <span>Just now</span>
-                            </Legend>
-                        </ServiceCard>
-                    )
-                })}
-            </Grid>
-
-            {status.worker_queue?.status === 'backlogged' && (
-                <div style={{ marginTop: 32 }}>
-                    <Title type="h4" style={{ marginBottom: 16 }}>Active Incidents</Title>
-                    <IncidentCard>
-                        <Badge text="DEGRADED" state="warning" size="sm" />
-                        <div>
-                            <Text style={{ fontWeight: 600, display: 'block' }}>Worker Queue Backlog</Text>
-                            <Text size="sm" color="muted">Queue size is currently {status.worker_queue.queue_size}. Ingestion latency may be increased.</Text>
-                        </div>
-                    </IncidentCard>
-                </div>
-            )}
-        </Page>
+      <span style={{
+        padding: '2px 10px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+        background: ok ? '#14532d' : '#7f1d1d',
+        color: ok ? '#22c55e' : '#ef4444'
+      }}>{val}</span>
     )
+  }
+
+  return (
+    <div style={{ maxWidth: 700 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ color: '#e0e0e0', margin: 0, fontSize: 24 }}>System Status</h1>
+          <p style={{ color: '#666', margin: '4px 0 0', fontSize: 13 }}>
+            Live health of all backend services
+          </p>
+        </div>
+        <button onClick={fetchStatus} style={{
+          background: '#1a1a1a', border: '1px solid #333', color: '#aaa',
+          padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 13
+        }}>↺ Refresh</button>
+      </div>
+
+      {error && (
+        <div style={{ background: '#1a0000', border: '1px solid #7f1d1d', borderRadius: 8, padding: 16, marginBottom: 20, color: '#ef4444' }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {loading && !health && (
+        <div style={{ color: '#555', padding: 40, textAlign: 'center' }}>Checking services…</div>
+      )}
+
+      {health && (
+        <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, padding: 20, marginBottom: 16 }}>
+          <div style={{ color: '#888', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>API Server</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: '#ccc', display: 'flex', alignItems: 'center' }}>
+              {dot(health.status === 'ok')} API Health
+            </span>
+            {badge(health.status)}
+          </div>
+        </div>
+      )}
+
+      {ready && (
+        <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, padding: 20, marginBottom: 16 }}>
+          <div style={{ color: '#888', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Backend Services</div>
+          {Object.entries(ready.backends).map(([name, val]) => (
+            <div key={name} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 0', borderBottom: '1px solid #1a1a1a'
+            }}>
+              <span style={{ color: '#ccc', display: 'flex', alignItems: 'center', textTransform: 'capitalize' }}>
+                {dot(val === 'ok' || val === 'true')} {name}
+              </span>
+              {badge(val === 'true' ? 'ok' : val)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lastChecked && (
+        <p style={{ color: '#444', fontSize: 12, marginTop: 12 }}>
+          Last checked: {lastChecked.toLocaleTimeString()}
+        </p>
+      )}
+    </div>
+  )
 }
