@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
 .Python
 *.egg-info/
@@ -11,18 +12,27 @@ build/
 venv/
 .env
 
-# Test artifacts
+# Test & Quality
+.hypothesis/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 coverage.xml
+reports/
 htmlcov/
 *.db
 e2e_out*.txt
 test_out*.txt
 ruff_errors.txt
+tsc_output.txt
+build_error.log
+dashboard/tsc_output.txt
+dashboard/build_error.log
 
 # Data
 .temporallayr/
+health_history.json
 execution.json
 executions/
 
@@ -35,7 +45,11 @@ dashboard/.env.local
 .vscode/
 .idea/
 *.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Misc
+deploy.ps1
