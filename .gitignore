@@ -40,6 +40,7 @@ executions/
 dashboard/node_modules/
 dashboard/dist/
 dashboard/.env.local
+sdk-node/node_modules
 
 # IDE
 .vscode/
