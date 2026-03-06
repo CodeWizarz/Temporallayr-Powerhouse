@@ -185,7 +185,9 @@ class _AuditMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# CORS must be outermost middleware — added LAST so it runs FIRST
+# Audit is innermost — added first
+app.add_middleware(_AuditMiddleware)
+# CORS is outermost — added last so it runs first on every request
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -193,7 +195,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(_AuditMiddleware)
 app.include_router(incidents_router)
 app.include_router(replay_router)
 
