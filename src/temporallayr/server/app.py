@@ -320,96 +320,101 @@ async def ingest_events(
     SECURITY: Validates that Bearer token's bound tenant matches X-Tenant-Id header.
     Prevents tenant A from writing into tenant B's namespace.
     """
+    """
     # Extract and strip Bearer prefix
-    raw_token = ""
-    if authorization.lower().startswith("bearer "):
-        raw_token = authorization[7:].strip()
-    elif authorization:
-        raw_token = authorization.strip()
+        raw_token = ""
+        if authorization.lower().startswith("bearer "):
+            raw_token = authorization[7:].strip()
+        elif authorization:
+            raw_token = authorization.strip()
 
-    # Validate token → tenant
-    authed_tenant: str | None = None
-    if raw_token:
-        authed_tenant = validate_api_key(raw_token)
-        # Fallback to env key map
-        if not authed_tenant:
-            keys_str = os.getenv("TEMPORALLAYR_API_KEYS", "")
-            for pair in keys_str.split(","):
-                if "=" in pair:
-                    k, v = pair.split("=", 1)
-                    if k.strip() == raw_token:
-                        authed_tenant = v.strip()
-                        break
+        # Validate token → tenant
+        authed_tenant: str | None = None
+        if raw_token:
+            authed_tenant = validate_api_key(raw_token)
+            # Fallback to env key map
+            if not authed_tenant:
+                keys_str = os.getenv("TEMPORALLAYR_API_KEYS", "")
+                for pair in keys_str.split(","):
+                    if "=" in pair:
+                        k, v = pair.split("=", 1)
+                        if k.strip() == raw_token:
+                            authed_tenant = v.strip()
+                            break
 
-    if authed_tenant is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API key",
+        if authed_tenant is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing API key",
+            )
+
+        # TENANT ISOLATION: if X-Tenant-Id provided, it must match token's tenant
+        if x_tenant_id and x_tenant_id != authed_tenant:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token tenant does not match X-Tenant-Id header",
+            )
+
+        # Rate limit check
+        allowed, rl_headers = check_ingest_rate(authed_tenant)
+        if not allowed:
+            rate_limit_hits.inc(tenant_id=authed_tenant)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded. See Retry-After header.",
+                headers=rl_headers,
+            )
+
+        # Quota enforcement
+        from temporallayr.core.quotas import check_quota, record_spans
+
+        import asyncio
+        quota_ok, quota_info = await asyncio.to_thread(check_quota, authed_tenant)
+        if not quota_ok:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Daily quota exceeded ({quota_info['spans_today']}/{quota_info['quota']} spans). Resets at midnight UTC.",
+                headers={
+                    "X-Quota-Used": str(quota_info["spans_today"]),
+                    "X-Quota-Limit": str(quota_info["quota"]),
+                },
+            )
+        # Track usage
+        total_spans = sum(len(e.get("spans", [])) for e in request.events)
+        if total_spans > 0:
+            await asyncio.to_thread(record_spans, authed_tenant, total_spans)
+
+        effective_tenant = authed_tenant
+        processed, errors = 0, 0
+
+        for event in request.events:
+            try:
+                # SDK sends {"type": "execution_graph", "tenant_id": "...", "graph": {...}}
+                if "graph" in event and "type" in event:
+                    event = event["graph"]
+
+                event = {**event, "tenant_id": effective_tenant}
+                graph = ExecutionGraph.model_validate(event)
+                await async_store("save_execution", graph)
+                asyncio.create_task(_enqueue_graph(graph))
+                processed += 1
+            except Exception as e:
+                logger.warning("Ingest event error", extra={"error": str(e)})
+                errors += 1
+
+        # Audit chain entry
+        from temporallayr.core.audit_chain import append as audit_append
+
+        await asyncio.to_thread(
+            audit_append,
+            "ingest",
+            {"tenant_id": authed_tenant, "events": len(request.events)},
+            authed_tenant,
         )
 
-    # TENANT ISOLATION: if X-Tenant-Id provided, it must match token's tenant
-    if x_tenant_id and x_tenant_id != authed_tenant:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token tenant does not match X-Tenant-Id header",
-        )
-
-    # Rate limit check
-    allowed, rl_headers = check_ingest_rate(authed_tenant)
-    if not allowed:
-        rate_limit_hits.inc(tenant_id=authed_tenant)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. See Retry-After header.",
-            headers=rl_headers,
-        )
-
-    # Quota enforcement
-    from temporallayr.core.quotas import check_quota, record_spans
-
-    quota_ok, quota_info = check_quota(authed_tenant)
-    if not quota_ok:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Daily quota exceeded ({quota_info['spans_today']}/{quota_info['quota']} spans). Resets at midnight UTC.",
-            headers={
-                "X-Quota-Used": str(quota_info["spans_today"]),
-                "X-Quota-Limit": str(quota_info["quota"]),
-            },
-        )
-    # Track usage
-    total_spans = sum(len(e.get("spans", [])) for e in request.events)
-    if total_spans > 0:
-        record_spans(authed_tenant, total_spans)
-
-    effective_tenant = authed_tenant
-    processed, errors = 0, 0
-
-    for event in request.events:
-        try:
-            # SDK sends {"type": "execution_graph", "tenant_id": "...", "graph": {...}}
-            if "graph" in event and "type" in event:
-                event = event["graph"]
-
-            event = {**event, "tenant_id": effective_tenant}
-            graph = ExecutionGraph.model_validate(event)
-            await async_store("save_execution", graph)
-            asyncio.create_task(_enqueue_graph(graph))
-            processed += 1
-        except Exception as e:
-            logger.warning("Ingest event error", extra={"error": str(e)})
-            errors += 1
-
-    # Audit chain entry
-    from temporallayr.core.audit_chain import append as audit_append
-
-    audit_append(
-        "ingest",
-        {"tenant_id": authed_tenant, "events": len(request.events)},
-        tenant_id=authed_tenant,
-    )
-
-    return {"processed": processed, "errors": errors}
+        return {"processed": processed, "errors": errors}
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 
 from temporallayr.core.store import async_store
