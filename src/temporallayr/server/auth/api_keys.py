@@ -10,6 +10,13 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def generate_api_key() -> str:
+    """Generate a new random API key."""
+    import base64
+    raw_bytes = secrets.token_bytes(32)
+    return base64.urlsafe_b64encode(raw_bytes).decode("utf-8").rstrip("=")
+
+
 def _hash_api_key(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
