@@ -97,6 +97,13 @@ def validate_api_key(api_key: str) -> str | None:
         return asyncio.run(_lookup())
 
 
+async def revoke_keys_for_tenant_async(tenant_id: str) -> int:
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM api_keys WHERE tenant_id = $1", tenant_id)
+    return int(result.split()[-1])
+
+
 def revoke_keys_for_tenant(tenant_id: str) -> int:
     import asyncio
 
@@ -114,6 +121,17 @@ def revoke_keys_for_tenant(tenant_id: str) -> int:
         return future.result(timeout=5)
     except RuntimeError:
         return asyncio.run(_revoke())
+
+
+async def list_keys_for_tenant_async(tenant_id: str) -> list[dict[str, Any]]:
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, tenant_id, created_at FROM api_keys "
+            "WHERE tenant_id = $1 ORDER BY created_at DESC",
+            tenant_id,
+        )
+    return [dict(r) for r in rows]
 
 
 def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
@@ -137,6 +155,16 @@ def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
         return future.result(timeout=5)
     except RuntimeError:
         return asyncio.run(_list())
+
+
+async def list_all_tenants_async() -> list[dict[str, Any]]:
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT tenant_id, COUNT(*) as key_count, MIN(created_at) as created_at "
+            "FROM api_keys GROUP BY tenant_id ORDER BY created_at DESC"
+        )
+    return [dict(r) for r in rows]
 
 
 def list_all_tenants() -> list[dict[str, Any]]:

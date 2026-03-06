@@ -56,7 +56,6 @@ from temporallayr.server.auth import verify_admin_key, verify_api_key
 from temporallayr.server.auth.api_keys import (
     generate_api_key,
     list_all_tenants,
-    list_keys_for_tenant,
     map_api_key_to_tenant,
     revoke_keys_for_tenant,
     validate_api_key,
@@ -762,4 +761,6 @@ async def set_quota(
 
 @app.get("/keys", tags=["auth"])
 async def list_keys(tenant_id: str = Depends(verify_api_key)) -> list[dict[str, Any]]:
-    return list_keys_for_tenant(tenant_id)
+    from temporallayr.server.auth.api_keys import list_keys_for_tenant_async
+
+    return await list_keys_for_tenant_async(tenant_id)
