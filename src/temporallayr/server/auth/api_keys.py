@@ -1,81 +1,130 @@
-"""Enterprise API Key Management with hashed secure storage."""
+"""Enterprise API Key Management — stored in PostgreSQL for persistence across deploys."""
 
 from __future__ import annotations
 
-import base64
 import hashlib
+import logging
 import secrets
 from typing import Any
 
-
-def generate_api_key() -> str:
-    raw_bytes = secrets.token_bytes(32)
-    return base64.urlsafe_b64encode(raw_bytes).decode("utf-8").rstrip("=")
+logger = logging.getLogger(__name__)
 
 
 def _hash_api_key(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
 
-def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
-    from temporallayr.core.store_sqlite import SQLiteStore
+async def _get_pool():
+    from temporallayr.core.store_postgres import _get_pool
+    return await _get_pool()
 
+
+def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
+    """Store a new API key → tenant mapping in Postgres."""
+    import asyncio
     key_hash = _hash_api_key(api_key)
-    store = SQLiteStore()
-    with store._get_connection() as conn:
-        key_id = secrets.token_hex(16)
-        conn.execute(
-            "INSERT OR REPLACE INTO api_keys (id, key_hash, tenant_id) VALUES (?, ?, ?)",
-            (key_id, key_hash, tenant_id),
-        )
-        conn.commit()
+    key_id = secrets.token_hex(16)
+
+    async def _insert():
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO api_keys (id, key_hash, tenant_id) VALUES ($1, $2, $3) "
+                "ON CONFLICT (key_hash) DO UPDATE SET tenant_id = EXCLUDED.tenant_id",
+                key_id, key_hash, tenant_id,
+            )
+
+    try:
+        loop = asyncio.get_running_loop()
+        asyncio.ensure_future(_insert(), loop=loop)
+    except RuntimeError:
+        asyncio.run(_insert())
 
 
 def validate_api_key(api_key: str) -> str | None:
-    from temporallayr.core.store_sqlite import SQLiteStore
-
+    """Look up API key in Postgres. Returns tenant_id or None."""
+    import asyncio
     key_hash = _hash_api_key(api_key)
-    store = SQLiteStore()
-    with store._get_connection() as conn:
-        cursor = conn.execute("SELECT tenant_id FROM api_keys WHERE key_hash = ?", (key_hash,))
-        row = cursor.fetchone()
-        if row:
-            return row["tenant_id"]
-    return None
+
+    async def _lookup() -> str | None:
+        try:
+            pool = await _get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT tenant_id FROM api_keys WHERE key_hash = $1", key_hash
+                )
+            return row["tenant_id"] if row else None
+        except Exception as e:
+            logger.warning("API key lookup failed", extra={"error": str(e)})
+            return None
+
+    try:
+        loop = asyncio.get_running_loop()
+        import concurrent.futures
+        future = asyncio.run_coroutine_threadsafe(_lookup(), loop)
+        return future.result(timeout=5)
+    except RuntimeError:
+        return asyncio.run(_lookup())
 
 
 def revoke_keys_for_tenant(tenant_id: str) -> int:
-    """Delete all API keys for a tenant. Returns count deleted."""
-    from temporallayr.core.store_sqlite import SQLiteStore
+    import asyncio
 
-    store = SQLiteStore()
-    with store._get_connection() as conn:
-        cursor = conn.execute("DELETE FROM api_keys WHERE tenant_id = ?", (tenant_id,))
-        conn.commit()
-        return cursor.rowcount
+    async def _revoke() -> int:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM api_keys WHERE tenant_id = $1", tenant_id
+            )
+        return int(result.split()[-1])
+
+    try:
+        loop = asyncio.get_running_loop()
+        import concurrent.futures
+        future = asyncio.run_coroutine_threadsafe(_revoke(), loop)
+        return future.result(timeout=5)
+    except RuntimeError:
+        return asyncio.run(_revoke())
 
 
 def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
-    from temporallayr.core.store_sqlite import SQLiteStore
+    import asyncio
 
-    store = SQLiteStore()
-    with store._get_connection() as conn:
-        cursor = conn.execute(
-            "SELECT id, tenant_id, created_at FROM api_keys "
-            "WHERE tenant_id = ? ORDER BY created_at DESC",
-            (tenant_id,),
-        )
-        return [dict(row) for row in cursor.fetchall()]
+    async def _list() -> list[dict[str, Any]]:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, tenant_id, created_at FROM api_keys "
+                "WHERE tenant_id = $1 ORDER BY created_at DESC",
+                tenant_id,
+            )
+        return [dict(r) for r in rows]
+
+    try:
+        loop = asyncio.get_running_loop()
+        import concurrent.futures
+        future = asyncio.run_coroutine_threadsafe(_list(), loop)
+        return future.result(timeout=5)
+    except RuntimeError:
+        return asyncio.run(_list())
 
 
 def list_all_tenants() -> list[dict[str, Any]]:
-    """Return distinct tenants with key count and earliest created_at."""
-    from temporallayr.core.store_sqlite import SQLiteStore
+    import asyncio
 
-    store = SQLiteStore()
-    with store._get_connection() as conn:
-        cursor = conn.execute("""
-            SELECT tenant_id, COUNT(*) as key_count, MIN(created_at) as created_at
-            FROM api_keys GROUP BY tenant_id ORDER BY created_at DESC
-            """)
-        return [dict(row) for row in cursor.fetchall()]
+    async def _list() -> list[dict[str, Any]]:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT tenant_id, COUNT(*) as key_count, MIN(created_at) as created_at "
+                "FROM api_keys GROUP BY tenant_id ORDER BY created_at DESC"
+            )
+        return [dict(r) for r in rows]
+
+    try:
+        loop = asyncio.get_running_loop()
+        import concurrent.futures
+        future = asyncio.run_coroutine_threadsafe(_list(), loop)
+        return future.result(timeout=5)
+    except RuntimeError:
+        return asyncio.run(_list())

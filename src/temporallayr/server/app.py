@@ -229,7 +229,7 @@ async def ready() -> dict[str, Any]:
     ch = get_clickhouse_store()
     if ch:
         try:
-            await asyncio.to_thread(ch._get_client().command, "SELECT 1")
+            await asyncio.to_thread(ch.initialize_schema)
             details["clickhouse"] = "ok"
         except Exception as e:
             details["clickhouse"] = f"degraded: {e}"
