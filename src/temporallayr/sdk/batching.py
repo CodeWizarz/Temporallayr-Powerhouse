@@ -35,6 +35,7 @@ class SpanBatcher:
     def start(self) -> None:
         """Start the background worker."""
         if self._worker_task is None:
+            print("DEBUG: SpanBatcher starting worker task!")
             self._worker_task = asyncio.create_task(self._worker_loop())
 
     async def add(self, span: Any) -> None:
@@ -47,6 +48,7 @@ class SpanBatcher:
             logger.warning("SpanBatcher: unknown span type %s", type(span))
             return
 
+        print(f"DEBUG: SpanBatcher added span to queue, size: {self._queue.qsize() + 1}")
         await self._queue.put(item)
 
     async def enqueue(self, item: Any) -> None:
@@ -59,6 +61,7 @@ class SpanBatcher:
 
     async def _worker_loop(self) -> None:
         """Continuously flush batches based on time or size limits."""
+        print("DEBUG: SpanBatcher worker loop started")
         while not self._stop_event.is_set() or not self._queue.empty():
             batch: list[dict[str, Any]] = []
             try:
@@ -74,14 +77,18 @@ class SpanBatcher:
             except TimeoutError:
                 pass
             except asyncio.CancelledError:
+                print("DEBUG: SpanBatcher CancelledError")
                 break
 
             if batch:
+                print(f"DEBUG: SpanBatcher worker loop flushing batch of {len(batch)}")
                 await self.flush(batch)
+        print("DEBUG: SpanBatcher worker loop finalized")
 
     async def flush(self, batch: list[dict[str, Any]] | None = None) -> None:
         """Flush a specific batch, or all remaining items if batch is None."""
         if batch is not None:
+            print(f"DEBUG: SpanBatcher calling send_batch with {len(batch)} items")
             await self.transport.send_batch(batch)
         else:
             # Drain current queue entirely
@@ -90,14 +97,19 @@ class SpanBatcher:
                 all_items.append(self._queue.get_nowait())
                 self._queue.task_done()
             if all_items:
+                print(f"DEBUG: SpanBatcher flushing all remaining {len(all_items)} items")
                 for i in range(0, len(all_items), self.batch_size):
                     await self.transport.send_batch(all_items[i : i + self.batch_size])
 
     async def shutdown(self) -> None:
         """Stop worker and flush remaining."""
+        print("DEBUG: SpanBatcher shutdown called")
         self._stop_event.set()
         if self._worker_task is not None:
             try:
+                print("DEBUG: SpanBatcher waiting for worker task to finish")
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
+        print(f"DEBUG: SpanBatcher queuing flush, qsize: {self._queue.qsize()}")
+        await self.flush(None)

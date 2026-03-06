@@ -475,17 +475,24 @@ async def list_executions(
     }
 
 
-@app.get("/executions/{execution_id}", response_model=ExecutionGraph, tags=["executions"])
+@app.get("/executions/{execution_id}", tags=["executions"])
 async def get_execution(
     execution_id: str,
     tenant_id: str = Depends(verify_api_key),
-) -> ExecutionGraph:
+) -> Any:
+    import traceback
+
     try:
-        return await async_store("load_execution", execution_id, tenant_id)
+        execution = await async_store("load_execution", execution_id, tenant_id)
+        if hasattr(execution, "model_dump"):
+            return execution.model_dump(mode="json")
+        return execution
     except FileNotFoundError:
         raise HTTPException(
             status_code=404, detail=f"Execution '{execution_id}' not found"
         ) from None
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 
 @app.post("/executions/{execution_id}/replay", response_model=ReplayReport, tags=["executions"])

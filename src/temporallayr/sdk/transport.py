@@ -39,6 +39,9 @@ class HTTPTransport:
         payload = {"events": batch}
         for attempt in range(self.max_retries + 1):
             try:
+                print(
+                    f"DEBUG: Transport sending batch of {len(batch)} to {self.server_url} (attempt {attempt + 1})"
+                )
                 response = await self._client.post(
                     f"{self.server_url}/v1/ingest",
                     headers=self.headers,
@@ -47,16 +50,20 @@ class HTTPTransport:
                 maybe_awaitable = response.raise_for_status()
                 if inspect.isawaitable(maybe_awaitable):
                     await maybe_awaitable
+                print("DEBUG: Transport send success!")
                 return True
             except httpx.TimeoutException as e:
+                print(f"DEBUG: Transport timeout: {e}")
                 logger.warning("Transport timeout on attempt %d: %s", attempt + 1, e)
             except Exception as e:
+                print(f"DEBUG: Transport error: {e}")
                 logger.warning("Transport error on attempt %d: %s", attempt + 1, e)
 
             if attempt < self.max_retries:
                 # Exponential backoff
                 await asyncio.sleep(self.base_backoff * (2**attempt))
 
+        print("DEBUG: Transport failed completely!")
         logger.error("Failed to send batch after %d retries", self.max_retries)
         return False
 
