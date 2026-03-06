@@ -26,9 +26,9 @@ async def verify_api_key(credentials: CredentialsDep) -> str:
     """
     raw_token = _strip_bearer(credentials.credentials)
 
-    from temporallayr.server.auth.api_keys import validate_api_key
+    from temporallayr.server.auth.api_keys import validate_api_key_async
 
-    tenant_id = validate_api_key(raw_token)
+    tenant_id = await validate_api_key_async(raw_token)
 
     if not tenant_id:
         # Fallback: env-based static key map (dev convenience)

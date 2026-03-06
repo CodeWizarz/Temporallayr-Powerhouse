@@ -102,6 +102,7 @@ class ClickHouseAnalyticsStore:
                 ) from e
             except Exception as e:
                 raise RuntimeError(f"Failed to connect to ClickHouse: {e}") from e
+        return self._client
 
     def initialize_schema(self) -> None:
         client = self._get_client()

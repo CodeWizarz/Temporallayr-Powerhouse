@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 def generate_api_key() -> str:
     """Generate a new random API key."""
     import base64
+
     raw_bytes = secrets.token_bytes(32)
     return base64.urlsafe_b64encode(raw_bytes).decode("utf-8").rstrip("=")
 
@@ -23,12 +24,14 @@ def _hash_api_key(api_key: str) -> str:
 
 async def _get_pool():
     from temporallayr.core.store_postgres import _get_pool
+
     return await _get_pool()
 
 
 def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
     """Store a new API key → tenant mapping in Postgres."""
     import asyncio
+
     key_hash = _hash_api_key(api_key)
     key_id = secrets.token_hex(16)
 
@@ -38,7 +41,9 @@ def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
             await conn.execute(
                 "INSERT INTO api_keys (id, key_hash, tenant_id) VALUES ($1, $2, $3) "
                 "ON CONFLICT (key_hash) DO UPDATE SET tenant_id = EXCLUDED.tenant_id",
-                key_id, key_hash, tenant_id,
+                key_id,
+                key_hash,
+                tenant_id,
             )
 
     try:
@@ -48,9 +53,26 @@ def map_api_key_to_tenant(api_key: str, tenant_id: str) -> None:
         asyncio.run(_insert())
 
 
+async def validate_api_key_async(api_key: str) -> str | None:
+    """Look up API key in Postgres asynchronously. Returns tenant_id or None."""
+    key_hash = _hash_api_key(api_key)
+
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT tenant_id FROM api_keys WHERE key_hash = $1", key_hash
+            )
+        return row["tenant_id"] if row else None
+    except Exception as e:
+        logger.warning("API key lookup failed", extra={"error": str(e)})
+        return None
+
+
 def validate_api_key(api_key: str) -> str | None:
-    """Look up API key in Postgres. Returns tenant_id or None."""
+    """Look up API key in Postgres (sync). Returns tenant_id or None."""
     import asyncio
+
     key_hash = _hash_api_key(api_key)
 
     async def _lookup() -> str | None:
@@ -68,6 +90,7 @@ def validate_api_key(api_key: str) -> str | None:
     try:
         loop = asyncio.get_running_loop()
         import concurrent.futures
+
         future = asyncio.run_coroutine_threadsafe(_lookup(), loop)
         return future.result(timeout=5)
     except RuntimeError:
@@ -80,14 +103,13 @@ def revoke_keys_for_tenant(tenant_id: str) -> int:
     async def _revoke() -> int:
         pool = await _get_pool()
         async with pool.acquire() as conn:
-            result = await conn.execute(
-                "DELETE FROM api_keys WHERE tenant_id = $1", tenant_id
-            )
+            result = await conn.execute("DELETE FROM api_keys WHERE tenant_id = $1", tenant_id)
         return int(result.split()[-1])
 
     try:
         loop = asyncio.get_running_loop()
         import concurrent.futures
+
         future = asyncio.run_coroutine_threadsafe(_revoke(), loop)
         return future.result(timeout=5)
     except RuntimeError:
@@ -110,6 +132,7 @@ def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
     try:
         loop = asyncio.get_running_loop()
         import concurrent.futures
+
         future = asyncio.run_coroutine_threadsafe(_list(), loop)
         return future.result(timeout=5)
     except RuntimeError:
@@ -131,6 +154,7 @@ def list_all_tenants() -> list[dict[str, Any]]:
     try:
         loop = asyncio.get_running_loop()
         import concurrent.futures
+
         future = asyncio.run_coroutine_threadsafe(_list(), loop)
         return future.result(timeout=5)
     except RuntimeError:
