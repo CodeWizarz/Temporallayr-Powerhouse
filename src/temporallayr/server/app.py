@@ -25,7 +25,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
-from starlette.middleware.base import BaseHTTPMiddleware
+# from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -156,38 +156,7 @@ app = FastAPI(
 )
 
 
-class _AuditMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
-        t0 = time.time()
-        # Determine tenant from header (best-effort; auth validates properly)
-        tenant_id = request.headers.get("X-Tenant-Id", "unknown")
-        try:
-            response = await call_next(request)
-            status_code = response.status_code
-        except Exception as e:
-            status_code = 500
-            raise e
-        finally:
-            duration_ms = (time.time() - t0) * 1000
-            AuditLogger.log_api_call(
-                method=request.method,
-                path=request.url.path,
-                status_code=status_code,
-                duration_ms=duration_ms,
-                tenant_id=tenant_id,
-            )
-            api_requests.inc(
-                method=request.method,
-                path=request.url.path,
-                status_code=str(status_code),
-            )
-            request_duration.observe(duration_ms)
-        return response
-
-
-# Audit is innermost — added first
-app.add_middleware(_AuditMiddleware)
-# CORS is outermost — added last so it runs first on every request
+# CORS middleware — must be added before any other middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -195,6 +164,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next: Any) -> Response:
+    t0 = time.time()
+    tenant_id = request.headers.get("X-Tenant-Id", "unknown")
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception as e:
+        status_code = 500
+        raise e
+    finally:
+        duration_ms = (time.time() - t0) * 1000
+        AuditLogger.log_api_call(
+            method=request.method,
+            path=request.url.path,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            tenant_id=tenant_id,
+        )
+        api_requests.inc(
+            method=request.method,
+            path=request.url.path,
+            status_code=str(status_code),
+        )
+        request_duration.observe(duration_ms)
+    return response
 app.include_router(incidents_router)
 app.include_router(replay_router)
 
