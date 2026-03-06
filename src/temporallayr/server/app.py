@@ -25,7 +25,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
-# from starlette.middleware.base import BaseHTTPMiddleware
+
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -165,6 +165,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next: Any) -> Response:
     t0 = time.time()
@@ -191,6 +192,8 @@ async def audit_middleware(request: Request, call_next: Any) -> Response:
         )
         request_duration.observe(duration_ms)
     return response
+
+
 app.include_router(incidents_router)
 app.include_router(replay_router)
 
