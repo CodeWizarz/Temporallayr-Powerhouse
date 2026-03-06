@@ -22,11 +22,14 @@ logger = logging.getLogger(__name__)
 _pool = None  # asyncpg pool, initialised lazily
 
 
-_pool_lock = asyncio.Lock()
+_pool_lock = None
 
 
 async def _get_pool():
-    global _pool
+    global _pool, _pool_lock
+    if _pool_lock is None:
+        _pool_lock = asyncio.Lock()
+
     if _pool is None:
         async with _pool_lock:
             if _pool is None:
