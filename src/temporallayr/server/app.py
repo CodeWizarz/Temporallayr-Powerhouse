@@ -410,6 +410,8 @@ async def ingest_events(
     return {"processed": processed, "errors": errors}
 
 
+from temporallayr.core.store import async_store
+
 # ── Executions ─────────────────────────────────────────────────────────
 
 
@@ -425,14 +427,13 @@ async def create_execution(
 ) -> dict[str, str]:
     if graph.tenant_id != tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id mismatch")
-    store = get_default_store()
     try:
-        previous_ids = store.list_executions(tenant_id)
+        previous_ids = await async_store("list_executions", tenant_id)
         previous_id = next((pid for pid in previous_ids if pid != graph.id), None)
-        store.save_execution(graph)
+        await async_store("save_execution", graph)
         if previous_id:
             try:
-                prev = store.load_execution(previous_id, tenant_id)
+                prev = await async_store("load_execution", previous_id, tenant_id)
                 alerts = AlertEngine.check_execution(graph, prev)
                 if alerts:
                     logger.info(
@@ -452,7 +453,7 @@ async def list_executions(
     limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
-    ids = get_default_store().list_executions(tenant_id)
+    ids = await async_store("list_executions", tenant_id)
     page = ids[offset : offset + limit]
     return {
         "items": page,
@@ -469,7 +470,7 @@ async def get_execution(
     tenant_id: str = Depends(verify_api_key),
 ) -> ExecutionGraph:
     try:
-        return get_default_store().load_execution(execution_id, tenant_id)
+        return await async_store("load_execution", execution_id, tenant_id)
     except FileNotFoundError:
         raise HTTPException(
             status_code=404, detail=f"Execution '{execution_id}' not found"
@@ -482,7 +483,7 @@ async def replay_execution(
     tenant_id: str = Depends(verify_api_key),
 ) -> ReplayReport:
     try:
-        graph = get_default_store().load_execution(execution_id, tenant_id)
+        graph = await async_store("load_execution", execution_id, tenant_id)
     except FileNotFoundError:
         raise HTTPException(
             status_code=404, detail=f"Execution '{execution_id}' not found"
@@ -495,13 +496,12 @@ async def diff_executions(
     request: DiffRequest,
     tenant_id: str = Depends(verify_api_key),
 ) -> dict[str, list[Any]]:
-    store = get_default_store()
     try:
-        exec_a = store.load_execution(request.execution_a, tenant_id)
+        exec_a = await async_store("load_execution", request.execution_a, tenant_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"'{request.execution_a}' not found") from None
     try:
-        exec_b = store.load_execution(request.execution_b, tenant_id)
+        exec_b = await async_store("load_execution", request.execution_b, tenant_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"'{request.execution_b}' not found") from None
     return ExecutionDiffer.diff(exec_a, exec_b)
@@ -534,13 +534,12 @@ async def get_clusters(
                 "ClickHouse cluster query failed, using SQLite fallback", extra={"error": str(e)}
             )
 
-    store = get_default_store()
     cutoff = datetime.now(UTC) - timedelta(hours=hours)
-    ids = store.list_executions(tenant_id)
+    ids = await async_store("list_executions", tenant_id)
     recent: list[ExecutionGraph] = []
     for eid in ids:
         try:
-            g = store.load_execution(eid, tenant_id)
+            g = await async_store("load_execution", eid, tenant_id)
             if g.created_at >= cutoff:
                 recent.append(g)
         except Exception:

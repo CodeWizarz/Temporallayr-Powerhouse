@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from temporallayr.analysis.failure_clusters import FailureSignal, cluster_failures
-from temporallayr.core.store import get_default_store
+from temporallayr.core.store import async_store
 from temporallayr.server.auth import verify_api_key
 
 router = APIRouter(tags=["incidents"])
@@ -23,13 +23,14 @@ async def get_incident_clusters(
     offset: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
     """Cluster recent tenant failures using cosine similarity."""
-    store = get_default_store()
     cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
     failures: list[FailureSignal] = []
-    for execution_id in store.list_executions(tenant_id):
+
+    execution_ids = await async_store("list_executions", tenant_id)
+    for execution_id in execution_ids:
         try:
-            graph = store.load_execution(execution_id, tenant_id)
+            graph = await async_store("load_execution", execution_id, tenant_id)
         except Exception:
             continue
 

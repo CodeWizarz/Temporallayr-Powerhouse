@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from temporallayr.models.execution import ExecutionGraph
+from typing import Any
 
 
 class ExecutionStore(abc.ABC):
@@ -116,3 +117,18 @@ def get_default_store() -> ExecutionStore:
 
             _default_store = SQLiteStore()
     return _default_store
+
+
+async def async_store(method_name: str, *args: "Any", **kwargs: "Any") -> "Any":
+    """
+    Safely execute a store method.
+    Uses the _async version if available (PostgresStore), avoiding event loop deadlocks.
+    Uses asyncio.to_thread for synchronous stores (SQLiteStore).
+    """
+    import asyncio
+
+    store = get_default_store()
+    async_method = f"{method_name}_async"
+    if hasattr(store, async_method):
+        return await getattr(store, async_method)(*args, **kwargs)
+    return await asyncio.to_thread(getattr(store, method_name), *args, **kwargs)
