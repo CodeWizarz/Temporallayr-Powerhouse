@@ -320,8 +320,10 @@ async def ingest_events(
     SECURITY: Validates that Bearer token's bound tenant matches X-Tenant-Id header.
     Prevents tenant A from writing into tenant B's namespace.
     """
-    """
-    # Extract and strip Bearer prefix
+    import traceback
+
+    try:
+        # Extract and strip Bearer prefix
         raw_token = ""
         if authorization.lower().startswith("bearer "):
             raw_token = authorization[7:].strip()
@@ -369,6 +371,7 @@ async def ingest_events(
         from temporallayr.core.quotas import check_quota, record_spans
 
         import asyncio
+
         quota_ok, quota_info = await asyncio.to_thread(check_quota, authed_tenant)
         if not quota_ok:
             raise HTTPException(
