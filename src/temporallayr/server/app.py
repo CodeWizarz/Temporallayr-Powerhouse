@@ -333,7 +333,9 @@ async def ingest_events(
         # Validate token → tenant
         authed_tenant: str | None = None
         if raw_token:
-            authed_tenant = validate_api_key(raw_token)
+            from temporallayr.server.auth.api_keys import validate_api_key_async
+
+            authed_tenant = await validate_api_key_async(raw_token)
             # Fallback to env key map
             if not authed_tenant:
                 keys_str = os.getenv("TEMPORALLAYR_API_KEYS", "")
