@@ -383,14 +383,17 @@ async def ingest_events(
         record_spans(authed_tenant, total_spans)
 
     effective_tenant = authed_tenant
-    store = get_default_store()
     processed, errors = 0, 0
 
     for event in request.events:
         try:
+            # SDK sends {"type": "execution_graph", "tenant_id": "...", "graph": {...}}
+            if "graph" in event and "type" in event:
+                event = event["graph"]
+
             event = {**event, "tenant_id": effective_tenant}
             graph = ExecutionGraph.model_validate(event)
-            store.save_execution(graph)
+            await async_store("save_execution", graph)
             asyncio.create_task(_enqueue_graph(graph))
             processed += 1
         except Exception as e:
