@@ -22,22 +22,27 @@ logger = logging.getLogger(__name__)
 _pool = None  # asyncpg pool, initialised lazily
 
 
+_pool_lock = asyncio.Lock()
+
+
 async def _get_pool():
     global _pool
     if _pool is None:
-        try:
-            import asyncpg  # type: ignore[import-untyped]
-        except ImportError as exc:
-            raise RuntimeError(
-                "asyncpg not installed. Run: pip install temporallayr[postgres]"
-            ) from exc
-        import os
+        async with _pool_lock:
+            if _pool is None:
+                try:
+                    import asyncpg  # type: ignore[import-untyped]
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "asyncpg not installed. Run: pip install temporallayr[postgres]"
+                    ) from exc
+                import os
 
-        dsn = os.environ.get("TEMPORALLAYR_POSTGRES_DSN") or os.environ.get("DATABASE_URL")
-        if not dsn:
-            raise RuntimeError("No PostgreSQL DSN configured")
-        _pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
-        logger.info("PostgreSQL connection pool created")
+                dsn = os.environ.get("TEMPORALLAYR_POSTGRES_DSN") or os.environ.get("DATABASE_URL")
+                if not dsn:
+                    raise RuntimeError("No PostgreSQL DSN configured")
+                _pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10, command_timeout=10)
+                logger.info("PostgreSQL connection pool created")
     return _pool
 
 
@@ -52,8 +57,9 @@ def _run_async(coro):
         # We're inside a running loop — can't call run_until_complete.
         # Submit to the loop from a new thread context.
         import concurrent.futures
+
         future = asyncio.run_coroutine_threadsafe(coro, loop)
-        return future.result(timeout=30)
+        return future.result(timeout=15)
     except RuntimeError:
         # No running loop — safe to use asyncio.run()
         return asyncio.run(coro)
@@ -105,7 +111,6 @@ async def init_schema() -> None:
 
 
 class PostgresStore(ExecutionStore):
-
     # ── Executions ──────────────────────────────────────────────────
 
     def save_execution(self, graph: ExecutionGraph) -> None:
@@ -130,6 +135,7 @@ class PostgresStore(ExecutionStore):
 
     async def save_execution_async(self, graph: ExecutionGraph) -> None:
         from temporallayr.core.fingerprint import Fingerprinter
+
         try:
             fp = Fingerprinter.fingerprint_execution(graph)["fingerprint"]
         except Exception:
@@ -144,7 +150,10 @@ class PostgresStore(ExecutionStore):
                   SET fingerprint = EXCLUDED.fingerprint,
                       data = EXCLUDED.data
                 """,
-                graph.id, graph.tenant_id, fp, graph.model_dump_json(),
+                graph.id,
+                graph.tenant_id,
+                fp,
+                graph.model_dump_json(),
             )
 
     def load_execution(self, graph_id: str, tenant_id: str) -> ExecutionGraph:
@@ -155,7 +164,8 @@ class PostgresStore(ExecutionStore):
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT data FROM executions WHERE id = $1 AND tenant_id = $2",
-                graph_id, tenant_id,
+                graph_id,
+                tenant_id,
             )
         if row is None:
             raise FileNotFoundError(f"Execution '{graph_id}' not found for tenant '{tenant_id}'")
@@ -171,7 +181,9 @@ class PostgresStore(ExecutionStore):
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT id FROM executions WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-                tenant_id, limit, offset,
+                tenant_id,
+                limit,
+                offset,
             )
         return [r["id"] for r in rows]
 
@@ -227,7 +239,10 @@ class PostgresStore(ExecutionStore):
                 ON CONFLICT (incident_id) DO UPDATE
                   SET data = EXCLUDED.data, updated_at = NOW()
                 """,
-                [(i["incident_id"], i.get("tenant_id", "default"), json.dumps(i)) for i in incidents],
+                [
+                    (i["incident_id"], i.get("tenant_id", "default"), json.dumps(i))
+                    for i in incidents
+                ],
             )
 
     def load_incidents(self, tenant_id: str) -> list[dict[str, Any]]:

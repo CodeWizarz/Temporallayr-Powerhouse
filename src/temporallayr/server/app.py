@@ -58,7 +58,6 @@ from temporallayr.server.auth.api_keys import (
     list_all_tenants,
     map_api_key_to_tenant,
     revoke_keys_for_tenant,
-    validate_api_key,
 )
 from temporallayr.server.incidents import router as incidents_router
 from temporallayr.server.replay_routes import router as replay_router
