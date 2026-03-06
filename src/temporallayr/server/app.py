@@ -156,14 +156,8 @@ app = FastAPI(
 )
 
 
-# CORS middleware — must be added before any other middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORSMiddleware must be added LAST so that it wraps the entire app
+# (including the audit middleware below it) as the absolutely OUTERNMOST layer.
 
 
 @app.middleware("http")
@@ -192,6 +186,15 @@ async def audit_middleware(request: Request, call_next: Any) -> Response:
         )
         request_duration.observe(duration_ms)
     return response
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 app.include_router(incidents_router)
