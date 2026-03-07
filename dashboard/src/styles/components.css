@@ -798,10 +798,29 @@
 }
 
 /* =========================================
-   PRIMITIVE UTILITIES 
-   (For precise alignment / spacing overrides)
+   CUSTOM FORM COMPONENTS
    ========================================= */
-.flex-row {
+.ch-card-radio {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ch-card-radio:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ch-card-radio.active {
+    border-color: var(--accent);
+    background: rgba(208, 255, 67, 0.05);
+    /* very faint lime tint */
+}
+
+PRIMITIVE UTILITIES (For precise alignment / spacing overrides)=========================================*/ .flex-row {
     display: flex;
     flex-direction: row;
 }

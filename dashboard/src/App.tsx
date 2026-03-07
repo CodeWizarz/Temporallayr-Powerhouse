@@ -8,6 +8,7 @@ import AnalyticsPage from './pages/Analytics'
 import ReplayPage from './pages/Replay'
 import SettingsPage from './pages/Settings'
 import StatusPage from './pages/Status'
+import NewService from './pages/NewService'
 
 import SignupPage from './pages/auth/Signup'
 import LoginPage from './pages/auth/Login'
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/traces" replace />} />
 
             <Route element={<AuthGuard><Layout><Outlet /></Layout></AuthGuard>}>
+                <Route path="/new" element={<NewService />} />
                 <Route path="/traces" element={<TracesPage />} />
                 <Route path="/traces/:traceId" element={<TraceDetailPage />} />
                 <Route path="/incidents" element={<IncidentsPage />} />
