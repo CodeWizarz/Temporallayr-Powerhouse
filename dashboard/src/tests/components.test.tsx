@@ -26,7 +26,7 @@ vi.mock('../api/client', () => ({
 describe('Dashboard Component Smoke Tests', () => {
     it('Status component renders infrastructure layout correctly', () => {
         render(<Status />);
-        expect(screen.getByText('Service Status')).toBeInTheDocument();
+        expect(screen.getByText('Infrastructure Status')).toBeInTheDocument();
         expect(screen.getByText('API Server')).toBeInTheDocument();
         expect(screen.getByText('PostgreSQL')).toBeInTheDocument();
         expect(screen.getByText('ClickHouse')).toBeInTheDocument();
@@ -34,9 +34,9 @@ describe('Dashboard Component Smoke Tests', () => {
 
     it('Settings component bounds API token architecture properly', () => {
         render(<Settings />);
-        expect(screen.getByText('API Authentication')).toBeInTheDocument();
-        expect(screen.getByText('Active Authorization Target')).toBeInTheDocument();
-        expect(screen.getByText('SDK Quick Start', { exact: false })).toBeInTheDocument();
+        expect(screen.getByText('General Settings')).toBeInTheDocument();
+        expect(screen.getByText('Service Integrations')).toBeInTheDocument();
+        expect(screen.getByText('API AUTHENTICATION', { exact: false })).toBeInTheDocument();
     });
 
     it('Traces interface parses layout and query abstractions correctly', () => {
@@ -45,7 +45,7 @@ describe('Dashboard Component Smoke Tests', () => {
                 <Traces />
             </BrowserRouter>
         );
-        expect(screen.getByText('Execution Traces')).toBeInTheDocument();
-        expect(screen.getByPlaceholderText('Search trace ID...')).toBeInTheDocument();
+        expect(screen.getAllByText('temporallayr_traces')[0]).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Search traces...')).toBeInTheDocument();
     });
 });
