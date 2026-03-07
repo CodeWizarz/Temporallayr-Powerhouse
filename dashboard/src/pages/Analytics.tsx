@@ -1,131 +1,243 @@
-import { useEffect, useState } from 'react'
-import { api, type LatencyRow } from '../api/client'
-import styled from 'styled-components'
+import { useEffect, useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { api, LatencyRow } from '../api/client'
 
-const Page = styled.div`color:#e0e0e0;`
-const Header = styled.div`display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;`
-const PageTitle = styled.h1`font-size:20px;font-weight:600;color:#facc15;margin:0;`
-const Grid = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;`
-const StatCard = styled.div`background:#111;border:1px solid #1e1e1e;border-radius:10px;padding:18px;`
-const StatNum = styled.div<{$color?:string}>`font-size:26px;font-weight:700;color:${p=>p.$color||'#facc15'};`
-const StatLabel = styled.div`font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.05em;`
-const Card = styled.div`background:#111;border:1px solid #1e1e1e;border-radius:10px;padding:20px;margin-bottom:20px;`
-const CardTitle = styled.h3`font-size:13px;color:#555;margin:0 0 16px;text-transform:uppercase;letter-spacing:.05em;`
-const Table = styled.table`width:100%;border-collapse:collapse;font-size:12px;`
-const Th = styled.th`padding:8px 12px;text-align:left;font-weight:500;color:#555;border-bottom:1px solid #1e1e1e;`
-const Td = styled.td`padding:8px 12px;border-bottom:1px solid #161616;vertical-align:middle;`
-const Tr = styled.tr`&:hover{background:#141414;}`
-const Bar = styled.div<{$pct:number,$color:string}>`height:6px;border-radius:3px;background:${p=>p.$color};width:${p=>Math.min(p.$pct,100)}%;min-width:2px;transition:width .3s;`
-const BarTrack = styled.div`background:#1a1a1a;border-radius:3px;flex:1;`
-const Tabs = styled.div`display:flex;gap:4px;margin-bottom:4px;`
-const Tab = styled.button<{$active?:boolean}>`padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:none;background:${p=>p.$active?'#facc15':'#1a1a1a'};color:${p=>p.$active?'#000':'#666'};&:hover{opacity:.85;}`
-const Btn = styled.button`padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer;border:none;background:#1a1a1a;color:#888;&:hover{opacity:.85;}`
-const Loader = styled.div`text-align:center;padding:40px 0;color:#555;`
-const Err = styled.div`color:#e55;background:#1a0808;border:1px solid #3a1010;border-radius:8px;padding:14px;margin-bottom:16px;`
+const TIME_FILTERS = [
+    { label: '1h', hours: 1 },
+    { label: '6h', hours: 6 },
+    { label: '24h', hours: 24 },
+    { label: '7d', hours: 168 }
+]
 
-type Window = 1 | 6 | 24 | 168
-
-const COLOR_P50 = '#4caf6e'
-const COLOR_P95 = '#facc15'
-const COLOR_P99 = '#e55'
+function formatDuration(ms: number | undefined | null): string {
+    if (ms === undefined || ms === null) return '—'
+    if (ms < 1000) return `${Math.round(ms)}ms`
+    return `${(ms / 1000).toFixed(2)}s`
+}
 
 export default function AnalyticsPage() {
-    const [latency, setLatency] = useState<LatencyRow[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string|null>(null)
-    const [window, setWindow] = useState<Window>(24)
+    const [hours, setHours] = useState<number>(24)
+    const [data, setData] = useState<LatencyRow[]>([])
+    const [loading, setLoading] = useState<boolean>(true)
+    const [errorStyle, setErrorStyle] = useState<'none' | '503' | 'general'>('none')
+    const [errMsg, setErrMsg] = useState<string>('')
 
-    const load = async (w: Window) => {
-        setLoading(true); setError(null)
-        try {
-            const data = await api.analytics.latency(w) as any
-            setLatency(data.items ?? data)
-            setWindow(w)
-        } catch(e:any) { setError(e.message) }
-        finally { setLoading(false) }
+    useEffect(() => {
+        let isMounted = true
+        setLoading(true)
+        setErrorStyle('none')
+
+        api.analytics.latency(hours)
+            .then(res => {
+                if (isMounted) {
+                    setData(res.items || [])
+                    setLoading(false)
+                }
+            })
+            .catch(err => {
+                if (isMounted) {
+                    const msg = err.message || ''
+                    if (msg.includes('503') || msg.toLowerCase().includes('clickhouse')) {
+                        setErrorStyle('503')
+                        setErrMsg('ClickHouse not connected — analytics unavailable')
+                    } else {
+                        setErrorStyle('general')
+                        setErrMsg(msg || 'Failed to load analytics data')
+                    }
+                    setData([])
+                    setLoading(false)
+                }
+            })
+
+        return () => { isMounted = false }
+    }, [hours])
+
+    const stats = useMemo(() => {
+        if (!data.length) return { totalCalls: 0, totalErrors: 0, avgErrorRate: 0, maxP99: 0 }
+
+        let totalCalls = 0
+        let totalErrors = 0
+        let totalWeightedErrorRate = 0
+        let maxP99 = 0
+
+        for (const row of data) {
+            totalCalls += row.call_count || 0
+            totalErrors += row.error_count || 0
+            totalWeightedErrorRate += (row.error_rate_pct || 0) * (row.call_count || 0)
+            if ((row.p99_ms || 0) > maxP99) {
+                maxP99 = row.p99_ms
+            }
+        }
+
+        const avgErrorRate = totalCalls > 0 ? totalWeightedErrorRate / totalCalls : 0
+
+        return { totalCalls, totalErrors, avgErrorRate, maxP99 }
+    }, [data])
+
+    const renderLatencyProfile = (row: LatencyRow, maxP99Global: number) => {
+        const MAX_WIDTH = 160
+        if (maxP99Global === 0) return <div style={{ width: MAX_WIDTH, height: 8, background: 'var(--bg-elevated)', borderRadius: 4 }} />
+
+        const scale = MAX_WIDTH / maxP99Global
+        const w50 = (row.p50_ms || 0) * scale
+        const w95 = Math.max(0, ((row.p95_ms || 0) - (row.p50_ms || 0)) * scale)
+        const w99 = Math.max(0, ((row.p99_ms || 0) - (row.p95_ms || 0)) * scale)
+
+        return (
+            <div style={{ display: 'flex', width: MAX_WIDTH, height: 6, borderRadius: 3, overflow: 'hidden', background: 'var(--bg-elevated)' }}>
+                {w50 > 0 && <div style={{ width: w50, background: 'var(--success)' }} title={`P50: ${formatDuration(row.p50_ms)}`} />}
+                {w95 > 0 && <div style={{ width: w95, background: 'var(--warning)' }} title={`P95: ${formatDuration(row.p95_ms)}`} />}
+                {w99 > 0 && <div style={{ width: w99, background: 'var(--error)' }} title={`P99: ${formatDuration(row.p99_ms)}`} />}
+            </div>
+        )
     }
 
-    useEffect(()=>{ load(24) },[])
-
-    const totalCalls = latency.reduce((s,r)=>s+r.call_count,0)
-    const totalErrors = latency.reduce((s,r)=>s+r.error_count,0)
-    const avgErrorRate = latency.length>0 ? (latency.reduce((s,r)=>s+r.error_rate_pct,0)/latency.length).toFixed(1) : '—'
-    const maxP99 = latency.length>0 ? Math.max(...latency.map(r=>r.p99_ms)) : 0
-    const sorted = [...latency].sort((a,b)=>b.call_count-a.call_count)
-    const maxP99overall = Math.max(...latency.map(r=>r.p99_ms), 1)
+    const getP99Color = (ms: number) => {
+        if (ms < 100) return 'var(--success)'
+        if (ms <= 500) return 'var(--warning)'
+        return 'var(--error)'
+    }
 
     return (
-        <Page>
-            <Header>
+        <div className="max-w-[1200px] mx-auto pb-12">
+            {/* 1. HEADER */}
+            <div className="page-header flex justify-between items-end">
                 <div>
-                    <PageTitle>Analytics</PageTitle>
-                    <div style={{color:'#555',fontSize:12,marginTop:4}}>Latency and throughput insights</div>
+                    <h1 className="page-title">Performance Analytics</h1>
+                    <div className="page-subtitle">Aggregate latency and error profiles</div>
                 </div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                    <Tabs>
-                        {([1,6,24,168] as Window[]).map(w=>(
-                            <Tab key={w} $active={window===w} onClick={()=>load(w)}>{w===1?'1h':w===6?'6h':w===24?'24h':'7d'}</Tab>
-                        ))}
-                    </Tabs>
-                    <Btn onClick={()=>load(window)}>↺</Btn>
+                <div className="flex bg-bg-surface border border-border rounded-lg p-1">
+                    {TIME_FILTERS.map(f => (
+                        <button
+                            key={f.hours}
+                            onClick={() => setHours(f.hours)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${hours === f.hours ? 'bg-bg-elevated text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
                 </div>
-            </Header>
+            </div>
 
-            <Grid>
-                <StatCard><StatNum>{totalCalls.toLocaleString()}</StatNum><StatLabel>Total Calls</StatLabel></StatCard>
-                <StatCard><StatNum $color="#e55">{totalErrors.toLocaleString()}</StatNum><StatLabel>Total Errors</StatLabel></StatCard>
-                <StatCard><StatNum $color={parseFloat(avgErrorRate as string)>5?'#e55':'#4caf6e'}>{avgErrorRate}%</StatNum><StatLabel>Avg Error Rate</StatLabel></StatCard>
-                <StatCard><StatNum $color={maxP99>5000?'#e55':maxP99>1000?'#facc15':'#4caf6e'}>{maxP99>0?`${Math.round(maxP99)}ms`:'—'}</StatNum><StatLabel>Max P99 Latency</StatLabel></StatCard>
-            </Grid>
-
-            {error && <Err>⚠ {error}</Err>}
-
-            {loading ? <Loader>Loading analytics…</Loader> : (
-                <Card>
-                    <CardTitle>Latency by Span ({latency.length} span types)</CardTitle>
-                    {latency.length===0 ? (
-                        <div style={{color:'#444',textAlign:'center',padding:'40px 0'}}>No analytics data for this period. Start tracing agent calls to see latency metrics here.</div>
-                    ) : (
-                        <Table>
-                            <thead>
-                                <Tr>
-                                    <Th style={{width:'30%'}}>Span Name</Th>
-                                    <Th>Calls</Th>
-                                    <Th>Errors</Th>
-                                    <Th>P50</Th>
-                                    <Th>P95</Th>
-                                    <Th>P99</Th>
-                                    <Th>Avg</Th>
-                                    <Th style={{width:'20%'}}>Latency Profile</Th>
-                                </Tr>
-                            </thead>
-                            <tbody>
-                                {sorted.map(row=>(
-                                    <Tr key={row.name}>
-                                        <Td style={{fontFamily:'monospace',fontSize:11,color:'#ccc'}}>{row.name}</Td>
-                                        <Td style={{color:'#888'}}>{row.call_count.toLocaleString()}</Td>
-                                        <Td style={{color:row.error_count>0?'#e55':'#444'}}>{row.error_count>0?row.error_count:'—'} {row.error_rate_pct>0&&<span style={{fontSize:10,color:'#e88'}}>({row.error_rate_pct.toFixed(1)}%)</span>}</Td>
-                                        <Td style={{color:COLOR_P50}}>{Math.round(row.p50_ms)}ms</Td>
-                                        <Td style={{color:COLOR_P95}}>{Math.round(row.p95_ms)}ms</Td>
-                                        <Td style={{color:row.p99_ms>5000?'#e55':COLOR_P99}}>{Math.round(row.p99_ms)}ms</Td>
-                                        <Td style={{color:'#888'}}>{Math.round(row.avg_ms)}ms</Td>
-                                        <Td>
-                                            <div style={{display:'flex',gap:3,alignItems:'center'}}>
-                                                <BarTrack><Bar $pct={(row.p50_ms/maxP99overall)*100} $color={COLOR_P50} /></BarTrack>
-                                            </div>
-                                        </Td>
-                                    </Tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    )}
-                    <div style={{marginTop:16,display:'flex',gap:20,fontSize:11,color:'#555'}}>
-                        <span><span style={{color:COLOR_P50}}>■</span> P50 (median)</span>
-                        <span><span style={{color:COLOR_P95}}>■</span> P95</span>
-                        <span><span style={{color:COLOR_P99}}>■</span> P99 (worst 1%)</span>
+            {/* Error States */}
+            {errorStyle === '503' && (
+                <div className="error-banner flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <strong>{errMsg}</strong>
                     </div>
-                </Card>
+                    <Link to="/status" className="btn btn-secondary btn-sm bg-black/20 hover:bg-black/40 border-error/20 text-error">Check System Status →</Link>
+                </div>
             )}
-        </Page>
+
+            {errorStyle === 'general' && (
+                <div className="error-banner mb-6">
+                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <strong>Error:</strong> {errMsg}
+                </div>
+            )}
+
+            {/* 2. STAT CARDS ROW */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="stat-card !p-5">
+                    <div className="stat-value">{stats.totalCalls.toLocaleString()}</div>
+                    <div className="stat-label flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                        Total Calls
+                    </div>
+                </div>
+                <div className="stat-card !p-5">
+                    <div className={`stat-value ${stats.totalErrors > 0 ? 'text-error' : ''}`}>{stats.totalErrors.toLocaleString()}</div>
+                    <div className="stat-label flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Total Errors
+                    </div>
+                </div>
+                <div className="stat-card !p-5">
+                    <div className={`stat-value ${stats.avgErrorRate > 0 ? 'text-warning' : 'text-success'}`}>{stats.avgErrorRate.toFixed(1)}%</div>
+                    <div className="stat-label flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                        Avg Error Rate
+                    </div>
+                </div>
+                <div className="stat-card !p-5">
+                    <div className="stat-value" style={{ color: getP99Color(stats.maxP99) }}>{formatDuration(stats.maxP99)}</div>
+                    <div className="stat-label flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Max P99 Latency
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. LATENCY TABLE */}
+            <div className="card !p-0 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="table w-full whitespace-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Span Name</th>
+                                <th className="text-right">Calls</th>
+                                <th className="text-right">Errors</th>
+                                <th className="text-right text-success">P50</th>
+                                <th className="text-right text-warning">P95</th>
+                                <th className="text-right text-error">P99</th>
+                                <th className="text-right">Avg</th>
+                                <th style={{ width: 180 }}>Latency Profile</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                Array.from({ length: 4 }).map((_, i) => (
+                                    <tr key={i}>
+                                        <td><div className="skeleton w-32"></div></td>
+                                        <td><div className="skeleton w-12 ml-auto"></div></td>
+                                        <td><div className="skeleton w-12 ml-auto"></div></td>
+                                        <td><div className="skeleton w-16 ml-auto"></div></td>
+                                        <td><div className="skeleton w-16 ml-auto"></div></td>
+                                        <td><div className="skeleton w-16 ml-auto"></div></td>
+                                        <td><div className="skeleton w-16 ml-auto"></div></td>
+                                        <td><div className="skeleton w-40"></div></td>
+                                    </tr>
+                                ))
+                            ) : data.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8}>
+                                        <div className="empty-state !py-20">
+                                            <div className="empty-state-icon">◈</div>
+                                            <div className="empty-state-title">No analytics data yet</div>
+                                            <div className="empty-state-desc mb-4">Send traces to populate this view.</div>
+                                            <code className="bg-black/30 border border-border px-4 py-2 rounded text-xs text-text-secondary font-mono">
+                                                python scripts/send_test_traces.py
+                                            </code>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                data.map(row => (
+                                    <tr key={row.name}>
+                                        <td className="font-mono text-sm font-semibold">{row.name}</td>
+                                        <td className="text-right">{row.call_count.toLocaleString()}</td>
+                                        <td className={`text-right ${row.error_count > 0 ? 'text-error font-medium' : 'text-text-muted'}`}>{row.error_count.toLocaleString()}</td>
+                                        <td className="text-right text-text-secondary font-mono text-xs">{formatDuration(row.p50_ms)}</td>
+                                        <td className="text-right text-text-secondary font-mono text-xs">{formatDuration(row.p95_ms)}</td>
+                                        <td className="text-right font-mono text-xs font-medium" style={{ color: getP99Color(row.p99_ms || 0) }}>{formatDuration(row.p99_ms)}</td>
+                                        <td className="text-right text-text-secondary font-mono text-xs">{formatDuration(row.avg_ms)}</td>
+                                        <td>
+                                            {renderLatencyProfile(row, stats.maxP99)}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {!loading && data.length > 0 && (
+                <div className="mt-4 text-center text-xs text-text-muted">
+                    Displaying Top {data.length} Spans • Ordered by P99 Latency Descending
+                </div>
+            )}
+        </div>
     )
 }
