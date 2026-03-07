@@ -99,14 +99,14 @@ export default function AnalyticsPage() {
     }
 
     return (
-        <div className="max-w-[1200px] mx-auto pb-12">
+        <div className="page-container">
             {/* 1. HEADER */}
-            <div className="page-header flex justify-between items-end">
+            <div className="page-header page-header-row">
                 <div>
                     <h1 className="page-title">Performance Analytics</h1>
                     <div className="page-subtitle">Aggregate latency and error profiles</div>
                 </div>
-                <div className="flex bg-bg-surface border border-border rounded-lg p-1">
+                <div className="flex-row items-center bg-bg-surface border border-border rounded-lg p-1">
                     {TIME_FILTERS.map(f => (
                         <button
                             key={f.hours}
@@ -121,8 +121,8 @@ export default function AnalyticsPage() {
 
             {/* Error States */}
             {errorStyle === '503' && (
-                <div className="error-banner flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-2">
+                <div className="error-banner flex-row justify-between items-center mb-6">
+                    <div className="flex-row items-center gap-2">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         <strong>{errMsg}</strong>
                     </div>
@@ -138,31 +138,31 @@ export default function AnalyticsPage() {
             )}
 
             {/* 2. STAT CARDS ROW */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="stat-cards-grid mb-6">
                 <div className="stat-card !p-5">
                     <div className="stat-value">{stats.totalCalls.toLocaleString()}</div>
-                    <div className="stat-label flex items-center gap-1.5">
+                    <div className="stat-label flex-row items-center gap-2">
                         <svg className="w-3.5 h-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                         Total Calls
                     </div>
                 </div>
                 <div className="stat-card !p-5">
                     <div className={`stat-value ${stats.totalErrors > 0 ? 'text-error' : ''}`}>{stats.totalErrors.toLocaleString()}</div>
-                    <div className="stat-label flex items-center gap-1.5">
+                    <div className="stat-label flex-row items-center gap-2">
                         <svg className="w-3.5 h-3.5 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         Total Errors
                     </div>
                 </div>
                 <div className="stat-card !p-5">
                     <div className={`stat-value ${stats.avgErrorRate > 0 ? 'text-warning' : 'text-success'}`}>{stats.avgErrorRate.toFixed(1)}%</div>
-                    <div className="stat-label flex items-center gap-1.5">
+                    <div className="stat-label flex-row items-center gap-2">
                         <svg className="w-3.5 h-3.5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
                         Avg Error Rate
                     </div>
                 </div>
                 <div className="stat-card !p-5">
                     <div className="stat-value" style={{ color: getP99Color(stats.maxP99) }}>{formatDuration(stats.maxP99)}</div>
-                    <div className="stat-label flex items-center gap-1.5">
+                    <div className="stat-label flex-row items-center gap-2">
                         <svg className="w-3.5 h-3.5 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         Max P99 Latency
                     </div>

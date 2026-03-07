@@ -114,14 +114,14 @@ export default function StatusPage() {
   const banner = getBannerConfig()
 
   return (
-    <div className="max-w-[1000px] mx-auto pb-12 animate-in fade-in duration-500">
+    <div className="page-container-sm">
       {/* 1. HEADER & BANNER */}
-      <div className="page-header flex justify-between items-end mb-6">
+      <div className="page-header page-header-row mb-6">
         <div>
           <h1 className="page-title">Service Status</h1>
           <div className="page-subtitle mt-1">Real-time infrastructure health and latency</div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex-row items-center gap-4">
           <span className="text-xs text-text-muted font-mono">
             Last checked: {secondsAgo}s ago
           </span>
@@ -136,7 +136,7 @@ export default function StatusPage() {
         </div>
       </div>
 
-      <div className={`flex items-center p-4 rounded-xl border mb-8 transition-colors ${banner.color}`}>
+      <div className={`flex-row items-center p-4 rounded-xl border mb-8 transition-colors ${banner.color}`}>
         {banner.icon}
         <div className="font-semibold text-text-primary uppercase tracking-wider text-sm">{banner.text}</div>
       </div>
@@ -171,7 +171,7 @@ export default function StatusPage() {
         </table>
       </div>
 
-      <div className="mt-6 text-center text-xs text-text-muted bg-bg-surface p-3 rounded-lg border border-border-subtle inline-block mx-auto flex items-center gap-2 justify-center">
+      <div className="mt-6 text-center text-xs text-text-muted bg-bg-surface p-3 rounded-lg border border-border-subtle inline-block mx-auto flex-row items-center gap-2 justify-center">
         <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         This page auto-refreshes every 30 seconds.
       </div>

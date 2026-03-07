@@ -112,13 +112,13 @@ export default function TracesPage() {
     const showSkeleton = loadingIds
 
     return (
-        <div>
-            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div className="page-container">
+            <div className="page-header page-header-row">
                 <div>
                     <h1 className="page-title">Execution Traces</h1>
                     <div className="page-subtitle">{total} executions total</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div className="page-header-actions">
                     <input
                         type="text"
                         placeholder="Search trace ID..."
@@ -134,7 +134,7 @@ export default function TracesPage() {
                 </div>
             </div>
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="card overflow-hidden" style={{ padding: 0 }}>
                 <table className="table">
                     <thead>
                         <tr>
@@ -233,11 +233,11 @@ export default function TracesPage() {
 
             {/* Pagination */}
             {!showSkeleton && total > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+                <div className="page-header-row mt-6">
                     <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                         Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total}
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div className="flex-row gap-2">
                         <button
                             className="btn btn-secondary"
                             disabled={page === 0}

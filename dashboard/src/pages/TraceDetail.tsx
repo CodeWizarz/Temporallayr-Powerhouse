@@ -135,21 +135,21 @@ export default function TraceDetailPage() {
     const dur = fmtDur(trace.start_time, trace.end_time || spans[spans.length - 1]?.end_time)
 
     return (
-        <div className="max-w-[1200px] mx-auto pb-12">
+        <div className="page-container">
             {/* 1. HEADER */}
             <div className="mb-6">
                 <button
                     onClick={() => nav('/traces')}
-                    className="btn btn-ghost !px-0 !py-1 text-sm text-text-secondary hover:text-white mb-4"
+                    className="btn btn-ghost text-sm mb-4"
                 >
                     <svg className="w-4 h-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     Back to Traces
                 </button>
 
-                <div className="flex justify-between items-start">
+                <div className="page-header-row items-start">
                     <div>
                         <h1 className="text-2xl font-bold text-text-primary m-0">Trace Detail</h1>
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-row items-center gap-2 mt-2">
                             <span className="font-mono text-sm px-2 py-0.5 bg-bg-elevated border border-border rounded text-text-secondary select-all">
                                 {trace.trace_id || traceId}
                             </span>
@@ -182,7 +182,7 @@ export default function TraceDetailPage() {
 
             {/* 2. SUMMARY CARD */}
             <div className="card mb-6">
-                <div className="grid grid-cols-4 gap-6">
+                <div className="stat-cards-grid">
                     <div>
                         <div className="text-xs uppercase tracking-wider text-text-muted font-semibold mb-2">Status</div>
                         <div className="font-medium text-lg text-text-primary">
@@ -239,7 +239,7 @@ export default function TraceDetailPage() {
                         </div>
                     ) : replay ? (
                         <>
-                            <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                                 <div className="p-3 bg-bg-surface border border-border rounded-lg">
                                     <div className="text-[11px] text-text-muted uppercase font-bold tracking-wider mb-2">Deterministic</div>
                                     <span className={`badge ${replay.is_deterministic ? 'badge-success' : 'badge-error'} !text-sm !py-1 !px-3`}>

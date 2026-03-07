@@ -87,11 +87,11 @@ export default function IncidentsPage() {
     }
 
     return (
-        <div className="max-w-[1200px] mx-auto pb-12 animate-in fade-in duration-500">
+        <div className="page-container">
             {/* 1. HEADER */}
-            <div className="page-header flex justify-between items-end mb-6">
+            <div className="page-header page-header-row mb-6">
                 <div>
-                    <h1 className="page-title flex items-center gap-3">
+                    <h1 className="page-title flex-row items-center gap-3">
                         Incidents
                         {!loading && <span className="badge badge-neutral !rounded-full !px-2.5 !text-xs">{incidents.length}</span>}
                     </h1>
@@ -104,7 +104,7 @@ export default function IncidentsPage() {
             </div>
 
             {/* TAB FILTER */}
-            <div className="flex border-b border-border-subtle mb-6 gap-6">
+            <div className="flex-row border-b border-border-subtle mb-6 gap-6">
                 {TABS.map(tab => {
                     const count = tab === 'All'
                         ? incidents.length
@@ -130,10 +130,10 @@ export default function IncidentsPage() {
             {loading ? (
                 <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="card !p-0 overflow-hidden flex h-[140px]">
+                        <div key={i} className="card !p-0 overflow-hidden flex-row h-[140px]">
                             <div className="w-1 bg-border-subtle" />
-                            <div className="p-5 flex-1 flex flex-col justify-between">
-                                <div className="flex items-center gap-3">
+                            <div className="p-5 flex-1 flex-col justify-between">
+                                <div className="flex-row items-center gap-3">
                                     <div className="skeleton w-16 h-5" />
                                     <div className="skeleton w-16 h-5" />
                                     <div className="skeleton w-32 h-4" />
@@ -163,15 +163,15 @@ export default function IncidentsPage() {
                         return (
                             <div
                                 key={inc.incident_id}
-                                className="card !p-0 overflow-hidden flex transition-all hover:border-border hover:shadow-md bg-bg-surface border border-border-subtle relative group"
+                                className="card !p-0 overflow-hidden flex-row transition-all hover:border-border hover:shadow-md bg-bg-surface border border-border-subtle relative group"
                             >
                                 {/* Left Color Bar */}
                                 <div className="w-[4px] shrink-0" style={{ backgroundColor: getSeverityColor(inc.severity) }} />
 
-                                <div className="p-5 flex-1 flex justify-between items-center bg-gradient-to-r from-transparent to-bg-elevated/20">
+                                <div className="p-5 flex-1 flex-row justify-between items-center bg-gradient-to-r from-transparent to-bg-elevated/20">
                                     {/* Left Content */}
-                                    <div className="flex flex-col gap-3">
-                                        <div className="flex items-center gap-3">
+                                    <div className="flex-col gap-3">
+                                        <div className="flex-row items-center gap-3">
                                             {getSeverityBadge(inc.severity)}
                                             {getStatusBadge(inc.status)}
                                             <span className="font-mono text-xs text-text-muted bg-black/30 px-2 py-0.5 rounded border border-border-subtle" title={inc.incident_id}>
@@ -180,14 +180,14 @@ export default function IncidentsPage() {
                                             <span className="badge badge-neutral !bg-black/20 !font-mono">{inc.tenant_id}</span>
                                         </div>
 
-                                        <div className="text-[15px] font-medium text-text-primary flex items-center gap-2">
+                                        <div className="text-[15px] font-medium text-text-primary flex-row items-center gap-2">
                                             Failing node: <span className="font-mono text-accent bg-accent-dim px-1.5 py-0.5 rounded text-[13px]">{inc.failing_node || 'unknown'}</span>
                                             <span className="text-text-muted font-normal text-sm ml-2">·</span>
                                             <span className="text-text-secondary text-sm font-normal">{inc.count.toLocaleString()} occurrences</span>
                                         </div>
 
-                                        <div className="text-xs text-text-muted flex items-center gap-3">
-                                            <span className="flex items-center gap-1.5">
+                                        <div className="text-xs text-text-muted flex-row items-center gap-3">
+                                            <span className="flex-row items-center gap-2">
                                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                 First seen: {formatDate(inc.first_seen)}
                                             </span>
@@ -197,7 +197,7 @@ export default function IncidentsPage() {
                                     </div>
 
                                     {/* Right Actions */}
-                                    <div className="flex flex-col gap-2 shrink-0 pl-6 border-l border-border-subtle border-dashed ml-4 min-w-[140px]">
+                                    <div className="flex-col gap-2 shrink-0 pl-6 border-l border-border-subtle border-dashed ml-4 min-w-[140px]">
                                         {isResolved ? (
                                             <div className="text-success text-sm font-medium flex items-center justify-center h-full gap-1.5">
                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
