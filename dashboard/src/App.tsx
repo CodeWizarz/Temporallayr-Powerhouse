@@ -25,8 +25,8 @@ export default function App() {
                 <Route path="/incidents" element={<IncidentsPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/replay" element={<ReplayPage />} />
-                <Route path="/status" element={<StatusPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/status" element={<StatusPage />} />
             </Route>
         </Routes>
     )

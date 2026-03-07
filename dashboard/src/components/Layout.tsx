@@ -6,6 +6,7 @@ const NAV = [
     { to: '/analytics', label: 'Analytics', icon: '▦' },
     { to: '/incidents', label: 'Incidents', icon: '◉' },
     { to: '/replay', label: 'Replay', icon: '▷' },
+    { to: '/status', label: 'Status', icon: '◎' },
     { to: '/settings', label: 'Settings', icon: '◎' },
 ]
 

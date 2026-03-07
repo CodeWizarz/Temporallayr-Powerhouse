@@ -1,115 +1,180 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { api } from '../api/client'
 
 interface BackendStatus {
-  status: string
-  backends: Record<string, string>
+  label: string
+  status: 'ok' | 'degraded' | 'error' | 'loading'
+  details: string
+  latencyMs?: number
 }
 
 export default function StatusPage() {
-  const [health, setHealth] = useState<{ status: string } | null>(null)
-  const [ready, setReady] = useState<BackendStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [lastChecked, setLastChecked] = useState<Date | null>(null)
+  const [overallStatus, setOverallStatus] = useState<'ok' | 'degraded' | 'error' | 'loading'>('loading')
+  const [lastChecked, setLastChecked] = useState<Date>(new Date())
+  const [secondsAgo, setSecondsAgo] = useState(0)
 
-  const fetchStatus = async () => {
-    setLoading(true)
-    setError(null)
+  const [backends, setBackends] = useState<Record<string, BackendStatus>>({
+    api: { label: 'API Server', status: 'loading', details: import.meta.env.VITE_API_URL || 'http://localhost:8000' },
+    postgres: { label: 'PostgreSQL', status: 'loading', details: 'Neon — executions store' },
+    clickhouse: { label: 'ClickHouse', status: 'loading', details: 'Analytics engine' },
+    dashboard: { label: 'Dashboard', status: 'loading', details: 'Vercel — this page' }
+  })
+
+  const checkHealth = useCallback(async () => {
+    setOverallStatus('loading')
+
+    // 1. Check Dashboard (Self)
+    const dashStart = Date.now()
+    setBackends(prev => ({ ...prev, dashboard: { ...prev.dashboard, status: 'ok', latencyMs: Date.now() - dashStart } }))
+
+    // 2. Check API Health + Ready
     try {
-      const [h, r] = await Promise.all([
-        api.health.check(),
-        api.health.ready(),
-      ])
-      setHealth(h)
-      setReady(r)
-      setLastChecked(new Date())
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
+      const apiStart = Date.now()
+
+      // First check basic health
+      await api.health.check()
+      const apiLatency = Date.now() - apiStart
+
+      // Then check detailed backends
+      const readyStart = Date.now()
+      const readyRes = await api.health.ready()
+      const readyLatency = Date.now() - readyStart
+
+      const pgStatusRaw = readyRes.backends.postgres || 'error'
+      const chStatusRaw = readyRes.backends.clickhouse || 'error'
+
+      const pgStatus = pgStatusRaw === 'ok' ? 'ok' : pgStatusRaw.startsWith('degraded') ? 'degraded' : 'error'
+      const chStatus = chStatusRaw === 'ok' ? 'ok' : chStatusRaw.startsWith('degraded') ? 'degraded' : 'error'
+
+      setBackends(prev => ({
+        ...prev,
+        api: { ...prev.api, status: 'ok', latencyMs: apiLatency },
+        postgres: { ...prev.postgres, status: pgStatus, latencyMs: readyLatency },
+        clickhouse: { ...prev.clickhouse, status: chStatus, latencyMs: readyLatency }
+      }))
+
+      if (readyRes.status === 'ok' || readyRes.status === 'ready') {
+        if (pgStatus === 'degraded' || chStatus === 'degraded') {
+          setOverallStatus('degraded')
+        } else {
+          setOverallStatus('ok')
+        }
+      } else {
+        setOverallStatus('error')
+      }
+    } catch (err) {
+      console.error('Health check failed', err)
+      setBackends(prev => ({
+        ...prev,
+        api: { ...prev.api, status: 'error', latencyMs: 0 },
+        postgres: { ...prev.postgres, status: 'error', latencyMs: 0 },
+        clickhouse: { ...prev.clickhouse, status: 'error', latencyMs: 0 }
+      }))
+      setOverallStatus('error')
+    }
+
+    setLastChecked(new Date())
+    setSecondsAgo(0)
+  }, [])
+
+  useEffect(() => {
+    checkHealth()
+
+    const tickInterval = setInterval(() => {
+      setSecondsAgo(prev => prev + 1)
+    }, 1000)
+
+    const fetchInterval = setInterval(() => {
+      checkHealth()
+    }, 30000) // 30 seconds
+
+    return () => {
+      clearInterval(tickInterval)
+      clearInterval(fetchInterval)
+    }
+  }, [checkHealth])
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ok': return <span className="text-success font-bold text-sm">● OK</span>
+      case 'degraded': return <span className="text-warning font-bold text-sm">● Degraded</span>
+      case 'error': return <span className="text-error font-bold text-sm">● Error</span>
+      case 'loading': return <span className="loading-spinner w-3 h-3 border-[2px]" />
+      default: return <span className="text-text-muted">Unknown</span>
     }
   }
 
-  useEffect(() => { fetchStatus() }, [])
-
-  const dot = (ok: boolean) => (
-    <span style={{
-      display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-      background: ok ? '#22c55e' : '#ef4444', marginRight: 8
-    }} />
-  )
-
-  const badge = (val: string) => {
-    const ok = val === 'ok' || val === 'ready'
-    return (
-      <span style={{
-        padding: '2px 10px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-        background: ok ? '#14532d' : '#7f1d1d',
-        color: ok ? '#22c55e' : '#ef4444'
-      }}>{val}</span>
-    )
+  const getBannerConfig = () => {
+    if (overallStatus === 'loading') return { color: 'border-border-subtle bg-bg-surface', text: 'Checking systems...', icon: <span className="loading-spinner w-5 h-5 mr-3" /> }
+    if (overallStatus === 'ok') return { color: 'border-success/30 bg-success-dim', text: 'All systems operational', icon: <svg className="w-5 h-5 mr-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
+    if (overallStatus === 'degraded') return { color: 'border-warning/30 bg-warning-dim', text: 'Degraded performance', icon: <svg className="w-5 h-5 mr-3 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> }
+    return { color: 'border-error/30 bg-error-dim', text: 'Service disruption', icon: <svg className="w-5 h-5 mr-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
   }
 
+  const banner = getBannerConfig()
+
   return (
-    <div style={{ maxWidth: 700 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+    <div className="max-w-[1000px] mx-auto pb-12 animate-in fade-in duration-500">
+      {/* 1. HEADER & BANNER */}
+      <div className="page-header flex justify-between items-end mb-6">
         <div>
-          <h1 style={{ color: '#e0e0e0', margin: 0, fontSize: 24 }}>System Status</h1>
-          <p style={{ color: '#666', margin: '4px 0 0', fontSize: 13 }}>
-            Live health of all backend services
-          </p>
+          <h1 className="page-title">Service Status</h1>
+          <div className="page-subtitle mt-1">Real-time infrastructure health and latency</div>
         </div>
-        <button onClick={fetchStatus} style={{
-          background: '#1a1a1a', border: '1px solid #333', color: '#aaa',
-          padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: 13
-        }}>↺ Refresh</button>
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-text-muted font-mono">
+            Last checked: {secondsAgo}s ago
+          </span>
+          <button
+            onClick={checkHealth}
+            className="btn btn-secondary btn-sm"
+            disabled={overallStatus === 'loading'}
+          >
+            <svg className={`w-3.5 h-3.5 mr-1.5 ${overallStatus === 'loading' ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            Refresh
+          </button>
+        </div>
       </div>
 
-      {error && (
-        <div style={{ background: '#1a0000', border: '1px solid #7f1d1d', borderRadius: 8, padding: 16, marginBottom: 20, color: '#ef4444' }}>
-          ⚠ {error}
-        </div>
-      )}
+      <div className={`flex items-center p-4 rounded-xl border mb-8 transition-colors ${banner.color}`}>
+        {banner.icon}
+        <div className="font-semibold text-text-primary uppercase tracking-wider text-sm">{banner.text}</div>
+      </div>
 
-      {loading && !health && (
-        <div style={{ color: '#555', padding: 40, textAlign: 'center' }}>Checking services…</div>
-      )}
+      {/* 2. SERVICE STATUS TABLE */}
+      <div className="card !p-0 overflow-hidden border border-border-subtle shadow-md">
+        <table className="table w-full">
+          <thead className="bg-[#0a0a0c]">
+            <tr>
+              <th className="w-1/4">Service</th>
+              <th className="w-1/6">Status</th>
+              <th className="w-1/6 text-right pr-6">Response Time</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.values(backends).map((b, i) => (
+              <tr key={i} className="hover:bg-bg-hover transition-colors">
+                <td className="font-medium text-text-primary text-[13px]">{b.label}</td>
+                <td>{getStatusIcon(b.status)}</td>
+                <td className="text-right pr-6 text-text-secondary font-mono text-[11px]">
+                  {b.status === 'loading' ? '—' : `${b.latencyMs}ms`}
+                </td>
+                <td>
+                  <span className={`text-[12px] font-mono ${b.details.startsWith('http') ? 'text-accent' : 'text-text-muted'}`}>
+                    {b.details}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      {health && (
-        <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, padding: 20, marginBottom: 16 }}>
-          <div style={{ color: '#888', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>API Server</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#ccc', display: 'flex', alignItems: 'center' }}>
-              {dot(health.status === 'ok')} API Health
-            </span>
-            {badge(health.status)}
-          </div>
-        </div>
-      )}
-
-      {ready && (
-        <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, padding: 20, marginBottom: 16 }}>
-          <div style={{ color: '#888', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Backend Services</div>
-          {Object.entries(ready.backends).map(([name, val]) => (
-            <div key={name} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '10px 0', borderBottom: '1px solid #1a1a1a'
-            }}>
-              <span style={{ color: '#ccc', display: 'flex', alignItems: 'center', textTransform: 'capitalize' }}>
-                {dot(val === 'ok' || val === 'true')} {name}
-              </span>
-              {badge(val === 'true' ? 'ok' : val)}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {lastChecked && (
-        <p style={{ color: '#444', fontSize: 12, marginTop: 12 }}>
-          Last checked: {lastChecked.toLocaleTimeString()}
-        </p>
-      )}
+      <div className="mt-6 text-center text-xs text-text-muted bg-bg-surface p-3 rounded-lg border border-border-subtle inline-block mx-auto flex items-center gap-2 justify-center">
+        <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        This page auto-refreshes every 30 seconds.
+      </div>
     </div>
   )
 }
