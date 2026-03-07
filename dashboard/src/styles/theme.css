@@ -1,21 +1,21 @@
 :root {
   /* Colors */
-  --bg-base: #0a0a0b;
-  --bg-surface: #111114;
-  --bg-elevated: #18181d;
-  --bg-hover: #1e1e24;
-  --border: #2a2a35;
-  --border-subtle: #1a1a22;
+  --bg-base: #0d0e12;
+  --bg-surface: #16181d;
+  --bg-elevated: #1e2028;
+  --bg-hover: #242631;
+  --border: #282a36;
+  --border-subtle: #1e2028;
 
   /* Text */
-  --text-primary: #f0f0f5;
-  --text-secondary: #8888a0;
-  --text-muted: #44445a;
+  --text-primary: #f4f5f6;
+  --text-secondary: #93989c;
+  --text-muted: #626771;
 
   /* Accent */
-  --accent: #facc15;
-  --accent-dim: #facc1522;
-  --accent-hover: #fde047;
+  --accent: #FAFF69;
+  --accent-dim: rgba(250, 255, 105, 0.1);
+  --accent-hover: #eaf059;
 
   /* Status */
   --success: #4ade80;
@@ -27,15 +27,15 @@
   --info: #60a5fa;
 
   /* Spacing */
-  --sidebar-width: 240px;
-  --header-height: 56px;
+  --sidebar-width: 250px;
+  --header-height: 60px;
 
   /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
   /* Font */
   --font-sans: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-ui: 'Outfit', system-ui, sans-serif;
 }

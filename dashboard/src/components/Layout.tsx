@@ -7,75 +7,48 @@ const NAV = [
     { to: '/incidents', label: 'Incidents', icon: '◉' },
     { to: '/replay', label: 'Replay', icon: '▷' },
     { to: '/status', label: 'Status', icon: '◎' },
-    { to: '/settings', label: 'Settings', icon: '◎' },
+    { to: '/settings', label: 'Settings', icon: '⎈' },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {
     return (
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        <div className="layout-container">
             {/* Sidebar */}
-            <aside style={{
-                width: 'var(--sidebar-width)', background: 'var(--bg-surface)',
-                borderRight: '1px solid var(--border-subtle)',
-                display: 'flex', flexDirection: 'column', flexShrink: 0,
-            }}>
+            <aside className="layout-sidebar">
                 {/* Logo */}
-                <div style={{
-                    padding: '0 20px', height: 'var(--header-height)',
-                    display: 'flex', alignItems: 'center',
-                    borderBottom: '1px solid var(--border-subtle)',
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                            width: 28, height: 28, background: 'var(--accent)',
-                            borderRadius: 6, display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#000',
-                        }}>T</div>
+                <div className="layout-logo-container">
+                    <div className="layout-logo">
+                        <div className="layout-logo-icon">T</div>
                         <div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>
-                                TemporalLayr
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>AI Observability</div>
+                            <div className="layout-logo-text">TemporalLayr</div>
+                            <div className="layout-logo-sub">AI Observability</div>
                         </div>
                     </div>
                 </div>
 
                 {/* Nav */}
-                <nav style={{ padding: '12px 8px', flex: 1 }}>
+                <nav className="layout-nav">
                     {NAV.map(n => (
-                        <NavLink key={n.to} to={n.to} style={({ isActive }) => ({
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '8px 12px', borderRadius: 'var(--radius-sm)',
-                            textDecoration: 'none', fontSize: 13, fontWeight: 500,
-                            marginBottom: 2,
-                            color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                            background: isActive ? 'var(--accent-dim)' : 'transparent',
-                            transition: 'all 0.1s',
-                        })}>
-                            <span style={{ fontSize: 12, opacity: 0.8 }}>{n.icon}</span>
+                        <NavLink
+                            key={n.to}
+                            to={n.to}
+                            className={({ isActive }) => `layout-nav-item ${isActive ? 'active' : ''}`}
+                        >
+                            <span className="layout-nav-icon">{n.icon}</span>
                             {n.label}
                         </NavLink>
                     ))}
                 </nav>
 
                 {/* Footer */}
-                <div style={{
-                    padding: '12px 20px', borderTop: '1px solid var(--border-subtle)',
-                    fontSize: 11, color: 'var(--text-muted)',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                    <span>v0.2.1 · MIT License</span>
+                <div className="layout-footer">
+                    <span>v0.2.1 · MIT</span>
                     <button
+                        className="layout-signout"
                         onClick={() => {
                             localStorage.removeItem('tl_api_key')
                             window.location.href = '/login'
                         }}
-                        style={{
-                            background: 'none', border: 'none', color: 'var(--text-secondary)',
-                            cursor: 'pointer', fontSize: 11, padding: '4px 8px', borderRadius: '4px'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
                     >
                         Sign out
                     </button>
@@ -83,8 +56,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             </aside>
 
             {/* Main */}
-            <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-base)' }}>
-                <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
+            <main className="layout-main">
+                <div className="layout-content">
                     {children}
                 </div>
             </main>
