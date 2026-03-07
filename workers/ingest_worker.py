@@ -35,28 +35,14 @@ BATCH_SIZE = int(os.getenv("TEMPORALLAYR_QUEUE_BATCH_SIZE", "50"))
 FLUSH_INTERVAL = float(os.getenv("TEMPORALLAYR_QUEUE_FLUSH_INTERVAL", "2.0"))
 
 
-async def _handle_incidents(graphs: list[ExecutionGraph]) -> None:
-    """Run failure clustering and incident generation on the batch."""
+async def _handle_incidents(graphs: list) -> None:
     try:
         clusters = FailureClusterEngine.cluster_failures(graphs)
-        if clusters:
-            from temporallayr.core.store import get_default_store
-
-            store = get_default_store()
-            existing_incidents = []
-            if hasattr(store, "load_all_incidents"):
-                existing_incidents = store.load_all_incidents()
-
-            old_len = len(existing_incidents)
-            all_incidents = IncidentEngine.detect_incidents(clusters, existing_incidents)
-
-            if len(all_incidents) > old_len:
-                new_incidents = all_incidents[old_len:]
-                if hasattr(store, "bulk_save_incidents"):
-                    store.bulk_save_incidents(all_incidents)
-
-                for inc in new_incidents:
-                    asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
+        if not clusters:
+            return
+        new_incidents = IncidentEngine.detect_incidents(clusters, [])
+        for inc in new_incidents:
+            asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
     except Exception as e:
         logger.warning(f"Incident detection error: {e}")
 
