@@ -9,12 +9,14 @@ import SettingsPage from './pages/Settings'
 import StatusPage from './pages/Status'
 
 import SignupPage from './pages/Signup'
+import LandingPage from './pages/Landing'
 
 export default function App() {
     return (
         <Routes>
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/signup" element={<SignupPage />} />
-            <Route path="/" element={<Navigate to="/traces" replace />} />
+            <Route path="/" element={<Navigate to="/landing" replace />} />
             <Route path="/traces" element={<Layout><TracesPage /></Layout>} />
             <Route path="/traces/:traceId" element={<Layout><TraceDetailPage /></Layout>} />
             <Route path="/incidents" element={<Layout><IncidentsPage /></Layout>} />
