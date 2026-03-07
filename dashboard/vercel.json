@@ -1,0 +1,12 @@
+{
+    "rewrites": [
+        {
+            "source": "/landing",
+            "destination": "/landing.html"
+        },
+        {
+            "source": "/((?!landing|assets|favicon).*)",
+            "destination": "/index.html"
+        }
+    ]
+}
