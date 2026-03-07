@@ -1,104 +1,260 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { api, type Trace } from '../api/client'
-import styled from 'styled-components'
+import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import { api, Trace } from '../api/client'
 
-const Page = styled.div`color:#e0e0e0;`
-const Header = styled.div`display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;`
-const PageTitle = styled.h1`font-size:20px;font-weight:600;color:#facc15;margin:0;`
-const Table = styled.table`width:100%;border-collapse:collapse;font-size:13px;`
-const Th = styled.th`padding:10px 14px;text-align:left;font-weight:500;color:#666;border-bottom:1px solid #1e1e1e;`
-const Td = styled.td`padding:10px 14px;border-bottom:1px solid #161616;vertical-align:middle;`
-const Tr = styled.tr<{$clickable?:boolean}>`cursor:${p=>p.$clickable?'pointer':'default'};transition:background .1s;&:hover{background:${p=>p.$clickable?'#141414':'none'}}`
-const Badge = styled.span<{$v:'success'|'error'}>`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${p=>p.$v==='success'?'#0d2a1a':'#2a0d0d'};color:${p=>p.$v==='success'?'#4caf6e':'#e55'};`
-const Pill = styled.span`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;background:#1a1a1a;color:#888;`
-const SearchInput = styled.input`background:#111;border:1px solid #222;border-radius:6px;padding:7px 12px;color:#e0e0e0;font-size:13px;width:260px;outline:none;&:focus{border-color:#facc15;}&::placeholder{color:#444;}`
-const Btn = styled.button<{$primary?:boolean}>`padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer;border:none;transition:all .15s;background:${p=>p.$primary?'#facc15':'#1a1a1a'};color:${p=>p.$primary?'#000':'#888'};&:hover{opacity:.85;}&:disabled{opacity:.4;cursor:default;}`
-const Pager = styled.div`display:flex;align-items:center;gap:12px;margin-top:20px;color:#666;font-size:13px;`
-const Empty = styled.div`text-align:center;padding:60px 0;color:#444;font-size:14px;`
-const Loader = styled.div`text-align:center;padding:60px 0;color:#555;`
-const Err = styled.div`color:#e55;background:#1a0808;border:1px solid #3a1010;border-radius:8px;padding:14px;margin-bottom:16px;`
-const MonoId = styled.span`font-family:monospace;font-size:11px;color:#666;`
+interface TraceRow {
+    id: string
+    status: string
+    tenant_id: string
+    span_count: number
+    error_count: number
+    duration_ms: number | null
+    created_at: string
+}
 
-const fmtDur = (s: string, e: string|null) => { if (!e) return '—'; const ms = new Date(e).getTime()-new Date(s).getTime(); return ms<1000?`${ms}ms`:`${(ms/1000).toFixed(2)}s` }
-const fmtTime = (t: string) => new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})
-const traceStatus = (t: Trace): 'success'|'error' => t.spans.some(s=>s.status==='error')?'error':'success'
+function computeDuration(graph: any): number | null {
+    const spans = graph.nodes || graph.spans || []
+    const total = spans.reduce((sum: number, s: any) => sum + (s.duration_ms || 0), 0)
+    return total > 0 ? total : null
+}
 
-const LIMIT = 50
+function formatDuration(ms: number | null): string {
+    if (!ms) return '—'
+    if (ms < 1000) return `${Math.round(ms)}ms`
+    return `${(ms / 1000).toFixed(2)}s`
+}
+
+function formatDate(iso: string): string {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleString()
+}
 
 export default function TracesPage() {
-    const [traces, setTraces] = useState<Trace[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string|null>(null)
-    const [search, setSearch] = useState('')
-    const [page, setPage] = useState(0)
+    const [ids, setIds] = useState<string[]>([])
     const [total, setTotal] = useState(0)
-    const nav = useNavigate()
+    const [page, setPage] = useState(0)
+    const [loadingIds, setLoadingIds] = useState(true)
+    const [details, setDetails] = useState<Record<string, TraceRow>>({})
+    const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({})
+    const [searchQuery, setSearchQuery] = useState('')
 
-    const load = async (pg=0) => {
-        setLoading(true); setError(null)
+    const limit = 50
+
+    const fetchPage = useCallback(async (p: number) => {
+        setLoadingIds(true)
         try {
-            const data = await api.executions.list(LIMIT, pg*LIMIT) as any
-            const ids: string[] = data.items ?? data
-            const details = await Promise.allSettled(ids.slice(0,LIMIT).map((id: string) => api.executions.get(id)))
-            setTraces(details.flatMap(r=>r.status==='fulfilled'?[r.value]:[]))
-            setTotal(data.total ?? details.length)
-            setPage(pg)
-        } catch(e:any) { setError(e.message) }
-        finally { setLoading(false) }
+            const res = await api.executions.list(limit, p * limit)
+            setIds(res.items || [])
+            setTotal(res.total || 0)
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setLoadingIds(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchPage(page)
+    }, [page, fetchPage])
+
+    useEffect(() => {
+        if (ids.length === 0) return
+
+        const needed = ids.filter(id => !details[id] && !loadingDetails[id])
+        if (needed.length === 0) return
+
+        setLoadingDetails(prev => {
+            const next = { ...prev }
+            needed.forEach(id => next[id] = true)
+            return next
+        })
+
+        const fetchDetails = async () => {
+            const batchSize = 10
+            for (let i = 0; i < needed.length; i += batchSize) {
+                const batch = needed.slice(i, i + batchSize)
+                await Promise.all(batch.map(async (id) => {
+                    try {
+                        const trace = await api.executions.get(id) as any
+                        const spans = trace.spans || trace.nodes || []
+                        const errorCount = spans.filter((s: any) => s.status === 'error').length
+                        const status = trace.status || (errorCount > 0 ? 'error' : 'success')
+
+                        const row: TraceRow = {
+                            id: trace.trace_id || trace.id || id,
+                            status: status,
+                            tenant_id: trace.tenant_id || 'unknown',
+                            span_count: spans.length,
+                            error_count: errorCount,
+                            duration_ms: computeDuration(trace),
+                            created_at: trace.start_time || trace.created_at || new Date().toISOString()
+                        }
+
+                        setDetails(prev => ({ ...prev, [id]: row }))
+                    } catch (err) {
+                        console.error("Failed to fetch detail for", id, err)
+                    } finally {
+                        setLoadingDetails(prev => ({ ...prev, [id]: false }))
+                    }
+                }))
+            }
+        }
+
+        fetchDetails()
+    }, [ids, details, loadingDetails])
+
+    const handleRefresh = () => {
+        setDetails({})
+        fetchPage(page)
     }
 
-    useEffect(()=>{ load(0) },[])
-
-    const filtered = traces.filter(t => !search || t.trace_id.includes(search) || t.tenant_id.includes(search))
+    const filteredIds = ids.filter(id => id.toLowerCase().includes(searchQuery.toLowerCase()))
+    const showSkeleton = loadingIds
 
     return (
-        <Page>
-            <Header>
+        <div>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                 <div>
-                    <PageTitle>Execution Traces</PageTitle>
-                    <div style={{color:'#555',fontSize:12,marginTop:4}}>{total} total executions</div>
+                    <h1 className="page-title">Execution Traces</h1>
+                    <div className="page-subtitle">{total} executions total</div>
                 </div>
-                <div style={{display:'flex',gap:10}}>
-                    <SearchInput placeholder="Search by trace ID or tenant…" value={search} onChange={e=>setSearch(e.target.value)} />
-                    <Btn onClick={()=>load(0)}>↺ Refresh</Btn>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <input
+                        type="text"
+                        placeholder="Search trace ID..."
+                        className="input"
+                        style={{ width: '250px' }}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <button onClick={handleRefresh} className="btn btn-secondary">
+                        <svg className="w-4 h-4" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        Refresh
+                    </button>
                 </div>
-            </Header>
+            </div>
 
-            {error && <Err>⚠ {error}</Err>}
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <table className="table">
+                    <thead>
+                        <tr>
+                            <th>Trace ID</th>
+                            <th>Status</th>
+                            <th>Tenant</th>
+                            <th>Spans</th>
+                            <th>Errors</th>
+                            <th>Duration</th>
+                            <th>Started</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {showSkeleton ? (
+                            Array.from({ length: 5 }).map((_, i) => (
+                                <tr key={i}>
+                                    <td><div className="skeleton" style={{ width: '120px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '60px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '80px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '30px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '30px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '50px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '120px' }}></div></td>
+                                    <td><div className="skeleton" style={{ width: '40px' }}></div></td>
+                                </tr>
+                            ))
+                        ) : filteredIds.length === 0 ? (
+                            <tr>
+                                <td colSpan={8}>
+                                    <div className="empty-state">
+                                        <div className="empty-state-icon">◈</div>
+                                        <div className="empty-state-title">No traces found</div>
+                                        <div className="empty-state-desc">Waiting for agent executions to be ingested.</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                            filteredIds.map(id => {
+                                const row = details[id]
+                                const isRowLoading = loadingDetails[id] && !row
 
-            {loading ? <Loader>Loading traces…</Loader> :
-             filtered.length===0 ? <Empty>No execution traces found.<br/><span style={{color:'#333',fontSize:12}}>Instrument your agent with the TemporalLayr SDK to start capturing traces.</span></Empty> :
-            <Table>
-                <thead>
-                    <Tr><Th>Trace ID</Th><Th>Status</Th><Th>Tenant</Th><Th>Spans</Th><Th>Errors</Th><Th>Duration</Th><Th>Started</Th></Tr>
-                </thead>
-                <tbody>
-                    {filtered.map(t => {
-                        const st = traceStatus(t)
-                        const errs = t.spans.filter(s=>s.status==='error').length
-                        return (
-                            <Tr key={t.trace_id} $clickable onClick={()=>nav(`/traces/${t.trace_id}`)}>
-                                <Td><MonoId>{t.trace_id.slice(0,8)}…{t.trace_id.slice(-6)}</MonoId></Td>
-                                <Td><Badge $v={st}>{st}</Badge></Td>
-                                <Td><Pill>{t.tenant_id}</Pill></Td>
-                                <Td style={{color:'#888'}}>{t.spans.length}</Td>
-                                <Td style={{color:errs>0?'#e55':'#444'}}>{errs||'—'}</Td>
-                                <Td style={{color:'#aaa'}}>{fmtDur(t.start_time,t.end_time)}</Td>
-                                <Td style={{color:'#666'}}>{fmtTime(t.start_time)}</Td>
-                            </Tr>
-                        )
-                    })}
-                </tbody>
-            </Table>}
+                                if (isRowLoading) {
+                                    return (
+                                        <tr key={id}>
+                                            <td className="mono" title={id}>{id.substring(0, 20)}...</td>
+                                            <td colSpan={6}><div className="skeleton" style={{ width: '100%' }}></div></td>
+                                            <td></td>
+                                        </tr>
+                                    )
+                                }
 
-            {!loading && total>LIMIT && (
-                <Pager>
-                    <Btn onClick={()=>load(page-1)} disabled={page===0}>← Prev</Btn>
-                    <span>Page {page+1} of {Math.ceil(total/LIMIT)}</span>
-                    <Btn onClick={()=>load(page+1)} disabled={(page+1)*LIMIT>=total}>Next →</Btn>
-                </Pager>
+                                if (!row) {
+                                    return (
+                                        <tr key={id}>
+                                            <td className="mono" title={id}>{id.substring(0, 20)}...</td>
+                                            <td colSpan={6} style={{ color: 'var(--text-muted)' }}>Failed to load</td>
+                                            <td></td>
+                                        </tr>
+                                    )
+                                }
+
+                                return (
+                                    <tr key={id}>
+                                        <td className="mono" title={id}>{id.substring(0, 20)}...</td>
+                                        <td>
+                                            {row.status === 'success' ? (
+                                                <span className="badge badge-success">Success</span>
+                                            ) : row.status === 'error' ? (
+                                                <span className="badge badge-error">Error</span>
+                                            ) : (
+                                                <span className="badge badge-warning">{row.status}</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span className="badge badge-neutral">{row.tenant_id}</span>
+                                        </td>
+                                        <td>{row.span_count}</td>
+                                        <td style={{ color: row.error_count > 0 ? 'var(--error)' : 'inherit' }}>
+                                            {row.error_count}
+                                        </td>
+                                        <td>{formatDuration(row.duration_ms)}</td>
+                                        <td>{formatDate(row.created_at)}</td>
+                                        <td>
+                                            <Link to={`/traces/${id}`} className="btn btn-ghost btn-sm">
+                                                View &rarr;
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                )
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Pagination */}
+            {!showSkeleton && total > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                        Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            className="btn btn-secondary"
+                            disabled={page === 0}
+                            onClick={() => setPage(p => Math.max(0, p - 1))}
+                        >
+                            Previous
+                        </button>
+                        <button
+                            className="btn btn-secondary"
+                            disabled={(page + 1) * limit >= total}
+                            onClick={() => setPage(p => p + 1)}
+                        >
+                            Next
+                        </button>
+                    </div>
+                </div>
             )}
-        </Page>
+        </div>
     )
 }
