@@ -326,7 +326,7 @@ export default function TraceDetailPage() {
                                         <span className="font-mono font-semibold text-[13px] text-text-primary truncate">
                                             {span.name}
                                         </span>
-                                        {attrs.type && (
+                                        {!!attrs.type && (
                                             <span className="badge badge-neutral !font-mono !text-[10px] !font-medium ml-3 shrink-0">
                                                 {String(attrs.type).toUpperCase()}
                                             </span>
