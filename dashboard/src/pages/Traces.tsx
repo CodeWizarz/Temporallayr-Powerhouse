@@ -112,149 +112,189 @@ export default function TracesPage() {
     const showSkeleton = loadingIds
 
     return (
-        <div className="page-container">
-            <div className="page-header page-header-row">
-                <div>
-                    <h1 className="page-title">Execution Traces</h1>
-                    <div className="page-subtitle">{total} executions total</div>
+        <>
+            <div className="ch-sidebar-context">
+                <div className="ch-context-header">
+                    <div className="ch-context-tab active">Tables</div>
+                    <div className="ch-context-tab">Queries</div>
                 </div>
-                <div className="page-header-actions">
-                    <input
-                        type="text"
-                        placeholder="Search trace ID..."
-                        className="input"
-                        style={{ width: '250px' }}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <button onClick={handleRefresh} className="btn btn-secondary">
-                        <svg className="w-4 h-4" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        Refresh
+                <div className="ch-context-content">
+                    <button className="ch-btn-yellow mb-6">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        New table
                     </button>
+                    <div className="border border-border-subtle rounded px-2 py-1.5 flex items-center gap-2 mb-4 bg-black/20 focus-within:border-text-muted transition-colors">
+                        <svg className="w-3.5 h-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <input
+                            type="text"
+                            placeholder="Search traces..."
+                            className="bg-transparent border-none text-[13px] text-white w-full focus:outline-none placeholder:text-text-muted"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-text-primary px-1 mb-2 font-medium cursor-pointer">
+                        <svg className="w-3 h-3 text-text-muted transition-transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        Tables (2)
+                    </div>
+                    <div className="flex items-center justify-between text-[13px] text-text-primary py-1.5 px-6 cursor-pointer bg-white/10 rounded">
+                        <span>temporallayr_traces</span>
+                        <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-text-muted font-bold">MT</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[13px] text-text-secondary py-1.5 px-6 cursor-pointer hover:bg-white/5 rounded">
+                        <span>temporallayr_spans</span>
+                        <span className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-text-muted font-bold">MT</span>
+                    </div>
                 </div>
             </div>
 
-            <div className="card overflow-hidden" style={{ padding: 0 }}>
-                <table className="table">
-                    <thead>
-                        <tr>
-                            <th>Trace ID</th>
-                            <th>Status</th>
-                            <th>Tenant</th>
-                            <th>Spans</th>
-                            <th>Errors</th>
-                            <th>Duration</th>
-                            <th>Started</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {showSkeleton ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                                <tr key={i}>
-                                    <td><div className="skeleton" style={{ width: '120px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '60px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '80px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '30px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '30px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '50px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '120px' }}></div></td>
-                                    <td><div className="skeleton" style={{ width: '40px' }}></div></td>
+            <main className="ch-workspace">
+                <header className="ch-topbar">
+                    <div className="ch-topbar-title flex flex-col justify-center">
+                        <div className="text-[14px] text-text-primary font-bold">
+                            temporallayr_traces
+                        </div>
+                    </div>
+                    <div className="ch-topbar-actions">
+                        <button className="border border-border-subtle bg-bg-surface px-3 py-1.5 rounded text-[13px] font-medium text-white hover:bg-white/5 transition-colors flex items-center gap-2">
+                            <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            Create query
+                        </button>
+                        <button className="border border-border-subtle bg-bg-surface px-3 py-1.5 rounded text-[13px] font-medium text-white hover:bg-white/5 transition-colors flex items-center gap-2">
+                            <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                            Insert row
+                        </button>
+                        <button className="border border-border-subtle bg-bg-surface px-3 py-1.5 rounded text-[13px] font-medium text-white hover:bg-white/5 transition-colors flex items-center gap-2" onClick={handleRefresh}>
+                            <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        </button>
+                    </div>
+                </header>
+
+                <div className="ch-workspace-scroll">
+                    <div className="p-0 m-0 w-full h-full">
+                        <table className="table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Trace ID</th>
+                                    <th>Status</th>
+                                    <th>Tenant</th>
+                                    <th>Spans</th>
+                                    <th>Errors</th>
+                                    <th>Duration</th>
+                                    <th>Started</th>
+                                    <th></th>
                                 </tr>
-                            ))
-                        ) : filteredIds.length === 0 ? (
-                            <tr>
-                                <td colSpan={8}>
-                                    <div className="empty-state">
-                                        <div className="empty-state-icon">◈</div>
-                                        <div className="empty-state-title">No traces found</div>
-                                        <div className="empty-state-desc">Waiting for agent executions to be ingested.</div>
-                                    </div>
-                                </td>
-                            </tr>
-                        ) : (
-                            filteredIds.map(id => {
-                                const row = details[id]
-                                const isRowLoading = loadingDetails[id] && !row
-
-                                if (isRowLoading) {
-                                    return (
-                                        <tr key={id}>
-                                            <td className="mono" title={id}>{id.substring(0, 20)}...</td>
-                                            <td colSpan={6}><div className="skeleton" style={{ width: '100%' }}></div></td>
-                                            <td></td>
+                            </thead>
+                            <tbody>
+                                {showSkeleton ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <tr key={i}>
+                                            <td><div className="skeleton" style={{ width: '120px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '60px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '80px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '30px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '30px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '50px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '120px' }}></div></td>
+                                            <td><div className="skeleton" style={{ width: '40px' }}></div></td>
                                         </tr>
-                                    )
-                                }
-
-                                if (!row) {
-                                    return (
-                                        <tr key={id}>
-                                            <td className="mono" title={id}>{id.substring(0, 20)}...</td>
-                                            <td colSpan={6} style={{ color: 'var(--text-muted)' }}>Failed to load</td>
-                                            <td></td>
-                                        </tr>
-                                    )
-                                }
-
-                                return (
-                                    <tr key={id}>
-                                        <td className="mono" title={id}>{id.substring(0, 20)}...</td>
-                                        <td>
-                                            {row.status === 'success' ? (
-                                                <span className="badge badge-success">Success</span>
-                                            ) : row.status === 'error' ? (
-                                                <span className="badge badge-error">Error</span>
-                                            ) : (
-                                                <span className="badge badge-warning">{row.status}</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span className="badge badge-neutral">{row.tenant_id}</span>
-                                        </td>
-                                        <td>{row.span_count}</td>
-                                        <td style={{ color: row.error_count > 0 ? 'var(--error)' : 'inherit' }}>
-                                            {row.error_count}
-                                        </td>
-                                        <td>{formatDuration(row.duration_ms)}</td>
-                                        <td>{formatDate(row.created_at)}</td>
-                                        <td>
-                                            <Link to={`/traces/${id}`} className="btn btn-ghost btn-sm">
-                                                View &rarr;
-                                            </Link>
+                                    ))
+                                ) : filteredIds.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8}>
+                                            <div className="empty-state">
+                                                <div className="empty-state-icon">◈</div>
+                                                <div className="empty-state-title">No traces found</div>
+                                                <div className="empty-state-desc">Waiting for agent executions to be ingested.</div>
+                                            </div>
                                         </td>
                                     </tr>
-                                )
-                            })
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                                ) : (
+                                    filteredIds.map(id => {
+                                        const row = details[id]
+                                        const isRowLoading = loadingDetails[id] && !row
 
-            {/* Pagination */}
-            {!showSkeleton && total > 0 && (
-                <div className="page-header-row mt-6">
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                        Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total}
-                    </div>
-                    <div className="flex-row gap-2">
-                        <button
-                            className="btn btn-secondary"
-                            disabled={page === 0}
-                            onClick={() => setPage(p => Math.max(0, p - 1))}
-                        >
-                            Previous
-                        </button>
-                        <button
-                            className="btn btn-secondary"
-                            disabled={(page + 1) * limit >= total}
-                            onClick={() => setPage(p => p + 1)}
-                        >
-                            Next
-                        </button>
+                                        if (isRowLoading) {
+                                            return (
+                                                <tr key={id}>
+                                                    <td className="mono" title={id}>{id.substring(0, 20)}...</td>
+                                                    <td colSpan={6}><div className="skeleton" style={{ width: '100%' }}></div></td>
+                                                    <td></td>
+                                                </tr>
+                                            )
+                                        }
+
+                                        if (!row) {
+                                            return (
+                                                <tr key={id}>
+                                                    <td className="mono" title={id}>{id.substring(0, 20)}...</td>
+                                                    <td colSpan={6} style={{ color: 'var(--text-muted)' }}>Failed to load</td>
+                                                    <td></td>
+                                                </tr>
+                                            )
+                                        }
+
+                                        return (
+                                            <tr key={id}>
+                                                <td className="mono" title={id}>{id.substring(0, 20)}...</td>
+                                                <td>
+                                                    {row.status === 'success' ? (
+                                                        <span className="badge badge-success">Success</span>
+                                                    ) : row.status === 'error' ? (
+                                                        <span className="badge badge-error">Error</span>
+                                                    ) : (
+                                                        <span className="badge badge-warning">{row.status}</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <span className="badge badge-neutral">{row.tenant_id}</span>
+                                                </td>
+                                                <td>{row.span_count}</td>
+                                                <td style={{ color: row.error_count > 0 ? 'var(--error)' : 'inherit' }}>
+                                                    {row.error_count}
+                                                </td>
+                                                <td>{formatDuration(row.duration_ms)}</td>
+                                                <td>{formatDate(row.created_at)}</td>
+                                                <td>
+                                                    <Link to={`/traces/${id}`} className="px-2 py-1 text-[11px] font-semibold bg-white/5 hover:bg-white/10 rounded transition-colors text-text-secondary hover:text-white">
+                                                        View Details
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+
+                        {/* Pagination */}
+                        {!showSkeleton && total > 0 && (
+                            <div className="p-4 border-t border-border-subtle flex items-center justify-between">
+                                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                    Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total} rows
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        className="border border-border-subtle bg-bg-surface px-3 py-1.5 rounded text-[13px] font-medium text-white hover:bg-white/5 transition-colors disabled:opacity-50"
+                                        disabled={page === 0}
+                                        onClick={() => setPage(p => Math.max(0, p - 1))}
+                                    >
+                                        &larr; Prev
+                                    </button>
+                                    <button
+                                        className="border border-border-subtle bg-bg-surface px-3 py-1.5 rounded text-[13px] font-medium text-white hover:bg-white/5 transition-colors disabled:opacity-50"
+                                        disabled={(page + 1) * limit >= total}
+                                        onClick={() => setPage(p => p + 1)}
+                                    >
+                                        Next &rarr;
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-            )}
-        </div>
+            </main>
+        </>
     )
 }

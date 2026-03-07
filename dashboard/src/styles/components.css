@@ -279,103 +279,170 @@
     gap: 8px;
 }
 
-/* Layout */
-.layout-container {
+/* =========================================
+   CLICKHOUSE CLOUD LAYOUT ARCHITECTURE
+   ========================================= */
+.ch-layout {
     display: flex;
     height: 100vh;
     overflow: hidden;
+    background: var(--bg-base);
+    color: var(--text-primary);
 }
 
-.layout-sidebar {
-    width: var(--sidebar-width);
+/* 1. Global Sidebar (Leftmost) */
+.ch-sidebar-global {
+    width: 220px;
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    z-index: 30;
 }
 
-.layout-logo-container {
-    padding: 0 20px;
-    height: var(--header-height);
-    display: flex;
-    align-items: center;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.layout-logo {
+.ch-global-logo {
+    height: 60px;
+    padding: 0 16px;
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-.layout-logo-icon {
-    width: 28px;
-    height: 28px;
+.ch-global-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.ch-global-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+}
+
+.ch-org-selector {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.ch-global-nav {
+    flex: 1;
+    padding: 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ch-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.1s ease;
+}
+
+.ch-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.ch-nav-item.active {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.ch-incident-nav {
+    margin: 16px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: #660000;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* 2. Context Sidebar (Middle) */
+.ch-sidebar-context {
+    width: 240px;
+    background: var(--bg-base);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 20;
+}
+
+.ch-context-header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 16px;
+}
+
+.ch-context-tab {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 20px 0;
+    position: relative;
+    cursor: pointer;
+}
+
+.ch-context-tab.active {
+    color: var(--text-primary);
+}
+
+.ch-context-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
     background: var(--accent);
-    border-radius: 6px;
+}
+
+.ch-context-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.ch-btn-yellow {
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    font-weight: 800;
-    color: #000;
+    gap: 8px;
 }
 
-.layout-logo-text {
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--text-primary);
-    letter-spacing: -0.3px;
-    line-height: 1.2;
-}
-
-.layout-logo-sub {
-    font-size: 10px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 600;
-}
-
-.layout-nav {
-    padding: 16px 12px;
-    flex: 1;
-    overflow-y: auto;
-}
-
-.layout-nav-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 4px;
-    color: var(--text-secondary);
-    background: transparent;
-    transition: all 0.15s ease;
-}
-
-.layout-nav-item:hover {
-    color: var(--text-primary);
-    background: var(--bg-surface);
-}
-
-.layout-nav-item.active {
-    color: var(--text-primary);
-    background: var(--bg-surface);
-    font-weight: 600;
-}
-
-.layout-nav-item.active .layout-nav-icon {
-    color: var(--accent);
-    opacity: 1;
-}
-
-.layout-main {
+/* 3. Workspace Area (Right) */
+.ch-workspace {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -383,51 +450,31 @@
     background: var(--bg-base);
 }
 
-.layout-topbar {
-    height: var(--header-height);
-    background: var(--bg-sidebar);
-    border-bottom: 1px solid var(--border-subtle);
+.ch-topbar {
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
 
-.layout-env-selector {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    font-size: 13px;
+.ch-topbar-title {
+    font-size: 15px;
     font-weight: 600;
     color: var(--text-primary);
-    cursor: pointer;
-    transition: all 0.15s;
 }
 
-.layout-env-selector:hover {
-    border-color: var(--text-muted);
-}
-
-.layout-topbar-actions {
+.ch-topbar-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
 }
 
-.layout-content-scroll {
+.ch-workspace-scroll {
     flex: 1;
     overflow-y: auto;
-}
-
-.layout-content {
-    padding: 32px 40px;
-    max-width: 1200px;
-    margin: 0 auto;
 }
 
 /* Auth Pages */

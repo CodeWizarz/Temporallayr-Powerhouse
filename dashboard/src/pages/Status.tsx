@@ -114,67 +114,94 @@ export default function StatusPage() {
   const banner = getBannerConfig()
 
   return (
-    <div className="page-container-sm">
-      {/* 1. HEADER & BANNER */}
-      <div className="page-header page-header-row mb-6">
-        <div>
-          <h1 className="page-title">Service Status</h1>
-          <div className="page-subtitle mt-1">Real-time infrastructure health and latency</div>
+    <>
+      <div className="ch-sidebar-context">
+        <div className="ch-context-header">
+          <div className="ch-context-tab active">System Health</div>
         </div>
-        <div className="page-header-actions">
-          <span className="text-xs text-text-muted font-mono">
-            Last checked: {secondsAgo}s ago
-          </span>
-          <button
-            onClick={checkHealth}
-            className="btn btn-secondary btn-sm"
-            disabled={overallStatus === 'loading'}
-          >
-            <svg className={`w-3.5 h-3.5 mr-1.5 ${overallStatus === 'loading' ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            Refresh
-          </button>
+        <div className="ch-context-content">
+          <div className="text-[13px] text-white py-2 px-3 rounded bg-white/10 cursor-pointer font-medium mb-1">Global Status</div>
+          <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">API Services</div>
+          <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Databases</div>
+
+          <div className="mt-6 mb-2 text-[10px] uppercase tracking-wider text-text-muted px-3 font-semibold">External</div>
+          <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Dependents</div>
         </div>
       </div>
 
-      <div className={`flex-row items-center p-4 rounded-xl border mb-8 transition-colors ${banner.color}`}>
-        {banner.icon}
-        <div className="font-semibold text-text-primary uppercase tracking-wider text-sm">{banner.text}</div>
-      </div>
+      <main className="ch-workspace bg-bg-base">
+        <header className="ch-topbar">
+          <div className="ch-topbar-title flex flex-col justify-center">
+            <div className="text-[14px] text-text-primary font-bold">
+              Infrastructure Status
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-[11px] text-text-muted font-mono bg-bg-surface px-2 py-1 rounded border border-border-subtle">
+              Last checked: {secondsAgo}s ago
+            </span>
+            <div className="ch-topbar-actions">
+              <button
+                onClick={checkHealth}
+                className="ch-btn ch-btn-secondary"
+                disabled={overallStatus === 'loading'}
+              >
+                <svg className={`w-3.5 h-3.5 mr-1.5 ${overallStatus === 'loading' ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+        </header>
 
-      {/* 2. SERVICE STATUS TABLE */}
-      <div className="card !p-0 overflow-hidden border border-border-subtle shadow-md">
-        <table className="table w-full">
-          <thead className="bg-[#0a0a0c]">
-            <tr>
-              <th className="w-1/4">Service</th>
-              <th className="w-1/6">Status</th>
-              <th className="w-1/6 text-right pr-6">Response Time</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.values(backends).map((b, i) => (
-              <tr key={i} className="hover:bg-bg-hover transition-colors">
-                <td className="font-medium text-text-primary text-[13px]">{b.label}</td>
-                <td>{getStatusIcon(b.status)}</td>
-                <td className="text-right pr-6 text-text-secondary font-mono text-[11px]">
-                  {b.status === 'loading' ? '—' : `${b.latencyMs}ms`}
-                </td>
-                <td>
-                  <span className={`text-[12px] font-mono ${b.details.startsWith('http') ? 'text-accent' : 'text-text-muted'}`}>
-                    {b.details}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="ch-workspace-scroll">
+          <div className="p-8 max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h1 className="text-xl font-bold text-text-primary mb-1">Service Health</h1>
+              <div className="text-[13px] text-text-muted">Real-time infrastructure health and dependency latency metrics</div>
+            </div>
 
-      <div className="mt-6 text-center text-xs text-text-muted bg-bg-surface p-3 rounded-lg border border-border-subtle inline-block mx-auto flex-row items-center gap-2 justify-center">
-        <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        This page auto-refreshes every 30 seconds.
-      </div>
-    </div>
+            <div className={`flex-row items-center p-4 rounded-xl border mb-8 transition-colors ${banner.color}`}>
+              {banner.icon}
+              <div className="font-semibold text-text-primary uppercase tracking-wider text-sm">{banner.text}</div>
+            </div>
+
+            {/* 2. SERVICE STATUS TABLE */}
+            <div className="card !p-0 overflow-hidden border border-border-subtle shadow-md">
+              <table className="table w-full">
+                <thead className="bg-[#0a0a0c]">
+                  <tr>
+                    <th className="w-1/4">Service</th>
+                    <th className="w-1/6">Status</th>
+                    <th className="w-1/6 text-right pr-6">Response Time</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.values(backends).map((b, i) => (
+                    <tr key={i} className="hover:bg-bg-hover transition-colors">
+                      <td className="font-medium text-text-primary text-[13px]">{b.label}</td>
+                      <td>{getStatusIcon(b.status)}</td>
+                      <td className="text-right pr-6 text-text-secondary font-mono text-[11px]">
+                        {b.status === 'loading' ? '—' : `${b.latencyMs}ms`}
+                      </td>
+                      <td>
+                        <span className={`text-[12px] font-mono ${b.details.startsWith('http') ? 'text-accent' : 'text-text-muted'}`}>
+                          {b.details}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 text-center text-xs text-text-muted bg-bg-surface p-3 rounded-lg border border-border-subtle inline-block mx-auto flex-row items-center gap-2 justify-center">
+              <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              This page auto-refreshes every 30 seconds.
+            </div>
+          </div>
+        </div>
+      </main>
+    </>
   )
 }
