@@ -172,7 +172,14 @@ class PostgresStore(ExecutionStore):
             )
         if row is None:
             raise FileNotFoundError(f"Execution '{graph_id}' not found for tenant '{tenant_id}'")
-        return ExecutionGraph.model_validate_json(json.dumps(dict(row["data"])))
+
+        data = row["data"]
+        if isinstance(data, str):
+            return ExecutionGraph.model_validate_json(data)
+        elif isinstance(data, dict):
+            return ExecutionGraph.model_validate(data)
+        else:
+            return ExecutionGraph.model_validate_json(json.dumps(dict(data)))
 
     def list_executions(self, tenant_id: str, limit: int = 1000, offset: int = 0) -> list[str]:
         return _run_async(self.list_executions_async(tenant_id, limit, offset))
