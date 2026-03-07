@@ -15,7 +15,6 @@ Fixes applied:
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
 import os
 import time
@@ -247,30 +246,8 @@ class IngestRequest(BaseModel):
 
 
 async def _enqueue_graph(graph: ExecutionGraph) -> None:
-    """
-    Push graph to Redis queue for background worker processing.
-    If Redis isn't configured, fall back to synchronous processing.
-    """
-    from temporallayr.core.queue import get_redis_client
-
-    redis_client = get_redis_client()
-    if redis_client:
-        try:
-            # Pushing the full serialized graph allows worker to parse it entirely standalone.
-            push_result = redis_client.rpush("temporallayr:ingest_queue", graph.model_dump_json())
-            if inspect.isawaitable(push_result):
-                await push_result
-        except Exception as e:
-            logger.warning(
-                "Failed to enqueue graph to Redis, falling back to sync process",
-                extra={"error": str(e)},
-            )
-            await _process_graph_sync(graph)
-        finally:
-            await redis_client.aclose()
-    else:
-        # Fallback if no REDIS_URL configured
-        await _process_graph_sync(graph)
+    """Process graph inline — writes directly to ClickHouse, no worker needed."""
+    await _process_graph_sync(graph)
 
 
 async def _process_graph_sync(graph: ExecutionGraph) -> None:
