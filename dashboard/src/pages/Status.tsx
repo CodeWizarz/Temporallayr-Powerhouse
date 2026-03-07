@@ -121,7 +121,7 @@ export default function StatusPage() {
           <h1 className="page-title">Service Status</h1>
           <div className="page-subtitle mt-1">Real-time infrastructure health and latency</div>
         </div>
-        <div className="flex-row items-center gap-4">
+        <div className="page-header-actions">
           <span className="text-xs text-text-muted font-mono">
             Last checked: {secondsAgo}s ago
           </span>

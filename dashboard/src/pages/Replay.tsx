@@ -31,22 +31,25 @@ export default function ReplayPage() {
     }
 
     return (
-        <div className="text-text-primary pb-16 animate-in fade-in duration-500 max-w-[1000px] mx-auto">
-            <h1 className="text-xl font-bold text-accent mb-2">Replay & Diff</h1>
-            <div className="text-xs text-text-secondary mb-6">Deterministic execution replay and structural comparison</div>
+        <div className="page-container">
+            <div className="page-header">
+                <h1 className="page-title">Replay & Diff</h1>
+                <div className="page-subtitle">Deterministic execution replay and structural comparison</div>
+            </div>
 
             <div className="bg-[#0d1a0d] border border-[#1a3a1a] rounded-lg p-3.5 text-xs text-[#4caf6e] mb-5">
                 ▶ <strong>Replay</strong> re-executes a captured trace and checks for divergences — non-determinism in your agent will show up as mismatches. <strong>Diff</strong> compares two trace executions node-by-node to identify structural or output changes.
             </div>
 
-            <div className="flex gap-1 mb-5">
+            <div className="page-tabs-container">
                 {(['replay', 'diff'] as Tab[]).map(t => (
                     <button
                         key={t}
-                        className={`px-4 py-2 rounded-md text-xs font-medium capitalize transition-colors ${tab === t ? 'bg-accent text-black' : 'bg-bg-elevated text-text-muted hover:text-text-primary'}`}
+                        className={`tab-line-btn capitalize ${tab === t ? 'active' : ''}`}
                         onClick={() => setTab(t)}
                     >
                         {t}
+                        {tab === t && <div className="tab-line-indicator" />}
                     </button>
                 ))}
             </div>

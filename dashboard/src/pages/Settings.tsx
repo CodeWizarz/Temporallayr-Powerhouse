@@ -225,21 +225,21 @@ export const yourFunction = tl.trackLlm(async (prompt: string) => {
             <section className="mb-10">
                 <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider mb-4 border-b border-border-subtle pb-2">SDK Quick Start</h2>
                 <div className="card !p-0 overflow-hidden border border-border-subtle">
-                    <div className="bg-[#0a0a0c] border-b border-[#1f1f26] flex-row items-end px-2 pt-2 gap-1">
+                    <div className="sdk-tabs-header">
                         <button
-                            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${activeTab === 'python' ? 'bg-[#18181d] text-accent border-accent' : 'text-text-muted hover:text-text-secondary border-transparent'}`}
+                            className={`sdk-tab-btn ${activeTab === 'python' ? 'active' : ''}`}
                             onClick={() => setActiveTab('python')}
                         >
                             Python SDK
                         </button>
                         <button
-                            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${activeTab === 'node' ? 'bg-[#18181d] text-accent border-accent' : 'text-text-muted hover:text-text-secondary border-transparent'}`}
+                            className={`sdk-tab-btn ${activeTab === 'node' ? 'active' : ''}`}
                             onClick={() => setActiveTab('node')}
                         >
                             Node.js SDK
                         </button>
                     </div>
-                    <div className="relative bg-[#0d0d10] p-5">
+                    <div className="sdk-code-block">
                         <button
                             onClick={handleCopyCode}
                             className="absolute top-4 right-4 p-2 bg-text-muted/10 hover:bg-text-muted/20 text-text-secondary hover:text-white rounded transition-colors"

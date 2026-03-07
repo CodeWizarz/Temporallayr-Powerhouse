@@ -106,7 +106,7 @@ export default function AnalyticsPage() {
                     <h1 className="page-title">Performance Analytics</h1>
                     <div className="page-subtitle">Aggregate latency and error profiles</div>
                 </div>
-                <div className="flex-row items-center bg-bg-surface border border-border rounded-lg p-1">
+                <div className="page-header-actions border border-border rounded-lg p-1 bg-bg-surface">
                     {TIME_FILTERS.map(f => (
                         <button
                             key={f.hours}

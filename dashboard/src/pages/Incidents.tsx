@@ -89,7 +89,7 @@ export default function IncidentsPage() {
     return (
         <div className="page-container">
             {/* 1. HEADER */}
-            <div className="page-header page-header-row mb-6">
+            <div className="page-header page-header-row">
                 <div>
                     <h1 className="page-title flex-row items-center gap-3">
                         Incidents
@@ -97,14 +97,16 @@ export default function IncidentsPage() {
                     </h1>
                     <div className="page-subtitle mt-1">Managed failure clusters and threshold alerts</div>
                 </div>
-                <button onClick={fetchIncidents} className="btn btn-secondary" disabled={loading}>
-                    <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    Refresh
-                </button>
+                <div className="page-header-actions">
+                    <button onClick={fetchIncidents} className="btn btn-secondary" disabled={loading}>
+                        <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             {/* TAB FILTER */}
-            <div className="flex-row border-b border-border-subtle mb-6 gap-6">
+            <div className="page-tabs-container">
                 {TABS.map(tab => {
                     const count = tab === 'All'
                         ? incidents.length
@@ -114,13 +116,11 @@ export default function IncidentsPage() {
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === tab ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                            className={`tab-line-btn ${activeTab === tab ? 'active' : ''}`}
                         >
                             {tab}
-                            {!loading && <span className="ml-2 text-[10px] bg-bg-elevated px-1.5 py-0.5 rounded-full text-text-muted">{count}</span>}
-                            {activeTab === tab && (
-                                <div className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-accent" />
-                            )}
+                            {!loading && <span className="tab-badge">{count}</span>}
+                            {activeTab === tab && <div className="tab-line-indicator" />}
                         </button>
                     )
                 })}

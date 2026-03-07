@@ -21,7 +21,6 @@ export default function Layout({ children }: { children: ReactNode }) {
                         <div className="layout-logo-icon">T</div>
                         <div>
                             <div className="layout-logo-text">TemporalLayr</div>
-                            <div className="layout-logo-sub">AI Observability</div>
                         </div>
                     </div>
                 </div>
@@ -39,26 +38,36 @@ export default function Layout({ children }: { children: ReactNode }) {
                         </NavLink>
                     ))}
                 </nav>
-
-                {/* Footer */}
-                <div className="layout-footer">
-                    <span>v0.2.1 · MIT</span>
-                    <button
-                        className="layout-signout"
-                        onClick={() => {
-                            localStorage.removeItem('tl_api_key')
-                            window.location.href = '/login'
-                        }}
-                    >
-                        Sign out
-                    </button>
-                </div>
             </aside>
 
-            {/* Main */}
+            {/* Main Area with Topbar */}
             <main className="layout-main">
-                <div className="layout-content">
-                    {children}
+                <header className="layout-topbar">
+                    <div className="layout-env-selector">
+                        <span className="text-text-muted">Env:</span> Default Project
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+                    </div>
+
+                    <div className="layout-topbar-actions">
+                        <a href="https://github.com/CodeWizarz/Temporallayr-Powerhouse" target="_blank" rel="noreferrer" className="text-text-muted hover:text-text-primary transition-colors text-sm">
+                            Docs
+                        </a>
+                        <button
+                            className="bg-bg-surface border border-border px-3 py-1.5 rounded-sm text-xs font-semibold hover:border-text-muted transition-colors flex items-center gap-2"
+                            onClick={() => {
+                                localStorage.removeItem('tl_api_key')
+                                window.location.href = '/login'
+                            }}
+                        >
+                            Sign out
+                        </button>
+                    </div>
+                </header>
+
+                <div className="layout-content-scroll">
+                    <div className="layout-content">
+                        {children}
+                    </div>
                 </div>
             </main>
         </div>
