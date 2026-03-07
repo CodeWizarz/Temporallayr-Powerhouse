@@ -12,14 +12,12 @@
         "test:ui": "playwright test --ui"
     },
     "dependencies": {
-        "@clickhouse/click-ui": "latest",
         "@tanstack/react-query": "^5.0.0",
         "@xyflow/react": "^12.0.0",
         "react": "^18.3.0",
         "react-dom": "^18.3.0",
         "react-router-dom": "^6.26.0",
-        "recharts": "^2.12.0",
-        "styled-components": "^6.1.0"
+        "recharts": "^2.12.0"
     },
     "devDependencies": {
         "@playwright/test": "^1.58.2",

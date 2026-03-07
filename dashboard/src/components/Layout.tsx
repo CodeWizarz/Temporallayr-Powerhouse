@@ -1,49 +1,77 @@
 import { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 
-const Shell = { display:'flex', height:'100vh', background:'#0d0d0d' } as const
-const sidebarStyle = {
-  width:220, background:'#111', borderRight:'1px solid #1a1a1a',
-  display:'flex', flexDirection:'column' as const, padding:'20px 0', flexShrink:0
-}
-const logoArea = { padding:'0 20px 20px', borderBottom:'1px solid #1a1a1a', marginBottom:16 }
-const mainStyle = { flex:1, overflowY:'auto' as const, padding:'28px 32px' }
-
 const NAV = [
-    { to: '/traces',    label: 'Traces',    icon: '⬡' },
-    { to: '/incidents', label: 'Incidents', icon: '●' },
+    { to: '/traces', label: 'Traces', icon: '◈' },
     { to: '/analytics', label: 'Analytics', icon: '▦' },
-    { to: '/replay',    label: 'Replay',    icon: '▶' },
-    { to: '/status',    label: 'Status',    icon: '⚡' },
-    { to: '/settings',  label: 'Settings',  icon: '⚙' },
+    { to: '/incidents', label: 'Incidents', icon: '◉' },
+    { to: '/replay', label: 'Replay', icon: '▷' },
+    { to: '/settings', label: 'Settings', icon: '◎' },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {
     return (
-        <div style={Shell}>
-            <nav style={sidebarStyle}>
-                <div style={logoArea}>
-                    <div style={{ color:'#facc15', fontWeight:700, fontSize:18 }}>TemporalLayr</div>
-                    <div style={{ color:'#444', fontSize:11, marginTop:2 }}>Agent Observability</div>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+            {/* Sidebar */}
+            <aside style={{
+                width: 'var(--sidebar-width)', background: 'var(--bg-surface)',
+                borderRight: '1px solid var(--border-subtle)',
+                display: 'flex', flexDirection: 'column', flexShrink: 0,
+            }}>
+                {/* Logo */}
+                <div style={{
+                    padding: '0 20px', height: 'var(--header-height)',
+                    display: 'flex', alignItems: 'center',
+                    borderBottom: '1px solid var(--border-subtle)',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                            width: 28, height: 28, background: 'var(--accent)',
+                            borderRadius: 6, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#000',
+                        }}>T</div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>
+                                TemporalLayr
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>AI Observability</div>
+                        </div>
+                    </div>
                 </div>
-                {NAV.map(n => (
-                    <NavLink key={n.to} to={n.to} style={({ isActive }) => ({
-                        display:'flex', alignItems:'center', gap:10, padding:'9px 20px',
-                        textDecoration:'none', fontSize:13,
-                        color: isActive ? '#facc15' : '#666',
-                        borderLeft: isActive ? '2px solid #facc15' : '2px solid transparent',
-                        background: isActive ? '#1a1700' : 'transparent',
-                    })}>
-                        <span style={{ fontSize:13, width:16, textAlign:'center' }}>{n.icon}</span>
-                        {n.label}
-                    </NavLink>
-                ))}
-                <div style={{ flex:1 }} />
-                <div style={{ padding:'12px 20px', borderTop:'1px solid #1a1a1a' }}>
-                    <div style={{ color:'#333', fontSize:11 }}>v0.2.1 · TemporalLayr</div>
+
+                {/* Nav */}
+                <nav style={{ padding: '12px 8px', flex: 1 }}>
+                    {NAV.map(n => (
+                        <NavLink key={n.to} to={n.to} style={({ isActive }) => ({
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 12px', borderRadius: 'var(--radius-sm)',
+                            textDecoration: 'none', fontSize: 13, fontWeight: 500,
+                            marginBottom: 2,
+                            color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                            background: isActive ? 'var(--accent-dim)' : 'transparent',
+                            transition: 'all 0.1s',
+                        })}>
+                            <span style={{ fontSize: 12, opacity: 0.8 }}>{n.icon}</span>
+                            {n.label}
+                        </NavLink>
+                    ))}
+                </nav>
+
+                {/* Footer */}
+                <div style={{
+                    padding: '12px 20px', borderTop: '1px solid var(--border-subtle)',
+                    fontSize: 11, color: 'var(--text-muted)',
+                }}>
+                    v0.2.1 · MIT License
                 </div>
-            </nav>
-            <main style={mainStyle}>{children}</main>
+            </aside>
+
+            {/* Main */}
+            <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-base)' }}>
+                <div style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
+                    {children}
+                </div>
+            </main>
         </div>
     )
 }
