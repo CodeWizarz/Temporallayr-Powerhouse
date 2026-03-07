@@ -1,214 +1,424 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api/client'
-import styled from 'styled-components'
-
-const Page = styled.div`color:#e0e0e0;`
-const PageTitle = styled.h1`font-size:20px;font-weight:600;color:#facc15;margin:0 0 8px;`
-const Grid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:20px;`
-const Card = styled.div`background:#111;border:1px solid #1e1e1e;border-radius:10px;padding:20px;margin-bottom:20px;`
-const CardTitle = styled.h3`font-size:13px;color:#555;margin:0 0 16px;text-transform:uppercase;letter-spacing:.05em;`
-const Label = styled.div`font-size:12px;color:#666;margin-bottom:6px;`
-const Input = styled.input`background:#0d0d0d;border:1px solid #222;border-radius:6px;padding:9px 14px;color:#e0e0e0;font-size:13px;outline:none;width:100%;box-sizing:border-box;&:focus{border-color:#facc15;}&::placeholder{color:#333;}`
-const Btn = styled.button<{$primary?:boolean,$danger?:boolean}>`padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;border:none;transition:all .15s;background:${p=>p.$primary?'#facc15':p.$danger?'#2a0d0d':'#1a1a1a'};color:${p=>p.$primary?'#000':p.$danger?'#e55':'#888'};&:hover{opacity:.85;}&:disabled{opacity:.4;cursor:default;}`
-const Row = styled.div`display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;`
-const FullRow = styled.div`margin-bottom:16px;`
-const Table = styled.table`width:100%;border-collapse:collapse;font-size:12px;`
-const Th = styled.th`padding:8px 12px;text-align:left;font-weight:500;color:#555;border-bottom:1px solid #1e1e1e;`
-const Td = styled.td`padding:8px 12px;border-bottom:1px solid #161616;`
-const Tr = styled.tr`&:hover{background:#141414;}`
-const Toast = styled.div<{$ok?:boolean}>`position:fixed;bottom:24px;right:24px;background:${p=>p.$ok?'#0d2a1a':'#2a0d0d'};border:1px solid ${p=>p.$ok?'#1a4a2a':'#4a1a1a'};color:${p=>p.$ok?'#4caf6e':'#e55'};border-radius:8px;padding:12px 20px;font-size:13px;z-index:1000;`
-const Mono = styled.span`font-family:monospace;font-size:11px;`
-const CopyBtn = styled.button`background:none;border:1px solid #222;border-radius:4px;padding:2px 8px;font-size:10px;color:#555;cursor:pointer;&:hover{color:#e0e0e0;border-color:#444;}`
-const SectionSep = styled.div`border-top:1px solid #1a1a1a;margin:20px 0;`
-const Badge = styled.span`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;background:#1a1a1a;color:#888;`
-const Err = styled.div`color:#e55;background:#1a0808;border:1px solid #3a1010;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;`
-
-type Tenant = { tenant_id: string; key_count: number; created_at: string }
-type Key = { id: string; tenant_id: string; created_at: string }
 
 export default function SettingsPage() {
-    const [apiKey, setApiKey] = useState(() => localStorage.getItem('tl_api_key') || '')
+    // Current API Key
+    const [currentKey, setCurrentKey] = useState(localStorage.getItem('tl_api_key') || '')
+    const [inputKey, setInputKey] = useState('')
+    const [copiedKey, setCopiedKey] = useState(false)
+    const [savedNotice, setSavedNotice] = useState(false)
+
+    // Key List
+    const [keys, setKeys] = useState<any[]>([])
+    const [loadingKeys, setLoadingKeys] = useState(false)
+
+    // Tabs
+    const [activeTab, setActiveTab] = useState<'python' | 'node'>('python')
+    const [copiedCode, setCopiedCode] = useState(false)
+
+    // Admin Section
+    const [adminExpanded, setAdminExpanded] = useState(false)
     const [adminKey, setAdminKey] = useState('')
-    const [newTenantId, setNewTenantId] = useState('')
-    const [tenants, setTenants] = useState<Tenant[]>([])
-    const [myKeys, setMyKeys] = useState<Key[]>([])
-    const [toast, setToast] = useState<{msg:string,ok:boolean}|null>(null)
+    const [tenants, setTenants] = useState<any[]>([])
     const [loadingTenants, setLoadingTenants] = useState(false)
-    const [error, setError] = useState<string|null>(null)
-    const [rotatingTenant, setRotatingTenant] = useState<string|null>(null)
+    const [adminErr, setAdminErr] = useState<string | null>(null)
 
-    const showToast = (msg: string, ok = true) => {
-        setToast({msg, ok})
-        setTimeout(()=>setToast(null), 3000)
+    // Register Tenant inside admin
+    const [newTenantId, setNewTenantId] = useState('')
+    const [registering, setRegistering] = useState(false)
+    const [newTenantResult, setNewTenantResult] = useState<{ api_key?: string, error?: string } | null>(null)
+
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+    useEffect(() => {
+        if (!currentKey) return
+        setLoadingKeys(true)
+        api.keys.list()
+            .then(res => setKeys(res))
+            .catch(err => console.error("Could not load keys:", err))
+            .finally(() => setLoadingKeys(false))
+    }, [currentKey])
+
+    const handleSaveKey = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (inputKey.trim()) {
+            localStorage.setItem('tl_api_key', inputKey.trim())
+            setCurrentKey(inputKey.trim())
+            setInputKey('')
+            setSavedNotice(true)
+            setTimeout(() => setSavedNotice(false), 3000)
+            window.location.reload() // Force reload to apply key globally
+        }
     }
 
-    const saveKey = () => {
-        localStorage.setItem('tl_api_key', apiKey)
-        showToast('API key saved')
+    const handleCopyToken = () => {
+        navigator.clipboard.writeText(currentKey)
+        setCopiedKey(true)
+        setTimeout(() => setCopiedKey(false), 2000)
     }
 
-    const loadMyKeys = async () => {
-        try {
-            const data = await api.keys.list() as any
-            setMyKeys(data.items ?? data)
-        } catch(e:any) { console.warn('Could not load keys:', e.message) }
-    }
+    const pythonCode = `pip install temporallayr
 
-    const loadTenants = async () => {
-        if (!adminKey.trim()) return
-        setLoadingTenants(true); setError(null)
-        try {
-            const data = await api.admin.listTenants(adminKey) as any
-            setTenants(data.items ?? data ?? [])
-        } catch(e:any) { setError('Admin key invalid or server error: '+e.message) }
-        finally { setLoadingTenants(false) }
-    }
+import temporallayr as tl
 
-    const registerTenant = async () => {
-        if (!newTenantId.trim() || !adminKey.trim()) return
-        try {
-            const data = await api.admin.register(newTenantId.trim(), adminKey) as any
-            showToast(`Tenant "${newTenantId}" registered. API key: ${data.api_key||'generated'}`)
-            setNewTenantId('')
-            loadTenants()
-        } catch(e:any) { setError(e.message) }
-    }
-
-    const rotateTenantKey = async (tenantId: string) => {
-        setRotatingTenant(tenantId)
-        try {
-            const data = await api.admin.rotateKey(tenantId, adminKey) as any
-            showToast(`New key for ${tenantId}: ${data.api_key?.slice(0,12)}…`)
-            loadTenants()
-        } catch(e:any) { setError(e.message) }
-        finally { setRotatingTenant(null) }
-    }
-
-    useEffect(() => { loadMyKeys() }, [])
-
-    const copy = (text: string) => { navigator.clipboard.writeText(text); showToast('Copied to clipboard') }
-
-    return (
-        <Page>
-            <PageTitle>Settings</PageTitle>
-            <div style={{color:'#555',fontSize:12,marginBottom:24}}>SDK configuration, API keys, and tenant management</div>
-
-            <Grid>
-                <div>
-                    <Card>
-                        <CardTitle>SDK Configuration</CardTitle>
-                        <FullRow>
-                            <Label>API Key (stored in browser)</Label>
-                            <Row>
-                                <Input type="password" placeholder="tl_..." value={apiKey} onChange={e=>setApiKey(e.target.value)} />
-                                <Btn $primary onClick={saveKey}>Save</Btn>
-                            </Row>
-                        </FullRow>
-                        <SectionSep />
-                        <div style={{fontSize:12,color:'#555',marginBottom:12}}>Your API keys</div>
-                        {myKeys.length===0 ? (
-                            <div style={{color:'#333',fontSize:12}}>No keys found for current session. Set a valid API key above.</div>
-                        ) : (
-                            myKeys.map(k=>(
-                                <div key={k.id} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #161616'}}>
-                                    <Mono style={{color:'#777'}}>{k.id.slice(0,8)}… <Badge>{k.tenant_id}</Badge></Mono>
-                                    <span style={{fontSize:11,color:'#444'}}>{new Date(k.created_at).toLocaleDateString()}</span>
-                                </div>
-                            ))
-                        )}
-                    </Card>
-
-                    <Card>
-                        <CardTitle>Quick Start</CardTitle>
-                        <div style={{fontSize:12,color:'#666',lineHeight:1.8}}>
-                            <div style={{marginBottom:8}}>Install the SDK:</div>
-                            <div style={{background:'#0d0d0d',border:'1px solid #1e1e1e',borderRadius:6,padding:'8px 12px',fontFamily:'monospace',fontSize:11,color:'#aaa',marginBottom:14}}>
-                                pip install temporallayr
-                            </div>
-                            <div style={{marginBottom:8}}>Instrument your agent:</div>
-                            <div style={{background:'#0d0d0d',border:'1px solid #1e1e1e',borderRadius:6,padding:'10px 12px',fontFamily:'monospace',fontSize:11,color:'#aaa',whiteSpace:'pre'}}{...{}}>
-{`import temporallayr as tl
-
-tl.init(api_key="${apiKey||'YOUR_API_KEY'}")
+tl.init(
+    api_key="${currentKey || 'your-api-key'}",
+    server_url="${API_URL}",
+    tenant_id="your-tenant"
+)
 
 @tl.track_llm
-async def call_gpt(prompt):
-    ...`}
+async def your_function(prompt: str):
+    ...`
+
+    const nodeCode = `npm install temporallayr
+
+import { tl } from 'temporallayr'
+
+tl.init({
+    apiKey: "${currentKey || 'your-api-key'}",
+    serverUrl: "${API_URL}",
+    tenantId: "your-tenant"
+})
+
+export const yourFunction = tl.trackLlm(async (prompt: string) => {
+    ...
+})`
+
+    const activeCode = activeTab === 'python' ? pythonCode : nodeCode
+
+    const handleCopyCode = () => {
+        navigator.clipboard.writeText(activeCode)
+        setCopiedCode(true)
+        setTimeout(() => setCopiedCode(false), 2000)
+    }
+
+    const loadTenants = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!adminKey) return
+        setLoadingTenants(true)
+        setAdminErr(null)
+        try {
+            const res = await api.admin.listTenants(adminKey)
+            if (res.detail) throw new Error(res.detail)
+            setTenants(Array.isArray(res) ? res : res.items || [])
+        } catch (err: any) {
+            setAdminErr(err.message || 'Failed to load tenants')
+        } finally {
+            setLoadingTenants(false)
+        }
+    }
+
+    const handleRegisterTenant = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!adminKey || !newTenantId) return
+        setRegistering(true)
+        setNewTenantResult(null)
+        try {
+            const res = await api.admin.register(newTenantId, adminKey)
+            if (res.detail) throw new Error(res.detail)
+            setNewTenantResult({ api_key: res.api_key })
+            setNewTenantId('')
+            // Reload list
+            loadTenants(e)
+        } catch (err: any) {
+            setNewTenantResult({ error: err.message || 'Registration failed' })
+        } finally {
+            setRegistering(false)
+        }
+    }
+
+    const renderMaskedKey = (key: string) => {
+        if (!key) return '—'
+        const prefix = key.length > 8 ? key.substring(0, 8) : key.substring(0, 3)
+        return <><span className="text-text-primary font-medium">{prefix}</span><span className="text-text-muted">•••••••••••</span></>
+    }
+
+    return (
+        <div className="max-w-[800px] mx-auto pb-16 animate-in fade-in duration-500">
+            <div className="page-header mb-8">
+                <h1 className="page-title">Settings</h1>
+                <div className="page-subtitle">Manage API keys, integrations, and administration</div>
+            </div>
+
+            {/* 1. API KEY SECTION */}
+            <section className="mb-10">
+                <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider mb-4 border-b border-border-subtle pb-2">API Authentication</h2>
+
+                <div className="card mb-4 bg-bg-surface">
+                    <div className="flex gap-8 items-start">
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Active Authorization Target</label>
+                            <div className="flex gap-3 items-center bg-bg-elevated border border-border rounded-lg p-3 w-full">
+                                <div className="font-mono text-sm flex-1 tracking-wide">
+                                    {currentKey ? renderMaskedKey(currentKey) : <span className="text-text-muted italic">No active key configured</span>}
+                                </div>
+                                <button onClick={handleCopyToken} disabled={!currentKey} className="btn btn-ghost btn-sm p-1.5" title="Copy unmasked key">
+                                    {copiedKey ? (
+                                        <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                    )}
+                                </button>
                             </div>
+                            <p className="text-[11px] text-text-muted mt-2 flex items-center gap-1.5">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                This key is stored securely in your browser's local storage only.
+                            </p>
                         </div>
-                    </Card>
+                    </div>
+
+                    <div className="mt-5 pt-5 border-t border-border-subtle">
+                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Replace Active Key</label>
+                        <form onSubmit={handleSaveKey} className="flex gap-3">
+                            <input
+                                type="password"
+                                className="input flex-1"
+                                placeholder="sk_..."
+                                value={inputKey}
+                                onChange={e => setInputKey(e.target.value)}
+                            />
+                            <button type="submit" className="btn btn-secondary px-6 shrink-0" disabled={!inputKey.trim()}>
+                                Apply Key
+                            </button>
+                        </form>
+                        {savedNotice && <div className="text-xs text-success mt-2 font-medium">Session token updated successfully! Reloading...</div>}
+                    </div>
                 </div>
 
-                <div>
-                    <Card>
-                        <CardTitle>Admin — Tenant Management</CardTitle>
-                        <FullRow>
-                            <Label>Admin Key</Label>
-                            <Row>
-                                <Input type="password" placeholder="admin key" value={adminKey} onChange={e=>setAdminKey(e.target.value)} />
-                                <Btn onClick={loadTenants} disabled={loadingTenants||!adminKey.trim()}>
-                                    {loadingTenants?'…':'Load'}
-                                </Btn>
-                            </Row>
-                        </FullRow>
+                <div className="card !p-0 overflow-hidden border border-border-subtle">
+                    <div className="bg-bg-elevated px-4 py-3 border-b border-border-subtle">
+                        <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider m-0">Provisioned API Keys</h3>
+                    </div>
+                    {loadingKeys ? (
+                        <div className="p-4 text-center text-text-muted"><span className="loading-spinner w-4 h-4 mr-2" />Loading keys...</div>
+                    ) : keys.length === 0 ? (
+                        <div className="p-4 text-center text-text-muted text-sm">No keys found for this tenant cluster.</div>
+                    ) : (
+                        <table className="table w-full">
+                            <thead>
+                                <tr>
+                                    <th>Key ID</th>
+                                    <th>Tenant Namespace</th>
+                                    <th>Created At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {keys.map((k, i) => (
+                                    <tr key={i}>
+                                        <td>
+                                            <span className="font-mono text-[11px] bg-black/30 border border-border-subtle px-1.5 py-0.5 rounded text-text-secondary">
+                                                {renderMaskedKey(k.key || k.api_key || k.id)}
+                                            </span>
+                                        </td>
+                                        <td><span className="badge badge-neutral bg-black/20 !font-mono text-text-muted">{k.tenant_id || 'unknown'}</span></td>
+                                        <td className="text-xs text-text-secondary">{new Date(k.created_at || Date.now()).toLocaleDateString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </section>
 
-                        {error && <Err>{error}</Err>}
+            {/* 2. SDK QUICK START */}
+            <section className="mb-10">
+                <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider mb-4 border-b border-border-subtle pb-2">SDK Quick Start</h2>
+                <div className="card !p-0 overflow-hidden border border-border-subtle">
+                    <div className="bg-[#0a0a0c] border-b border-[#1f1f26] flex items-end px-2 pt-2 gap-1">
+                        <button
+                            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${activeTab === 'python' ? 'bg-[#18181d] text-accent border-accent' : 'text-text-muted hover:text-text-secondary border-transparent'}`}
+                            onClick={() => setActiveTab('python')}
+                        >
+                            Python SDK
+                        </button>
+                        <button
+                            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 ${activeTab === 'node' ? 'bg-[#18181d] text-accent border-accent' : 'text-text-muted hover:text-text-secondary border-transparent'}`}
+                            onClick={() => setActiveTab('node')}
+                        >
+                            Node.js SDK
+                        </button>
+                    </div>
+                    <div className="relative bg-[#0d0d10] p-5">
+                        <button
+                            onClick={handleCopyCode}
+                            className="absolute top-4 right-4 p-2 bg-text-muted/10 hover:bg-text-muted/20 text-text-secondary hover:text-white rounded transition-colors"
+                            title="Copy code"
+                        >
+                            {copiedCode ? (
+                                <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            ) : (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            )}
+                        </button>
+                        <pre className="text-xs font-mono text-text-primary leading-relaxed whitespace-pre-wrap overflow-x-auto m-0">
+                            {activeTab === 'python' ? (
+                                <>
+                                    <span className="text-text-muted"># 1. Install standard package</span><br />
+                                    <span className="text-[#a5d6ff]">pip install</span> temporallayr<br /><br />
+                                    <span className="text-text-muted"># 2. Inject environment hooks</span><br />
+                                    <span className="text-[#ff7b72]">import</span> temporallayr <span className="text-[#ff7b72]">as</span> tl<br /><br />
+                                    tl.init(<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;api_key=<span className="text-[#a5d6ff]">"{currentKey || 'your-api-key'}"</span>,<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;server_url=<span className="text-[#a5d6ff]">"{API_URL}"</span>,<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;tenant_id=<span className="text-[#a5d6ff]">"your-tenant"</span><br />
+                                    )<br /><br />
+                                    <span className="text-text-muted"># 3. Decorate arbitrary functions</span><br />
+                                    <span className="text-[#d2a8ff]">@tl.track_llm</span><br />
+                                    <span className="text-[#ff7b72]">async def</span> <span className="text-[#d2a8ff]">your_agent_workflow</span>(prompt: <span className="text-[#79c0ff]">str</span>):<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-text-muted">... # Standard execution</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-text-muted">// 1. Install registry package</span><br />
+                                    <span className="text-[#a5d6ff]">npm install</span> temporallayr<br /><br />
+                                    <span className="text-text-muted">// 2. Configure singleton export</span><br />
+                                    <span className="text-[#ff7b72]">import</span> {'{ tl }'} <span className="text-[#ff7b72]">from</span> <span className="text-[#a5d6ff]">'temporallayr'</span><br /><br />
+                                    tl.init({'{'}<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;apiKey: <span className="text-[#a5d6ff]">"{currentKey || 'your-api-key'}"</span>,<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;serverUrl: <span className="text-[#a5d6ff]">"{API_URL}"</span>,<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;tenantId: <span className="text-[#a5d6ff]">"your-tenant"</span><br />
+                                    {'}'})<br /><br />
+                                    <span className="text-text-muted">// 3. Wrap async procedures</span><br />
+                                    <span className="text-[#ff7b72]">export const</span> <span className="text-[#d2a8ff]">yourProcess</span> = tl.trackLlm(<span className="text-[#ff7b72]">async</span> (prompt: <span className="text-[#79c0ff]">string</span>) {'=> {'}<br />
+                                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-text-muted">... // Standard execution</span><br />
+                                    {'}'})
+                                </>
+                            )}
+                        </pre>
+                    </div>
+                </div>
+            </section>
 
-                        <SectionSep />
-                        <Label>Register New Tenant</Label>
-                        <Row style={{marginBottom:16}}>
-                            <Input placeholder="tenant-id (e.g. acme-corp)" value={newTenantId} onChange={e=>setNewTenantId(e.target.value)} onKeyDown={e=>e.key==='Enter'&&registerTenant()} />
-                            <Btn $primary disabled={!newTenantId.trim()||!adminKey.trim()} onClick={registerTenant}>Register</Btn>
-                        </Row>
+            {/* 3. ADMIN SECTION */}
+            <section className="mb-10">
+                <button
+                    onClick={() => setAdminExpanded(!adminExpanded)}
+                    className="w-full flex justify-between items-center text-sm font-bold text-text-secondary hover:text-text-primary uppercase tracking-wider mb-2 border-b border-border-subtle pb-2 transition-colors focus:outline-none"
+                    style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none' }}
+                >
+                    <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        Administrative Console
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform duration-200 ${adminExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
 
-                        {tenants.length>0 && (
-                            <>
-                                <div style={{fontSize:12,color:'#555',marginBottom:10}}>{tenants.length} tenants</div>
-                                <Table>
-                                    <thead><Tr><Th>Tenant ID</Th><Th>Keys</Th><Th>Created</Th><Th></Th></Tr></thead>
-                                    <tbody>
-                                        {tenants.map(t=>(
-                                            <Tr key={t.tenant_id}>
-                                                <Td><Mono>{t.tenant_id}</Mono></Td>
-                                                <Td style={{color:'#888'}}>{t.key_count}</Td>
-                                                <Td style={{color:'#555',fontSize:11}}>{new Date(t.created_at).toLocaleDateString()}</Td>
-                                                <Td>
-                                                    <Btn $danger style={{fontSize:11,padding:'3px 8px'}} disabled={rotatingTenant===t.tenant_id} onClick={()=>rotateTenantKey(t.tenant_id)}>
-                                                        {rotatingTenant===t.tenant_id?'…':'Rotate Key'}
-                                                    </Btn>
-                                                </Td>
-                                            </Tr>
-                                        ))}
-                                    </tbody>
-                                </Table>
-                            </>
+                {adminExpanded && (
+                    <div className="card bg-bg-surface mt-4 animate-in fade-in slide-in-from-top-2">
+                        {/* Auth */}
+                        <form onSubmit={loadTenants} className="mb-6">
+                            <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Master Administrator Key</label>
+                            <div className="flex gap-3">
+                                <input
+                                    type="password"
+                                    className="input flex-1"
+                                    placeholder="sk-admin-..."
+                                    value={adminKey}
+                                    onChange={e => setAdminKey(e.target.value)}
+                                    required
+                                />
+                                <button type="submit" className="btn btn-secondary px-6" disabled={loadingTenants || !adminKey}>
+                                    {loadingTenants ? <span className="loading-spinner w-4 h-4" /> : 'Load Remote Tenants'}
+                                </button>
+                            </div>
+                            {adminErr && <div className="text-xs text-error mt-2 font-medium">{adminErr}</div>}
+                        </form>
+
+                        {/* Register */}
+                        {tenants.length > 0 && (
+                            <form onSubmit={handleRegisterTenant} className="mb-8 p-4 bg-bg-elevated border border-border-subtle rounded-xl">
+                                <h4 className="text-sm font-semibold text-text-primary mb-3">Provision Global Tenant</h4>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        className="input flex-1 font-mono text-sm"
+                                        placeholder="tenant-namespace"
+                                        value={newTenantId}
+                                        onChange={e => setNewTenantId(e.target.value)}
+                                        pattern="^[a-z0-9-]+$"
+                                        title="Lowercase letters, numbers, and hyphens only"
+                                        required
+                                    />
+                                    <button type="submit" className="btn btn-primary px-6" disabled={registering || !newTenantId}>
+                                        {registering ? <span className="loading-spinner w-4 h-4 !border-black !border-t-transparent" /> : 'Provision Instance'}
+                                    </button>
+                                </div>
+                                {newTenantResult?.error && <div className="text-xs text-error mt-3 font-medium flex items-center gap-1"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {newTenantResult.error}</div>}
+                                {newTenantResult?.api_key && (
+                                    <div className="mt-4 bg-success-dim border border-success/30 p-3 rounded-lg flex items-center justify-between gap-4">
+                                        <div>
+                                            <div className="text-xs text-success font-bold uppercase tracking-wider mb-1">Tenant Provisioned</div>
+                                            <code className="text-[11px] font-mono text-text-primary select-all break-all">{newTenantResult.api_key}</code>
+                                        </div>
+                                    </div>
+                                )}
+                            </form>
                         )}
-                    </Card>
 
-                    <Card>
-                        <CardTitle>Server Info</CardTitle>
-                        <div style={{fontSize:12,color:'#666',lineHeight:2}}>
-                            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
-                                <span>API Endpoint</span>
-                                <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                                    <Mono style={{color:'#888'}}>{import.meta.env?.VITE_API_URL||'/api'}</Mono>
-                                    <CopyBtn onClick={()=>copy(import.meta.env?.VITE_API_URL||'/api')}>copy</CopyBtn>
+                        {/* List */}
+                        {tenants.length > 0 && (
+                            <div>
+                                <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3 block">Tenant Registry ({tenants.length})</h4>
+                                <div className="border border-border-subtle rounded-lg overflow-hidden">
+                                    <table className="table w-full bg-bg-elevated">
+                                        <thead>
+                                            <tr>
+                                                <th>Tenant ID</th>
+                                                <th>Created At</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {tenants.map((t, i) => (
+                                                <tr key={i}>
+                                                    <td className="font-mono text-xs text-text-primary font-medium">{t.tenant_id || t.id}</td>
+                                                    <td className="text-xs text-text-secondary">{new Date(t.created_at || Date.now()).toLocaleDateString()}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
-                                <span>Dashboard Version</span>
-                                <Badge>v0.2.1</Badge>
-                            </div>
-                            <div style={{display:'flex',justifyContent:'space-between'}}>
-                                <span>Docs</span>
-                                <a href="https://github.com/CodeWizarz/Temporallayr-Powerhouse" target="_blank" rel="noreferrer" style={{color:'#facc15',fontSize:11}}>GitHub →</a>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            </Grid>
+                        )}
+                    </div>
+                )}
+            </section>
 
-            {toast && <Toast $ok={toast.ok}>{toast.ok?'✓':' ✗'} {toast.msg}</Toast>}
-        </Page>
+            {/* 4. SERVER INFO */}
+            <section>
+                <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider mb-4 border-b border-border-subtle pb-2">System Profile</h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="card bg-bg-surface flex items-center justify-between p-4">
+                        <div>
+                            <div className="text-[10px] uppercase font-bold text-text-muted tracking-wider mb-1">Remote API Endpoint</div>
+                            <div className="text-sm font-mono text-text-primary">{API_URL}</div>
+                        </div>
+                        <button
+                            onClick={() => { navigator.clipboard.writeText(API_URL); setCopiedCode(true); setTimeout(() => setCopiedCode(false), 2000) }}
+                            className="btn btn-ghost btn-icon"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        </button>
+                    </div>
+                    <div className="card bg-bg-surface flex items-center justify-between p-4">
+                        <div>
+                            <div className="text-[10px] uppercase font-bold text-text-muted tracking-wider mb-1">Dashboard Version</div>
+                            <div className="text-sm font-mono text-accent">v0.2.1-stable</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-6 flex gap-6 text-sm">
+                    <a href="https://github.com" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-text-secondary hover:text-white transition-colors">
+                        <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
+                        GitHub Repository
+                    </a>
+                    <a href="https://github.com/temporallayr#readme" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-text-secondary hover:text-white transition-colors">
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                        SDK Documentation
+                    </a>
+                </div>
+            </section>
+        </div>
     )
 }
