@@ -1,16 +1,17 @@
 :root {
   /* Colors */
-  --bg-base: #0d0e12;
-  --bg-surface: #16181d;
-  --bg-elevated: #1e2028;
-  --bg-hover: #242631;
-  --border: #282a36;
-  --border-subtle: #1e2028;
+  --bg-base: #1f1f1c;
+  --bg-surface: #2d2d2d;
+  --bg-sidebar: #111111;
+  --bg-elevated: #3c3c3c;
+  --bg-hover: #4a4a4a;
+  --border: #3c3c3c;
+  --border-subtle: rgba(255, 255, 255, 0.05);
 
   /* Text */
-  --text-primary: #f4f5f6;
-  --text-secondary: #93989c;
-  --text-muted: #626771;
+  --text-primary: #ffffff;
+  --text-secondary: #e6e7e9;
+  --text-muted: #a0a0a0;
 
   /* Accent */
   --accent: #FAFF69;
@@ -31,11 +32,11 @@
   --header-height: 60px;
 
   /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
 
   /* Font */
-  --font-sans: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-ui: 'Outfit', system-ui, sans-serif;
+  --font-sans: 'SFMono-Regular', Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-ui: 'Inter', "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
