@@ -42,32 +42,28 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#0a0a0b] text-text-primary flex flex-col justify-center items-center p-4 font-ui relative overflow-hidden">
-            <Link to="/landing" className="absolute top-8 left-8 text-sm text-text-secondary hover:text-white transition-colors flex items-center gap-2 font-medium">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+        <div className="auth-page">
+            <Link to="/landing" className="auth-back-link">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 Back to home
             </Link>
 
             {/* Glowing orbs */}
-            <div className="absolute top-[-10%] left-[20%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
-            <div className="absolute bottom-[-10%] right-[20%] w-[40%] h-[40%] bg-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
+            <div className="glow-orb glow-orb-blue" />
+            <div className="glow-orb glow-orb-amber" />
 
-            <div className="mb-8 text-center z-10">
-                <div className="flex justify-center mb-4">
-                    <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center text-xl font-bold text-black shadow-[0_0_20px_rgba(250,204,21,0.3)]">
-                        T
-                    </div>
-                </div>
-                <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
+            <div className="auth-header">
+                <div className="auth-logo-box">T</div>
+                <h1 className="auth-title">
                     Sign in to TemporalLayr
                 </h1>
-                <p className="text-text-muted text-sm">Welcome back to your dashboard</p>
+                <p className="auth-subtitle">Welcome back to your dashboard</p>
             </div>
 
-            <div className="bg-bg-surface border border-border rounded-xl p-8 w-full max-w-[420px] shadow-2xl z-10">
-                <form onSubmit={handleLogin} className="space-y-5">
-                    <div>
-                        <label htmlFor="apiKey" className="block text-sm font-medium text-text-primary mb-1.5">
+            <div className="auth-card">
+                <form onSubmit={handleLogin}>
+                    <div className="auth-form-group">
+                        <label htmlFor="apiKey" className="auth-label">
                             API Key
                         </label>
                         <input
@@ -76,14 +72,14 @@ export default function LoginPage() {
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
                             placeholder="tl_sk_..."
-                            className="input w-full bg-bg-elevated"
+                            className="input"
                             required
                         />
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start text-sm text-red-400">
-                            <svg className="w-4 h-4 mr-2 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <div className="error-banner" style={{ padding: '8px 12px', fontSize: '13px', marginBottom: '16px' }}>
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <span>{error}</span>
                         </div>
                     )}
@@ -91,11 +87,12 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="btn btn-primary w-full py-2.5 justify-center mt-2 text-[14px]"
+                        className="btn btn-primary"
+                        style={{ width: '100%', padding: '10px', justifyContent: 'center', marginTop: '8px', fontSize: '14px' }}
                     >
                         {loading ? (
                             <>
-                                <span className="loading-spinner w-4 h-4 mr-2 border-2 border-black border-t-transparent" />
+                                <span className="loading-spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', borderColor: '#000', borderTopColor: 'transparent' }} />
                                 Validating...
                             </>
                         ) : (
@@ -104,9 +101,9 @@ export default function LoginPage() {
                     </button>
                 </form>
 
-                <div className="mt-6 text-center text-sm">
-                    <span className="text-text-secondary">Don't have an account? </span>
-                    <Link to="/signup" className="text-accent hover:text-accent-hover font-medium">
+                <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Don't have an account? </span>
+                    <Link to="/signup" className="auth-link">
                         Sign up →
                     </Link>
                 </div>
