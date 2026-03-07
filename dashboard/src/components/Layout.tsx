@@ -61,8 +61,23 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <div style={{
                     padding: '12px 20px', borderTop: '1px solid var(--border-subtle)',
                     fontSize: 11, color: 'var(--text-muted)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                 }}>
-                    v0.2.1 · MIT License
+                    <span>v0.2.1 · MIT License</span>
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('tl_api_key')
+                            window.location.href = '/login'
+                        }}
+                        style={{
+                            background: 'none', border: 'none', color: 'var(--text-secondary)',
+                            cursor: 'pointer', fontSize: 11, padding: '4px 8px', borderRadius: '4px'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                    >
+                        Sign out
+                    </button>
                 </div>
             </aside>
 
