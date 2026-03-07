@@ -5,16 +5,24 @@ build-backend = "hatchling.build"
 [project]
 name = "temporallayr"
 version = "0.2.1"
-description = "Production-grade telemetry, governance, and observability for autonomous AI agents"
+description = "Production-grade observability for autonomous AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "TemporalLayr Team", email = "engineering@temporallayr.com" }]
-keywords = ["observability", "ai", "agents", "tracing", "llm"]
+keywords = ["observability", "ai", "agents", "tracing", "llm", "langchain"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
 ]
+
+[project.urls]
+Homepage = "https://temporallayr-powerhouse.vercel.app"
+Repository = "https://github.com/CodeWizarz/Temporallayr-Powerhouse"
+Documentation = "https://github.com/CodeWizarz/Temporallayr-Powerhouse#readme"
 dependencies = [
   "pydantic>=2.0.0",
   "fastapi>=0.100.0",
