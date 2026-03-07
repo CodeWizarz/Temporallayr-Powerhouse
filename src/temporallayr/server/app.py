@@ -377,7 +377,7 @@ async def ingest_events(
                 event = {**event, "tenant_id": effective_tenant}
                 graph = ExecutionGraph.model_validate(event)
                 await async_store("save_execution", graph)
-                asyncio.create_task(_enqueue_graph(graph))
+                await _enqueue_graph(graph)
                 processed += 1
             except Exception as e:
                 logger.warning("Ingest event error", extra={"error": str(e)})
@@ -429,7 +429,7 @@ async def create_execution(
                     )
             except Exception as e:
                 logger.warning("Alert check failed", extra={"error": str(e)})
-        asyncio.create_task(_enqueue_graph(graph))
+        await _enqueue_graph(graph)
         return {"execution_id": graph.id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

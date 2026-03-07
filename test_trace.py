@@ -1,37 +1,41 @@
 import asyncio
-import temporallayr as tl
+import httpx
 
-import logging
+API_URL = "https://cognitive-natalie-temporall-2ff73e17.koyeb.app"
+API_KEY = "cuCTX6LiGtBmqP36BOenkvw_9Zot0W80henP2i0zmdw"
 
-logging.basicConfig(level=logging.DEBUG)
-
-
-@tl.track_llm
-async def fake_llm(prompt: str) -> str:
-    return f"Response to: {prompt}"
+payload = {
+    "events": [
+        {
+            "id": "analytics_test_001",
+            "tenant_id": "temporallayr-prod",
+            "nodes": [
+                {
+                    "id": "node_1",
+                    "type": "llm",
+                    "name": "signal_generator",
+                    "status": "success",
+                    "duration_ms": 142.5,
+                    "inputs": {"prompt": "Analyze NIFTY 50 momentum"},
+                    "outputs": {"signal": "BUY", "confidence": 0.78},
+                    "error": None,
+                }
+            ],
+            "edges": [],
+            "created_at": "2026-03-07T05:00:00Z",
+            "status": "success",
+        }
+    ]
+}
 
 
 async def main():
-    from temporallayr.sdk.client import init
-
-    sdk = init(
-        api_key="cuCTX6LiGtBmqP36BOenkvw_9Zot0W80henP2i0zmdw",
-        server_url="https://cognitive-natalie-temporall-2ff73e17.koyeb.app",
-        tenant_id="temporallayr-prod",
-    )
-
-    # Force start to avoid race conditions with the background task
-    await sdk.start()
-
-    from temporallayr.core.recorder import ExecutionRecorder
-
-    async with ExecutionRecorder(run_id="sdk_test_trace_5"):
-        result = await fake_llm("Hello TemporalLayr!")
-        print(result)
-
-    print("DEBUG TEST_TRACE: Triggering explicit shutdown")
-    await sdk.shutdown()
-    print("DEBUG TEST_TRACE: Shutdown fully completed")
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{API_URL}/v1/ingest", json=payload, headers={"Authorization": f"Bearer {API_KEY}"}
+        )
+        print("Status:", r.status_code)
+        print("Response:", r.json())
 
 
 asyncio.run(main())
