@@ -1,122 +1,239 @@
-import { useEffect, useState } from 'react'
-import { api, type Incident } from '../api/client'
-import styled from 'styled-components'
+import { useEffect, useState, useMemo } from 'react'
+import { api, Incident } from '../api/client'
 
-const Page = styled.div`color:#e0e0e0;`
-const Header = styled.div`display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;`
-const PageTitle = styled.h1`font-size:20px;font-weight:600;color:#facc15;margin:0;`
-const Table = styled.table`width:100%;border-collapse:collapse;font-size:13px;`
-const Th = styled.th`padding:10px 14px;text-align:left;font-weight:500;color:#666;border-bottom:1px solid #1e1e1e;`
-const Td = styled.td`padding:10px 14px;border-bottom:1px solid #161616;vertical-align:middle;`
-const Tr = styled.tr`transition:background .1s;&:hover{background:#141414;}`
-const SevBadge = styled.span<{$s:'critical'|'high'|'normal'}>`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${p=>p.$s==='critical'?'#2a0505':p.$s==='high'?'#2a1500':'#1a1a1a'};color:${p=>p.$s==='critical'?'#ff4444':p.$s==='high'?'#ff8800':'#888'};`
-const StatusBadge = styled.span<{$s:string}>`display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:${p=>p.$s==='open'?'#2a0d0d':p.$s==='acknowledged'?'#0d1a2a':'#0d2a1a'};color:${p=>p.$s==='open'?'#e55':p.$s==='acknowledged'?'#5af':'#4caf6e'};`
-const Btn = styled.button<{$primary?:boolean,$sm?:boolean}>`padding:${p=>p.$sm?'4px 10px':'7px 14px'};border-radius:6px;font-size:${p=>p.$sm?'11px':'13px'};cursor:pointer;border:none;transition:all .15s;background:${p=>p.$primary?'#facc15':'#1a1a1a'};color:${p=>p.$primary?'#000':'#888'};&:hover{opacity:.85;}&:disabled{opacity:.4;cursor:default;}`
-const Tabs = styled.div`display:flex;gap:4px;margin-bottom:20px;`
-const Tab = styled.button<{$active?:boolean}>`padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer;border:none;background:${p=>p.$active?'#facc15':'#1a1a1a'};color:${p=>p.$active?'#000':'#666'};&:hover{opacity:.85;}`
-const Empty = styled.div`text-align:center;padding:60px 0;color:#444;font-size:14px;`
-const Loader = styled.div`text-align:center;padding:60px 0;color:#555;`
-const Err = styled.div`color:#e55;background:#1a0808;border:1px solid #3a1010;border-radius:8px;padding:14px;margin-bottom:16px;`
-const Stats = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;`
-const StatCard = styled.div`background:#111;border:1px solid #1e1e1e;border-radius:10px;padding:16px;`
-const StatNum = styled.div`font-size:24px;font-weight:700;color:#facc15;`
-const StatLabel = styled.div`font-size:11px;color:#555;margin-top:4px;`
-const MonoId = styled.span`font-family:monospace;font-size:11px;color:#555;`
+const TABS = ['All', 'Open', 'Acknowledged', 'Resolved'] as const
+type Tab = typeof TABS[number]
 
-const fmtTime = (t: string) => new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
-
-type Filter = 'all' | 'open' | 'acknowledged' | 'resolved'
+function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString()
+}
 
 export default function IncidentsPage() {
     const [incidents, setIncidents] = useState<Incident[]>([])
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string|null>(null)
-    const [filter, setFilter] = useState<Filter>('all')
-    const [acting, setActing] = useState<string|null>(null)
+    const [activeTab, setActiveTab] = useState<Tab>('All')
+    const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({})
 
-    const load = async () => {
-        setLoading(true); setError(null)
+    const fetchIncidents = async () => {
+        setLoading(true)
         try {
-            const data = await api.incidents.list(100, 0) as any
-            setIncidents(data.items ?? data)
-        } catch(e:any) { setError(e.message) }
-        finally { setLoading(false) }
+            const res = await api.incidents.list(50)
+            setIncidents(res.items || [])
+        } catch (err) {
+            console.error('Failed to load incidents', err)
+        } finally {
+            setLoading(false)
+        }
     }
 
-    useEffect(()=>{ load() },[])
+    useEffect(() => {
+        fetchIncidents()
+    }, [])
 
-    const ack = async (id: string) => {
-        setActing(id)
-        try { await api.incidents.ack(id); await load() }
-        catch(e:any) { setError(e.message) }
-        finally { setActing(null) }
+    const handleAck = async (id: string) => {
+        setActionLoading(prev => ({ ...prev, [id]: true }))
+        try {
+            const updated = await api.incidents.ack(id)
+            setIncidents(prev => prev.map(inc => inc.incident_id === id ? updated : inc))
+        } catch (err) {
+            console.error('Failed to acknowledge incident', err)
+        } finally {
+            setActionLoading(prev => ({ ...prev, [id]: false }))
+        }
     }
 
-    const resolve = async (id: string) => {
-        setActing(id)
-        try { await api.incidents.resolve(id); await load() }
-        catch(e:any) { setError(e.message) }
-        finally { setActing(null) }
+    const handleResolve = async (id: string) => {
+        setActionLoading(prev => ({ ...prev, [id]: true }))
+        try {
+            const updated = await api.incidents.resolve(id)
+            setIncidents(prev => prev.map(inc => inc.incident_id === id ? updated : inc))
+        } catch (err) {
+            console.error('Failed to resolve incident', err)
+        } finally {
+            setActionLoading(prev => ({ ...prev, [id]: false }))
+        }
     }
 
-    const filtered = incidents.filter(i => filter==='all' || i.status===filter)
-    const openCount = incidents.filter(i=>i.status==='open').length
-    const critCount = incidents.filter(i=>i.severity==='critical').length
-    const ackCount = incidents.filter(i=>i.status==='acknowledged').length
-    const resolvedCount = incidents.filter(i=>i.status==='resolved').length
+    const filteredIncidents = useMemo(() => {
+        if (activeTab === 'All') return incidents
+        return incidents.filter(inc => inc.status.toLowerCase() === activeTab.toLowerCase())
+    }, [incidents, activeTab])
+
+    const getSeverityColor = (severity: string) => {
+        switch (severity) {
+            case 'critical': return 'var(--error)'
+            case 'high': return '#f97316' // orange-500
+            case 'normal': return 'var(--warning)'
+            default: return 'var(--border)'
+        }
+    }
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'open': return <span className="badge badge-error uppercase">Open</span>
+            case 'acknowledged': return <span className="badge badge-warning uppercase">Ack'd</span>
+            case 'resolved': return <span className="badge badge-success uppercase">Resolved</span>
+            default: return <span className="badge badge-neutral uppercase">{status}</span>
+        }
+    }
+
+    const getSeverityBadge = (severity: string) => {
+        switch (severity) {
+            case 'critical': return <span className="badge badge-error uppercase">Critical</span>
+            case 'high': return <span className="badge !bg-[#f9731615] !text-[#f97316] uppercase">High</span>
+            case 'normal': return <span className="badge badge-warning uppercase">Normal</span>
+            default: return <span className="badge badge-neutral uppercase">{severity}</span>
+        }
+    }
 
     return (
-        <Page>
-            <Header>
+        <div className="max-w-[1200px] mx-auto pb-12 animate-in fade-in duration-500">
+            {/* 1. HEADER */}
+            <div className="page-header flex justify-between items-end mb-6">
                 <div>
-                    <PageTitle>Incidents</PageTitle>
-                    <div style={{color:'#555',fontSize:12,marginTop:4}}>AI agent failure events and alerts</div>
+                    <h1 className="page-title flex items-center gap-3">
+                        Incidents
+                        {!loading && <span className="badge badge-neutral !rounded-full !px-2.5 !text-xs">{incidents.length}</span>}
+                    </h1>
+                    <div className="page-subtitle mt-1">Managed failure clusters and threshold alerts</div>
                 </div>
-                <Btn onClick={load}>↺ Refresh</Btn>
-            </Header>
+                <button onClick={fetchIncidents} className="btn btn-secondary" disabled={loading}>
+                    <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Refresh
+                </button>
+            </div>
 
-            <Stats>
-                <StatCard><StatNum style={{color:'#e55'}}>{openCount}</StatNum><StatLabel>Open</StatLabel></StatCard>
-                <StatCard><StatNum style={{color:'#ff4444'}}>{critCount}</StatNum><StatLabel>Critical</StatLabel></StatCard>
-                <StatCard><StatNum style={{color:'#5af'}}>{ackCount}</StatNum><StatLabel>Acknowledged</StatLabel></StatCard>
-                <StatCard><StatNum style={{color:'#4caf6e'}}>{resolvedCount}</StatNum><StatLabel>Resolved</StatLabel></StatCard>
-            </Stats>
+            {/* TAB FILTER */}
+            <div className="flex border-b border-border-subtle mb-6 gap-6">
+                {TABS.map(tab => {
+                    const count = tab === 'All'
+                        ? incidents.length
+                        : incidents.filter(i => i.status.toLowerCase() === tab.toLowerCase()).length
 
-            <Tabs>
-                {(['all','open','acknowledged','resolved'] as Filter[]).map(f=>(
-                    <Tab key={f} $active={filter===f} onClick={()=>setFilter(f)}>{f.charAt(0).toUpperCase()+f.slice(1)}{f==='all'?` (${incidents.length})`:f==='open'?` (${openCount})`:''}</Tab>
-                ))}
-            </Tabs>
+                    return (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === tab ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                        >
+                            {tab}
+                            {!loading && <span className="ml-2 text-[10px] bg-bg-elevated px-1.5 py-0.5 rounded-full text-text-muted">{count}</span>}
+                            {activeTab === tab && (
+                                <div className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-accent" />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
 
-            {error && <Err>⚠ {error}</Err>}
-
-            {loading ? <Loader>Loading incidents…</Loader> :
-             filtered.length===0 ? <Empty>{filter==='all'?'No incidents detected. Your agents are running smoothly 🎉':'No '+filter+' incidents.'}</Empty> :
-            <Table>
-                <thead>
-                    <Tr><Th>Incident ID</Th><Th>Severity</Th><Th>Status</Th><Th>Failing Node</Th><Th>Count</Th><Th>First Seen</Th><Th>Last Seen</Th><Th>Actions</Th></Tr>
-                </thead>
-                <tbody>
-                    {filtered.map(inc=>(
-                        <Tr key={inc.incident_id}>
-                            <Td><MonoId>{inc.incident_id.slice(0,8)}</MonoId></Td>
-                            <Td><SevBadge $s={inc.severity}>{inc.severity}</SevBadge></Td>
-                            <Td><StatusBadge $s={inc.status}>{inc.status}</StatusBadge></Td>
-                            <Td style={{fontFamily:'monospace',fontSize:12,color:'#aaa'}}>{inc.failing_node||'—'}</Td>
-                            <Td style={{color:'#888'}}>{inc.count}</Td>
-                            <Td style={{color:'#666'}}>{fmtTime(inc.first_seen)}</Td>
-                            <Td style={{color:'#666'}}>{fmtTime(inc.last_seen)}</Td>
-                            <Td>
-                                <div style={{display:'flex',gap:6}}>
-                                    {inc.status==='open' && <Btn $sm disabled={acting===inc.incident_id} onClick={()=>ack(inc.incident_id)}>Ack</Btn>}
-                                    {inc.status!=='resolved' && <Btn $sm disabled={acting===inc.incident_id} onClick={()=>resolve(inc.incident_id)}>Resolve</Btn>}
-                                    {inc.status==='resolved' && <span style={{color:'#4caf6e',fontSize:11}}>✓ Done</span>}
+            {/* CONTENT */}
+            {loading ? (
+                <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="card !p-0 overflow-hidden flex h-[140px]">
+                            <div className="w-1 bg-border-subtle" />
+                            <div className="p-5 flex-1 flex flex-col justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="skeleton w-16 h-5" />
+                                    <div className="skeleton w-16 h-5" />
+                                    <div className="skeleton w-32 h-4" />
                                 </div>
-                            </Td>
-                        </Tr>
+                                <div className="skeleton w-[60%] h-5" />
+                                <div className="skeleton w-64 h-3" />
+                            </div>
+                        </div>
                     ))}
-                </tbody>
-            </Table>}
-        </Page>
+                </div>
+            ) : filteredIncidents.length === 0 ? (
+                <div className="empty-state !py-24 border border-border-subtle rounded-xl bg-bg-surface">
+                    <div className="text-[48px] text-success/20 mb-4 inline-block">◉</div>
+                    <div className="empty-state-title !text-lg !text-text-primary">No incidents detected</div>
+                    <div className="empty-state-desc !text-sm max-w-md mx-auto">
+                        System is healthy. Incidents are auto-detected when failure clusters exceed thresholds.
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {filteredIncidents.map(inc => {
+                        const isActionLoading = actionLoading[inc.incident_id]
+                        const isOpen = inc.status === 'open'
+                        const isAckd = inc.status === 'acknowledged'
+                        const isResolved = inc.status === 'resolved'
+
+                        return (
+                            <div
+                                key={inc.incident_id}
+                                className="card !p-0 overflow-hidden flex transition-all hover:border-border hover:shadow-md bg-bg-surface border border-border-subtle relative group"
+                            >
+                                {/* Left Color Bar */}
+                                <div className="w-[4px] shrink-0" style={{ backgroundColor: getSeverityColor(inc.severity) }} />
+
+                                <div className="p-5 flex-1 flex justify-between items-center bg-gradient-to-r from-transparent to-bg-elevated/20">
+                                    {/* Left Content */}
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex items-center gap-3">
+                                            {getSeverityBadge(inc.severity)}
+                                            {getStatusBadge(inc.status)}
+                                            <span className="font-mono text-xs text-text-muted bg-black/30 px-2 py-0.5 rounded border border-border-subtle" title={inc.incident_id}>
+                                                {inc.incident_id.substring(0, 18)}...
+                                            </span>
+                                            <span className="badge badge-neutral !bg-black/20 !font-mono">{inc.tenant_id}</span>
+                                        </div>
+
+                                        <div className="text-[15px] font-medium text-text-primary flex items-center gap-2">
+                                            Failing node: <span className="font-mono text-accent bg-accent-dim px-1.5 py-0.5 rounded text-[13px]">{inc.failing_node || 'unknown'}</span>
+                                            <span className="text-text-muted font-normal text-sm ml-2">·</span>
+                                            <span className="text-text-secondary text-sm font-normal">{inc.count.toLocaleString()} occurrences</span>
+                                        </div>
+
+                                        <div className="text-xs text-text-muted flex items-center gap-3">
+                                            <span className="flex items-center gap-1.5">
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                First seen: {formatDate(inc.first_seen)}
+                                            </span>
+                                            <span>·</span>
+                                            <span>Last seen: {formatDate(inc.last_seen)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Actions */}
+                                    <div className="flex flex-col gap-2 shrink-0 pl-6 border-l border-border-subtle border-dashed ml-4 min-w-[140px]">
+                                        {isResolved ? (
+                                            <div className="text-success text-sm font-medium flex items-center justify-center h-full gap-1.5">
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                Resolved
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {isOpen && (
+                                                    <button
+                                                        className="btn btn-secondary btn-sm w-full justify-center !py-1.5"
+                                                        onClick={() => handleAck(inc.incident_id)}
+                                                        disabled={isActionLoading}
+                                                    >
+                                                        {isActionLoading && !isAckd ? <span className="loading-spinner w-3 h-3 mr-1.5" /> : null}
+                                                        Acknowledge
+                                                    </button>
+                                                )}
+                                                {(isOpen || isAckd) && (
+                                                    <button
+                                                        className="btn btn-secondary btn-sm w-full justify-center !py-1.5 !text-success hover:!border-success/30 hover:!bg-success-dim"
+                                                        onClick={() => handleResolve(inc.incident_id)}
+                                                        disabled={isActionLoading}
+                                                    >
+                                                        {isActionLoading && isAckd ? <span className="loading-spinner w-3 h-3 mr-1.5 !border-success !border-t-transparent" /> : null}
+                                                        Resolve
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
     )
 }
