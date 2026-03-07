@@ -9,15 +9,20 @@ payload = {
         {
             "id": "analytics_test_001",
             "tenant_id": "temporallayr-prod",
-            "nodes": [
+            "spans": [
                 {
-                    "id": "node_1",
+                    "span_id": "span_1",
+                    "parent_span_id": None,
                     "type": "llm",
                     "name": "signal_generator",
                     "status": "success",
-                    "duration_ms": 142.5,
-                    "inputs": {"prompt": "Analyze NIFTY 50 momentum"},
-                    "outputs": {"signal": "BUY", "confidence": 0.78},
+                    "start_time": "2026-03-07T05:00:00Z",
+                    "end_time": "2026-03-07T05:00:01Z",
+                    "attributes": {
+                        "duration_ms": 142.5,
+                        "inputs": {"prompt": "Analyze NIFTY 50 momentum"},
+                        "outputs": {"signal": "BUY", "confidence": 0.78},
+                    },
                     "error": None,
                 }
             ],

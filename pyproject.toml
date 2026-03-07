@@ -19,16 +19,17 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
 ]
 
-[project.urls]
-Homepage = "https://temporallayr-powerhouse.vercel.app"
-Repository = "https://github.com/CodeWizarz/Temporallayr-Powerhouse"
-Documentation = "https://github.com/CodeWizarz/Temporallayr-Powerhouse#readme"
 dependencies = [
   "pydantic>=2.0.0",
   "fastapi>=0.100.0",
   "uvicorn[standard]>=0.27.1",
   "httpx>=0.27.0",
 ]
+
+[project.urls]
+Homepage = "https://temporallayr-powerhouse.vercel.app"
+Repository = "https://github.com/CodeWizarz/Temporallayr-Powerhouse"
+Documentation = "https://github.com/CodeWizarz/Temporallayr-Powerhouse#readme"
 
 [project.optional-dependencies]
 clickhouse = [
