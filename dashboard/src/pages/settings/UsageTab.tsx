@@ -1,4 +1,16 @@
+import { useState } from 'react'
+
 export default function UsageTab() {
+    const [activeCategory, setActiveCategory] = useState('compute')
+
+    const getChartHeights = () => {
+        if (activeCategory === 'compute') return ['6%', '72%', '15%', '85%', '82%']
+        if (activeCategory === 'storage') return ['10%', '15%', '12%', '18%', '16%']
+        if (activeCategory === 'backups') return ['2%', '4%', '3%', '5%', '4%']
+        if (activeCategory === 'clickpipes') return ['0%', '0%', '0%', '0%', '0%']
+        return ['1%', '2%', '1%', '3%', '2%'] // data transfer
+    }
+    const heights = getChartHeights()
     return (
         <>
             <header className="ch-topbar">
@@ -33,11 +45,11 @@ export default function UsageTab() {
                     <div className="border border-border-subtle rounded-md bg-[#161616] p-6 mb-8">
                         <div className="flex justify-end mb-8">
                             <div className="flex overflow-hidden rounded-[4px] border border-border-subtle bg-black">
-                                <button className="px-4 py-1.5 text-[12px] font-medium text-white bg-white/10">Compute</button>
-                                <button className="px-4 py-1.5 text-[12px] font-medium text-text-secondary hover:text-white border-l border-border-subtle">Storage</button>
-                                <button className="px-4 py-1.5 text-[12px] font-medium text-text-secondary hover:text-white border-l border-border-subtle">Backups</button>
-                                <button className="px-4 py-1.5 text-[12px] font-medium text-text-secondary hover:text-white border-l border-border-subtle">ClickPipes</button>
-                                <button className="px-4 py-1.5 text-[12px] font-medium text-text-secondary hover:text-white border-l border-border-subtle">Data transfer</button>
+                                <button onClick={() => setActiveCategory('compute')} className={`px-4 py-1.5 text-[12px] font-medium transition-colors ${activeCategory === 'compute' ? 'text-white bg-white/10' : 'text-text-secondary hover:text-white'}`}>Compute</button>
+                                <button onClick={() => setActiveCategory('storage')} className={`px-4 py-1.5 text-[12px] font-medium border-l border-border-subtle transition-colors ${activeCategory === 'storage' ? 'text-white bg-white/10' : 'text-text-secondary hover:text-white'}`}>Storage</button>
+                                <button onClick={() => setActiveCategory('backups')} className={`px-4 py-1.5 text-[12px] font-medium border-l border-border-subtle transition-colors ${activeCategory === 'backups' ? 'text-white bg-white/10' : 'text-text-secondary hover:text-white'}`}>Backups</button>
+                                <button onClick={() => setActiveCategory('clickpipes')} className={`px-4 py-1.5 text-[12px] font-medium border-l border-border-subtle transition-colors ${activeCategory === 'clickpipes' ? 'text-white bg-white/10' : 'text-text-secondary hover:text-white'}`}>ClickPipes</button>
+                                <button onClick={() => setActiveCategory('datatransfer')} className={`px-4 py-1.5 text-[12px] font-medium border-l border-border-subtle transition-colors ${activeCategory === 'datatransfer' ? 'text-white bg-white/10' : 'text-text-secondary hover:text-white'}`}>Data transfer</button>
                             </div>
                         </div>
 
@@ -67,25 +79,25 @@ export default function UsageTab() {
                             <div className="flex justify-between w-full h-[calc(100%-24px)] px-4">
                                 {/* Mar 2 */}
                                 <div className="relative flex flex-col justify-end items-center h-full group">
-                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: '6%' }}></div>
+                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: heights[0] }}></div>
                                     <div className="absolute -bottom-10 text-[10px] text-text-muted -rotate-45 whitespace-nowrap origin-top-left ml-5">Mar 2, 2026</div>
                                 </div>
                                 {/* Mar 4 */}
                                 <div className="relative flex flex-col justify-end items-center h-full group">
-                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: '72%' }}></div>
+                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: heights[1] }}></div>
                                     <div className="absolute -bottom-10 text-[10px] text-text-muted -rotate-45 whitespace-nowrap origin-top-left ml-5">Mar 4, 2026</div>
                                 </div>
                                 <div className="relative flex flex-col justify-end items-center h-full group">
-                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: '15%' }}></div>
+                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: heights[2] }}></div>
                                 </div>
                                 {/* Mar 6 */}
                                 <div className="relative flex flex-col justify-end items-center h-full group">
-                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: '85%' }}></div>
+                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: heights[3] }}></div>
                                     <div className="absolute -bottom-10 text-[10px] text-text-muted -rotate-45 whitespace-nowrap origin-top-left ml-5">Mar 6, 2026</div>
                                 </div>
                                 {/* Mar 8 */}
                                 <div className="relative flex flex-col justify-end items-center h-full group">
-                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: '82%' }}></div>
+                                    <div className="w-5 bg-[#3b82f6] rounded-sm transition-all duration-300 group-hover:bg-[#60a5fa]" style={{ height: heights[4] }}></div>
                                     <div className="absolute -bottom-10 text-[10px] text-text-muted -rotate-45 whitespace-nowrap origin-top-left ml-5">Mar 8, 2026</div>
                                 </div>
 

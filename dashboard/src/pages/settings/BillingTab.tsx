@@ -1,3 +1,5 @@
+import toast from 'react-hot-toast'
+
 export default function BillingTab() {
     return (
         <>
@@ -18,7 +20,7 @@ export default function BillingTab() {
                             <div className="text-[12px] text-text-muted mb-1 font-medium">Plan</div>
                             <div className="flex items-center gap-3">
                                 <div className="text-[15px] font-bold text-text-primary">Scale - Trial</div>
-                                <div className="text-[12px] text-[#A5D6FF] cursor-pointer hover:underline">Change plan</div>
+                                <div className="text-[12px] text-[#A5D6FF] cursor-pointer hover:underline" onClick={() => toast('Plan management portal opening...')}>Change plan</div>
                             </div>
                         </div>
 
@@ -50,7 +52,7 @@ export default function BillingTab() {
                         <p className="text-[14px] text-text-muted mb-8 max-w-[320px] text-center tracking-wide leading-relaxed">
                             Add a credit card to continue using ClickHouse once your free trial ends.
                         </p>
-                        <button className="ch-btn-yellow !px-6 !py-2.5 !w-auto !text-[14px]">
+                        <button className="ch-btn-yellow !px-6 !py-2.5 !w-auto !text-[14px]" onClick={() => toast('Redirecting to Stripe payment gateway...', { icon: '💳' })}>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                             Credit card
                         </button>
@@ -83,7 +85,7 @@ export default function BillingTab() {
                                 </tbody>
                             </table>
                             <div className="text-right mt-3 text-[12px] text-text-muted">
-                                <span className="text-accent cursor-pointer hover:underline">Contact us</span> to add more credits
+                                <span className="text-accent cursor-pointer hover:underline" onClick={() => toast.success('Support ticket initiated!')}>Contact us</span> to add more credits
                             </div>
                         </div>
                     </div>

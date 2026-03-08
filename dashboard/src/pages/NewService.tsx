@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 
 export default function NewService() {
     const navigate = useNavigate()
@@ -10,6 +11,19 @@ export default function NewService() {
     const [shareData, setShareData] = useState(false)
     const [openScaling, setOpenScaling] = useState(false)
     const [openAdvanced, setOpenAdvanced] = useState(false)
+    const [creating, setCreating] = useState(false)
+
+    const handleCreate = () => {
+        if (!serviceName.trim()) {
+            toast.error("Please provide a service name first.")
+            return
+        }
+        setCreating(true)
+        setTimeout(() => {
+            toast.success(`Service "${serviceName.trim()}" provisioned successfully!`)
+            navigate('/traces')
+        }, 1500)
+    }
 
     return (
         <main className="ch-workspace bg-bg-base overflow-y-auto">
@@ -151,8 +165,10 @@ export default function NewService() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <button className="btn btn-secondary px-6 border-white/10" onClick={() => navigate(-1)}>Back</button>
-                        <button className="btn btn-primary px-6" onClick={() => navigate('/traces')}>Create service</button>
+                        <button className="btn btn-secondary px-6 border-white/10" onClick={() => navigate(-1)} disabled={creating}>Back</button>
+                        <button className="btn btn-primary px-6" onClick={handleCreate} disabled={creating}>
+                            {creating ? <span className="loading-spinner w-4 h-4 !border-black !border-t-transparent" /> : 'Create service'}
+                        </button>
                     </div>
                 </div>
             </div>

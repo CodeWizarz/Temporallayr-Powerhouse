@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 
 const NAV = [
     { to: '/traces', label: 'Traces', icon: <svg className="ch-global-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg> },
@@ -37,14 +38,14 @@ export default function Layout({ children }: { children: ReactNode }) {
                     ))}
 
                     <div className="my-2 border-t border-border-subtle opacity-50"></div>
-                    <NavLink to="/status" className="ch-nav-item">
+                    <button onClick={() => toast("Client Connect protocol launching soon...", { icon: '🔌' })} className="ch-nav-item w-full text-left bg-transparent border-none">
                         <svg className="ch-global-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                         Connect
-                    </NavLink>
-                    <NavLink to="#" onClick={(e) => e.preventDefault()} className="ch-nav-item">
+                    </button>
+                    <button onClick={() => toast("AI Support Agent is currently booting...", { icon: '🤖' })} className="ch-nav-item w-full text-left bg-transparent border-none">
                         <svg className="ch-global-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                         Ask AI
-                    </NavLink>
+                    </button>
                 </nav>
 
                 <div className="px-4 mb-2">

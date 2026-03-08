@@ -5,7 +5,7 @@ import BillingTab from './settings/BillingTab'
 import UsageTab from './settings/UsageTab'
 
 export default function SettingsPage() {
-    const [contextTab, setContextTab] = useState<'billing' | 'usage' | 'general'>('general')
+    const [contextTab, setContextTab] = useState<'billing' | 'usage' | 'general' | 'plans' | 'users' | 'endpoints' | 'retention'>('general')
 
     // Current API Key
     const [currentKey, setCurrentKey] = useState(localStorage.getItem('tl_api_key') || '')
@@ -154,7 +154,12 @@ export const yourFunction = tl.trackLlm(async (prompt: string) => {
                         Billing
                     </div>
 
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded transition-colors">Plans</div>
+                    <div
+                        className={`text-[13px] py-2 px-3 rounded cursor-pointer font-medium transition-colors ${contextTab === 'plans' ? 'text-white bg-white/10' : 'text-text-secondary hover:bg-white/5'}`}
+                        onClick={() => setContextTab('plans')}
+                    >
+                        Plans
+                    </div>
 
                     <div
                         className={`text-[13px] py-2 px-3 rounded cursor-pointer font-medium transition-colors ${contextTab === 'usage' ? 'text-white bg-white/10' : 'text-text-secondary hover:bg-white/5'}`}
@@ -163,8 +168,19 @@ export const yourFunction = tl.trackLlm(async (prompt: string) => {
                         Usage breakdown
                     </div>
 
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded transition-colors">Users and roles</div>
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded transition-colors">Private endpoints</div>
+                    <div
+                        className={`text-[13px] py-2 px-3 rounded cursor-pointer font-medium transition-colors ${contextTab === 'users' ? 'text-white bg-white/10' : 'text-text-secondary hover:bg-white/5'}`}
+                        onClick={() => setContextTab('users')}
+                    >
+                        Users and roles
+                    </div>
+
+                    <div
+                        className={`text-[13px] py-2 px-3 rounded cursor-pointer font-medium transition-colors ${contextTab === 'endpoints' ? 'text-white bg-white/10' : 'text-text-secondary hover:bg-white/5'}`}
+                        onClick={() => setContextTab('endpoints')}
+                    >
+                        Private endpoints
+                    </div>
 
                     <div className="mt-6 mb-2 text-[10px] uppercase tracking-wider text-text-muted px-3 font-semibold">Service</div>
                     <div
@@ -173,13 +189,31 @@ export const yourFunction = tl.trackLlm(async (prompt: string) => {
                     >
                         General Settings
                     </div>
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded transition-colors">Data Retention</div>
+                    <div
+                        className={`text-[13px] py-2 px-3 rounded cursor-pointer font-medium transition-colors ${contextTab === 'retention' ? 'text-white bg-white/10' : 'text-text-secondary hover:bg-white/5'}`}
+                        onClick={() => setContextTab('retention')}
+                    >
+                        Data Retention
+                    </div>
                 </div>
             </div>
 
             <main className="ch-workspace bg-bg-base">
                 {contextTab === 'billing' && <BillingTab />}
                 {contextTab === 'usage' && <UsageTab />}
+
+                {['plans', 'users', 'endpoints', 'retention'].includes(contextTab) && (
+                    <div className="flex flex-col items-center justify-center py-32 h-full opacity-80">
+                        <svg className="w-16 h-16 text-text-muted hover:text-white mb-6 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        <h2 className="text-[20px] font-bold text-text-primary mb-3">Enterprise Upgrade Required</h2>
+                        <p className="text-[14px] text-text-muted mb-8 max-w-[340px] text-center tracking-wide leading-relaxed">
+                            This feature is locked under your current service tier. Upgrade to unlock RBAC, Private Endpoints, and Custom Retention.
+                        </p>
+                        <button className="ch-btn-yellow !px-6 !py-2.5 !w-auto !text-[14px]" onClick={() => setContextTab('billing')}>
+                            View plans
+                        </button>
+                    </div>
+                )}
 
                 {contextTab === 'general' && (
                     <>
