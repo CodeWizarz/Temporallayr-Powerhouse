@@ -136,8 +136,13 @@ async def lifespan(app: FastAPI):
     start_retention_job()
     logger.info("Data retention job started")
 
-    yield
+    # Start analytics merge worker
+    from temporallayr.analytics.merge_worker import start_merge_worker
 
+    start_merge_worker()
+    logger.info("Analytics merge worker started")
+
+    yield
     from temporallayr.core.retention import stop_retention_job
 
     stop_retention_job()
