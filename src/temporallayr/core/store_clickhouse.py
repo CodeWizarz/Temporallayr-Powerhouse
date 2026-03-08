@@ -12,6 +12,15 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+try:
+    import temporallayr_lru_ext
+
+    # Spin up our native C++ backing concurrent LRU caching exactly as ClickHouse uses internally
+    _ANALYTICS_CACHE = temporallayr_lru_ext.ConcurrentLRU(max_size=1000)
+except ImportError:
+    # Fallback if compilation failed
+    _ANALYTICS_CACHE = None
+
 logger = logging.getLogger(__name__)
 
 _CREATE_SPANS_TABLE = """
@@ -382,6 +391,12 @@ class ClickHouseAnalyticsStore:
         return clusters
 
     def get_latency_percentiles(self, tenant_id: str, hours: int = 24) -> list[dict[str, Any]]:
+        cache_key = f"latency_{tenant_id}_{hours}"
+        if _ANALYTICS_CACHE is not None:
+            cached = _ANALYTICS_CACHE.get(cache_key)
+            if cached is not None:
+                return cached
+
         since = datetime.now(UTC) - timedelta(hours=hours)
         client = self._get_client()
         result = client.query(
@@ -410,7 +425,10 @@ class ClickHouseAnalyticsStore:
             "error_count",
             "error_rate_pct",
         ]
-        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+        res = [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+        if _ANALYTICS_CACHE is not None:
+            _ANALYTICS_CACHE.set(cache_key, res)
+        return res
 
     def get_fingerprint_trends(self, tenant_id: str, hours: int = 168) -> list[dict[str, Any]]:
         since = datetime.now(UTC) - timedelta(hours=hours)
@@ -430,6 +448,12 @@ class ClickHouseAnalyticsStore:
 
     def get_error_trends(self, tenant_id: str, hours: int = 168) -> list[dict[str, Any]]:
         """Return per-hour error counts grouped by fingerprint for charting."""
+        cache_key = f"errors_{tenant_id}_{hours}"
+        if _ANALYTICS_CACHE is not None:
+            cached = _ANALYTICS_CACHE.get(cache_key)
+            if cached is not None:
+                return cached
+
         since = datetime.now(UTC) - timedelta(hours=hours)
         client = self._get_client()
         result = client.query(
@@ -449,7 +473,10 @@ class ClickHouseAnalyticsStore:
             parameters={"tenant_id": tenant_id, "since": since},
         )
         cols = ["hour", "fingerprint", "span_count", "error_count", "error_rate_pct"]
-        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+        res = [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+        if _ANALYTICS_CACHE is not None:
+            _ANALYTICS_CACHE.set(cache_key, res)
+        return res
 
     def set_retention(self, table: str, days: int) -> None:
         """Alter the TTL on an existing ClickHouse table at runtime.
