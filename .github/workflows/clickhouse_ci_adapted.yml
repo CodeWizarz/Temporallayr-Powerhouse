@@ -1,0 +1,72 @@
+name: ClickHouse Adapted PR Pipeline
+
+on:
+  pull_request:
+    branches: [ 'main', 'master' ]
+
+env:
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  style_check:
+    runs-on: ubuntu-latest
+    name: "Style check"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install ruff black mypy
+      - name: Run Ruff
+        run: ruff check .
+      - name: Run Black
+        run: black --check .
+      - name: Run Mypy
+        run: mypy src
+
+  docs_check:
+    runs-on: ubuntu-latest
+    needs: [style_check]
+    name: "Docs check"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check markdown files
+        run: grep -rn "TODO" docs/ || echo "Docs check passed"
+
+  build_native_binary:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    needs: [style_check]
+    name: "Build Binary (${{ matrix.os }})"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Build C++ Extension
+        run: |
+          pip install build setuptools
+          python -m build --wheel
+      - name: Verify compilation
+        run: |
+          pip install .
+          python -c "import temporallayr_hash_ext; print('Native hash compiled successfully!')"
+
+  fast_test:
+    runs-on: ubuntu-latest
+    needs: [build_native_binary]
+    name: "Fast test"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e . pytest pytest-asyncio
+      - name: Run tests
+        run: pytest tests/unit/

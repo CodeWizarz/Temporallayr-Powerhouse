@@ -52,7 +52,15 @@ class Fingerprinter:
         # Build consistent JSON map to feed to hashlib
         # We enforce ascending key sorts so `{A: 1, B: 2}` and `{B: 2, A: 1}` digest identically
         signature_json = json.dumps(structure_signature, sort_keys=True)
-        fingerprint = hashlib.sha256(signature_json.encode("utf-8")).hexdigest()
+
+        try:
+            # Use the compiled ClickHouse native C++ SipHash64 extension for blazing fast traces
+            import temporallayr_hash_ext
+
+            fingerprint_int = temporallayr_hash_ext.siphash64(signature_json.encode("utf-8"))
+            fingerprint = f"{fingerprint_int:016x}"
+        except ImportError:
+            fingerprint = hashlib.sha256(signature_json.encode("utf-8")).hexdigest()
 
         return {
             "fingerprint": fingerprint,
