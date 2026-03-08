@@ -1,7 +1,7 @@
-import asyncio
+import os
+
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.models.execution import ExecutionGraph
-import os
 
 os.environ["TEMPORALLAYR_CLICKHOUSE_HOST"] = (
     "ep-delicate-snowflake-a23v0s09-pooler.eu-central-1.aws.clickhouse.cloud"
@@ -37,7 +37,7 @@ print(f"STORE: {ch}")
 try:
     ch.insert_trace(graph)
     print("SUCCESS")
-except Exception as e:
+except Exception:
     import traceback
 
     traceback.print_exc()

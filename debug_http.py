@@ -1,5 +1,4 @@
-import urllib.request, json
-import time
+import urllib.request
 
 print("Starting connection...")
 try:

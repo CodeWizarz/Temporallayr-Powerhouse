@@ -24,7 +24,6 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
-
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -46,7 +45,7 @@ from temporallayr.core.metrics import (
 from temporallayr.core.otel_exporter import get_otlp_exporter
 from temporallayr.core.rate_limit import check_ingest_rate
 from temporallayr.core.replay import ReplayEngine
-from temporallayr.core.store import get_default_store
+from temporallayr.core.store import async_store, get_default_store
 from temporallayr.core.store_clickhouse import get_clickhouse_store
 from temporallayr.core.store_sqlite import SQLiteStore
 from temporallayr.models.execution import ExecutionGraph
@@ -346,9 +345,9 @@ async def ingest_events(
             )
 
         # Quota enforcement
-        from temporallayr.core.quotas import check_quota, record_spans
-
         import asyncio
+
+        from temporallayr.core.quotas import check_quota, record_spans
 
         quota_ok, quota_info = await asyncio.to_thread(check_quota, authed_tenant)
         if not quota_ok:
@@ -366,22 +365,11 @@ async def ingest_events(
             await asyncio.to_thread(record_spans, authed_tenant, total_spans)
 
         effective_tenant = authed_tenant
-        processed, errors = 0, 0
 
-        for event in request.events:
-            try:
-                # SDK sends {"type": "execution_graph", "tenant_id": "...", "graph": {...}}
-                if "graph" in event and "type" in event:
-                    event = event["graph"]
+        from temporallayr.ingest.pipeline import TraceIngestPipeline
 
-                event = {**event, "tenant_id": effective_tenant}
-                graph = ExecutionGraph.model_validate(event)
-                await async_store("save_execution", graph)
-                await _enqueue_graph(graph)
-                processed += 1
-            except Exception as e:
-                logger.warning("Ingest event error", extra={"error": str(e)})
-                errors += 1
+        pipeline = TraceIngestPipeline(tenant_id=effective_tenant, enqueue_callback=_enqueue_graph)
+        result = await pipeline.process_batch(request.events)
 
         # Audit chain entry
         from temporallayr.core.audit_chain import append as audit_append
@@ -393,12 +381,10 @@ async def ingest_events(
             authed_tenant,
         )
 
-        return {"processed": processed, "errors": errors}
+        return result
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}
 
-
-from temporallayr.core.store import async_store
 
 # ── Executions ─────────────────────────────────────────────────────────
 

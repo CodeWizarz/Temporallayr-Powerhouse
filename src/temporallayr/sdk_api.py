@@ -14,11 +14,6 @@ import httpx
 
 from temporallayr.config import TemporalLayrConfig
 
-# Runtime context variables required by tests and integrations
-_runtime_var: ContextVar[TemporalLayrConfig | None] = ContextVar("_runtime_var", default=None)
-_trace_var: ContextVar[_TraceState | None] = ContextVar("_trace_var", default=None)  # type: ignore[name-defined]
-_span_stack_var: ContextVar[list] = ContextVar("_span_stack_var", default=[])
-
 
 @dataclass(slots=True)
 class _SpanState:

@@ -5,9 +5,9 @@ ExecutionStore abstraction and default implementations.
 import abc
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from temporallayr.models.execution import ExecutionGraph
-from typing import Any
 
 
 class ExecutionStore(abc.ABC):

@@ -89,7 +89,6 @@ def validate_api_key(api_key: str) -> str | None:
 
     try:
         loop = asyncio.get_running_loop()
-        import concurrent.futures
 
         future = asyncio.run_coroutine_threadsafe(_lookup(), loop)
         return future.result(timeout=5)
@@ -115,7 +114,6 @@ def revoke_keys_for_tenant(tenant_id: str) -> int:
 
     try:
         loop = asyncio.get_running_loop()
-        import concurrent.futures
 
         future = asyncio.run_coroutine_threadsafe(_revoke(), loop)
         return future.result(timeout=5)
@@ -149,7 +147,6 @@ def list_keys_for_tenant(tenant_id: str) -> list[dict[str, Any]]:
 
     try:
         loop = asyncio.get_running_loop()
-        import concurrent.futures
 
         future = asyncio.run_coroutine_threadsafe(_list(), loop)
         return future.result(timeout=5)
@@ -181,7 +178,6 @@ def list_all_tenants() -> list[dict[str, Any]]:
 
     try:
         loop = asyncio.get_running_loop()
-        import concurrent.futures
 
         future = asyncio.run_coroutine_threadsafe(_list(), loop)
         return future.result(timeout=5)

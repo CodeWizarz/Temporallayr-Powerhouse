@@ -1,4 +1,5 @@
 import asyncio
+
 import httpx
 
 API_URL = "https://cognitive-natalie-temporall-2ff73e17.koyeb.app"

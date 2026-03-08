@@ -1,4 +1,4 @@
-import psycopg2, os
+import psycopg2
 
 print("Connecting psycopg2...")
 try:

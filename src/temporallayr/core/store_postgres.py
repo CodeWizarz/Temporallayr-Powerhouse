@@ -59,7 +59,6 @@ def _run_async(coro):
         loop = asyncio.get_running_loop()
         # We're inside a running loop — can't call run_until_complete.
         # Submit to the loop from a new thread context.
-        import concurrent.futures
 
         future = asyncio.run_coroutine_threadsafe(coro, loop)
         return future.result(timeout=15)
