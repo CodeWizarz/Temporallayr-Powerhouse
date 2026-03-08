@@ -543,12 +543,104 @@ async def get_latency(
     limit: int = 200,
     offset: int = 0,
 ) -> dict[str, Any]:
-    ch = get_clickhouse_store()
-    if not ch:
-        raise HTTPException(
-            status_code=503, detail="ClickHouse not configured. Set TEMPORALLAYR_CLICKHOUSE_HOST."
-        )
-    items = ch.get_latency_percentiles(tenant_id, hours=hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+    ids = await async_store("list_executions", tenant_id)
+    recent: list[dict[str, Any]] = []
+    for eid in ids:
+        try:
+            g = await async_store("load_execution", eid, tenant_id)
+            if g.created_at >= cutoff:
+                for span in g.spans:
+                    recent.append(
+                        {
+                            "span_name": span.name,
+                            "duration_ms": span.duration_ms,
+                            "timestamp": g.created_at,
+                        }
+                    )
+        except Exception:
+            pass
+
+    def calc_percentiles(rows: list[dict[str, Any]]) -> dict[str, float]:
+        durations = sorted(r["duration_ms"] for r in rows)
+        if not durations:
+            return {"p50": 0.0, "p95": 0.0, "p99": 0.0}
+        return {
+            "p50": durations[int(len(durations) * 0.5)],
+            "p95": durations[int(len(durations) * 0.95)],
+            "p99": durations[int(len(durations) * 0.99)],
+        }
+
+    from temporallayr.query.pipeline import (
+        AggregateStage,
+        AnalyticsQueryPipeline,
+        FilterStage,
+        LimitStage,
+        SortStage,
+    )
+
+    pipeline = AnalyticsQueryPipeline(
+        [
+            FilterStage(lambda x: x["timestamp"] >= cutoff),
+            AggregateStage(group_by="span_name", agg_func=calc_percentiles, out_key="percentiles"),
+            SortStage(sort_key="span_name", reverse=False),
+            LimitStage(limit),
+        ]
+    )
+
+    items = pipeline.execute(recent)
+    page = items[offset : offset + limit]
+    return {
+        "items": page,
+        "total": len(items),
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < len(items),
+    }
+
+
+@app.get("/analytics/errors", tags=["analytics"])
+async def get_errors(
+    tenant_id: str = Depends(verify_api_key),
+    hours: int = 24,
+    limit: int = 200,
+    offset: int = 0,
+) -> dict[str, Any]:
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+    ids = await async_store("list_executions", tenant_id)
+    recent: list[dict[str, Any]] = []
+    for eid in ids:
+        try:
+            g = await async_store("load_execution", eid, tenant_id)
+            if g.created_at >= cutoff and not g.success:
+                recent.append(
+                    {
+                        "fingerprint": g.fingerprint or "unknown",
+                        "error_type": g.error_type or "unknown",
+                        "timestamp": g.created_at,
+                    }
+                )
+        except Exception:
+            pass
+
+    from temporallayr.query.pipeline import (
+        AggregateStage,
+        AnalyticsQueryPipeline,
+        FilterStage,
+        LimitStage,
+        SortStage,
+    )
+
+    pipeline = AnalyticsQueryPipeline(
+        [
+            FilterStage(lambda x: x["timestamp"] >= cutoff),
+            AggregateStage(group_by="fingerprint", agg_func=len, out_key="count"),
+            SortStage(sort_key="count", reverse=True),
+            LimitStage(limit),
+        ]
+    )
+
+    items = pipeline.execute(recent)
     page = items[offset : offset + limit]
     return {
         "items": page,
