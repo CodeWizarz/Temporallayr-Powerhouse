@@ -478,7 +478,9 @@ export const yourFunction = tl.trackLlm(async (prompt: string) => {
                                 </section>
                             </div>
                         </div>
-                    </main>
-            </>
-            )
+                    </>
+                )}
+            </main>
+        </>
+    )
 }

@@ -3,7 +3,7 @@ import { api } from '../api/client';
 
 // Mock the global fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch as any;
+(globalThis as any).fetch = mockFetch;
 
 describe('API Client Configuration', () => {
     beforeEach(() => {
