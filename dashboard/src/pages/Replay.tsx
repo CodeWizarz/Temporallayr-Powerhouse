@@ -1,188 +1,149 @@
-import { useState } from 'react'
-import { api, type ReplayReport } from '../api/client'
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { api } from '../lib/client';
+import { Card, Badge, Button } from '../components/ui';
+import { PageHeader } from '../components/shared';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { formatDate, formatDuration } from '../lib/utils';
+import { Play, RotateCcw, Pause, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
-type Tab = 'replay' | 'diff'
+type ReplayStatus = 'pending' | 'running' | 'completed' | 'failed';
 
-export default function ReplayPage() {
-    const [tab, setTab] = useState<Tab>('replay')
-    const [traceId, setTraceId] = useState('')
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const [report, setReport] = useState<ReplayReport | null>(null)
-    const [diffA, setDiffA] = useState('')
-    const [diffB, setDiffB] = useState('')
-    const [diffResult, setDiffResult] = useState<Record<string, unknown[]> | null>(null)
-    const [diffLoading, setDiffLoading] = useState(false)
+interface ReplaySession {
+  id: string;
+  name: string;
+  trace_id: string;
+  status: ReplayStatus;
+  created_at: string;
+  completed_at?: string;
+  duration_ms?: number;
+  total_spans: number;
+  replayed_spans: number;
+  error_message?: string;
+}
 
-    const runReplay = async () => {
-        if (!traceId.trim()) return
-        setLoading(true); setError(null); setReport(null)
-        try { setReport(await api.executions.replay(traceId.trim())) }
-        catch (e: any) { setError(e.message) }
-        finally { setLoading(false) }
+const STATUS_CONFIG: Record<ReplayStatus, { icon: any; color: string; label: string }> = {
+  pending: { icon: Clock, color: 'text-yellow-400', label: 'Pending' },
+  running: { icon: Loader2, color: 'text-blue-400', label: 'Running' },
+  completed: { icon: CheckCircle, color: 'text-green-400', label: 'Completed' },
+  failed: { icon: XCircle, color: 'text-red-400', label: 'Failed' },
+};
+
+function ReplayCard({ session }: { session: ReplaySession }) {
+  const config = STATUS_CONFIG[session.status];
+  const Icon = config.icon;
+  const progress = session.total_spans > 0 ? (session.replayed_spans / session.total_spans) * 100 : 0;
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h4 className="text-sm font-medium text-[var(--text-primary)]">{session.name}</h4>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5 font-mono">Trace: {session.trace_id.slice(0, 16)}...</p>
+        </div>
+        <div className={`flex items-center gap-1.5 ${config.color}`}>
+          <Icon size={14} className={session.status === 'running' ? 'animate-spin' : ''} />
+          <span className="text-xs font-medium">{config.label}</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between text-xs text-[var(--text-muted)] mb-1">
+          <span>{session.replayed_spans} / {session.total_spans} spans</span>
+          <span>{Math.round(progress)}%</span>
+        </div>
+        <div className="h-1.5 bg-[var(--bg-base)] rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              session.status === 'failed' ? 'bg-red-500' : 'bg-[var(--accent)]'
+            }`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {session.error_message && (
+        <div className="text-xs text-red-400 bg-red-500/10 rounded-md p-2 mb-3">
+          {session.error_message}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+        <span>{formatDate(session.created_at)}</span>
+        {session.duration_ms && <span>{formatDuration(session.duration_ms)}</span>}
+      </div>
+    </Card>
+  );
+}
+
+export default function Replay() {
+  const [traceIdInput, setTraceIdInput] = useState('');
+
+  const { data: sessions, isLoading } = useQuery({
+    queryKey: ['replay-sessions'],
+    queryFn: () => api.getReplaySessions(),
+  });
+
+  const createReplay = useMutation({
+    mutationFn: (traceId: string) => api.createReplaySession({ trace_id: traceId }),
+  });
+
+  const handleCreate = () => {
+    if (traceIdInput.trim()) {
+      createReplay.mutate(traceIdInput.trim());
+      setTraceIdInput('');
     }
+  };
 
-    const runDiff = async () => {
-        if (!diffA.trim() || !diffB.trim()) return
-        setDiffLoading(true); setError(null); setDiffResult(null)
-        try { setDiffResult(await api.executions.diff(diffA.trim(), diffB.trim()) as any) }
-        catch (e: any) { setError(e.message) }
-        finally { setDiffLoading(false) }
-    }
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Replay"
+        subtitle="Re-execute traces to debug and validate fixes"
+      />
 
-    return (
-        <>
-            <div className="ch-sidebar-context">
-                <div className="ch-context-header">
-                    <div className="ch-context-tab active">Execution Tools</div>
-                </div>
-                <div className="ch-context-content">
-                    <div className="text-[13px] text-white py-2 px-3 rounded bg-white/10 cursor-pointer font-medium mb-1">Interactive Replay</div>
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Diff Viewer</div>
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Saved Scenarios</div>
+      {/* Create Replay */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Start New Replay</h3>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            placeholder="Enter trace ID to replay..."
+            value={traceIdInput}
+            onChange={(e) => setTraceIdInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            className="flex-1 px-3 py-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)]"
+          />
+          <Button onClick={handleCreate} disabled={!traceIdInput.trim() || createReplay.isPending}>
+            <Play size={14} className="mr-1.5" />
+            {createReplay.isPending ? 'Starting...' : 'Replay'}
+          </Button>
+        </div>
+      </Card>
 
-                    <div className="mt-6 mb-2 text-[10px] uppercase tracking-wider text-text-muted px-3 font-semibold">Pipelines</div>
-                    <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Regression Tests</div>
-                </div>
-            </div>
-
-            <main className="ch-workspace bg-bg-base">
-                <header className="ch-topbar">
-                    <div className="ch-topbar-title flex flex-col justify-center">
-                        <div className="text-[14px] text-text-primary font-bold">
-                            Diagnostic Operations
-                        </div>
-                    </div>
-                    <div className="ch-topbar-actions bg-bg-surface border border-border-subtle rounded-md p-1">
-                        {(['replay', 'diff'] as Tab[]).map(t => (
-                            <button
-                                key={t}
-                                onClick={() => setTab(t)}
-                                className={`px-3 py-1 text-[13px] font-medium rounded transition-colors capitalize ${tab === t ? 'bg-bg-elevated text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
-                            >
-                                {t}
-                            </button>
-                        ))}
-                    </div>
-                </header>
-
-                <div className="ch-workspace-scroll">
-                    <div className="p-8 max-w-4xl mx-auto space-y-6">
-                        <div className="mb-8">
-                            <h1 className="text-xl font-bold text-text-primary mb-1">Replay & Diff</h1>
-                            <div className="text-[13px] text-text-muted">Deterministic execution replay and structural comparison</div>
-                        </div>
-
-                        <div className="bg-[#0d1a0d] border border-[#1a3a1a] rounded p-3.5 text-[13px] text-[#4caf6e]">
-                            ▶ <strong className="text-[#6cff9e]">Replay</strong> re-executes a captured trace and checks for divergences — non-determinism in your agent will show up as mismatches. <strong className="text-[#6cff9e]">Diff</strong> compares two trace executions node-by-node to identify structural or output changes.
-                        </div>
-
-                        {error && <div className="text-error bg-[#1a0808] border border-[#3a1010] rounded-lg p-3.5 mb-4 text-sm font-medium">⚠ {error}</div>}
-
-                        {tab === 'replay' && (
-                            <>
-                                <div className="card mb-5">
-                                    <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Replay Execution</h3>
-                                    <div className="text-xs text-text-secondary mb-1.5 font-medium">Trace ID</div>
-                                    <div className="flex gap-3">
-                                        <input
-                                            className="input flex-1"
-                                            placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
-                                            value={traceId}
-                                            onChange={e => setTraceId(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && runReplay()}
-                                        />
-                                        <button className="btn btn-primary px-5" disabled={loading || !traceId.trim()} onClick={runReplay}>
-                                            {loading ? '⏳ Replaying…' : '▶ Run Replay'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {report && (
-                                    <div className="card shadow-lg bg-bg-surface border-border-subtle">
-                                        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Replay Report</h3>
-                                        <div className="grid grid-cols-4 gap-4 mb-5">
-                                            <div>
-                                                <div className="text-[11px] text-text-muted mb-1 font-medium">Deterministic</div>
-                                                <div><span className={`badge ${report?.is_deterministic ? 'badge-success' : 'badge-error'} !py-0.5 !px-2.5`}>{report?.is_deterministic ? '✓ YES' : '✗ NO'}</span></div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[11px] text-text-muted mb-1 font-medium">Spans Replayed</div>
-                                                <div className="text-text-primary font-semibold text-base">{report?.nodes_replayed} / {report?.total_nodes}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[11px] text-text-muted mb-1 font-medium">Divergences</div>
-                                                <div className={`font-semibold text-base ${(report?.divergences_found || 0) > 0 ? 'text-error' : 'text-success'}`}>{report?.divergences_found}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[11px] text-text-muted mb-1 font-medium">Trace ID</div>
-                                                <div className="text-xs font-mono text-text-secondary mt-1">{report?.graph_id?.slice(0, 12)}…</div>
-                                            </div>
-                                        </div>
-                                        {(report?.divergences_found || 0) > 0 && (
-                                            <div>
-                                                <div className="text-xs text-text-muted mb-2.5 font-medium">Divergences detected:</div>
-                                                {report?.results.filter(r => !r.success).map(r => (
-                                                    <div key={r.node_id} className="bg-[#1a0808] border border-[#3a1010] rounded-md p-2.5 text-xs text-error font-mono mb-2">
-                                                        ⚠ <strong>Node {r.node_id.slice(0, 8)}</strong>
-                                                        {r.divergence_type && <span className="text-accent"> [{r.divergence_type}]</span>}
-                                                        {r.divergence_details && <span className="text-text-primary"> — {r.divergence_details}</span>}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {report?.divergences_found === 0 && (
-                                            <div className="text-success text-sm font-medium bg-success-dim border border-success/20 p-3 rounded-lg">✓ Execution is deterministic — all {report?.nodes_replayed} spans matched exactly.</div>
-                                        )}
-                                    </div>
-                                )}
-                            </>
-                        )}
-
-                        {tab === 'diff' && (
-                            <>
-                                <div className="card mb-5">
-                                    <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Compare Two Traces</h3>
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <div>
-                                            <div className="text-xs text-text-secondary mb-1.5 font-medium">Trace A (baseline)</div>
-                                            <input className="input w-full" placeholder="Trace ID A" value={diffA} onChange={e => setDiffA(e.target.value)} />
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-text-secondary mb-1.5 font-medium">Trace B (comparison)</div>
-                                            <input className="input w-full" placeholder="Trace ID B" value={diffB} onChange={e => setDiffB(e.target.value)} />
-                                        </div>
-                                    </div>
-                                    <button className="btn btn-primary px-5" disabled={diffLoading || !diffA.trim() || !diffB.trim()} onClick={runDiff}>
-                                        {diffLoading ? '⏳ Comparing…' : '⬡ Run Diff'}
-                                    </button>
-                                </div>
-
-                                {diffResult && (
-                                    <div className="card shadow-lg bg-bg-surface border-border-subtle">
-                                        <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-4">Diff Results</h3>
-                                        {Object.entries(diffResult || {}).map(([key, items]) => (
-                                            items && (items as any[]).length > 0 && (
-                                                <div key={key} className="mt-5">
-                                                    <div className="text-xs text-accent mb-2 capitalize font-bold">{key.replace(/_/g, ' ')} ({(items as any[]).length})</div>
-                                                    {(items as any[]).map((item, i) => (
-                                                        <div key={i} className="bg-bg-elevated border border-border rounded-md px-3 py-2 mb-1.5 text-[11px] font-mono text-text-secondary whitespace-pre-wrap">
-                                                            {typeof item === 'string' ? item : JSON.stringify(item, null, 2)}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )
-                                        ))}
-                                        {Object.values(diffResult || {}).every(v => !(v as any[]).length) && (
-                                            <div className="text-success text-sm font-medium bg-success-dim border border-success/20 p-3 rounded-lg">✓ No differences found — traces are structurally identical.</div>
-                                        )}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
-            </main>
-        </>
-    )
+      {/* Sessions */}
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Recent Sessions</h3>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
+          </div>
+        ) : !sessions?.length ? (
+          <EmptyState
+            icon={RotateCcw}
+            title="No replay sessions"
+            description="Enter a trace ID above to start your first replay session."
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {sessions.map((session: ReplaySession) => (
+              <ReplayCard key={session.id} session={session} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
