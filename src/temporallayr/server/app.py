@@ -60,10 +60,15 @@ from temporallayr.server.auth.api_keys import (
 )
 from temporallayr.server.incidents import router as incidents_router
 from temporallayr.server.replay_routes import router as replay_router
+from temporallayr.server.traces_routes import router as traces_router
+from temporallayr.server.alerts_routes import router as alerts_router
+from temporallayr.server.analytics_routes import router as analytics_router
+from temporallayr.server.stream_routes import router as stream_router
+from temporallayr.server.dag_routes import router as dag_router
 
 logger = logging.getLogger(__name__)
 
-# ── Global incident state with lock ──────────────────────────────────
+# ── Global incident state with lock ────────────────────
 _INCIDENTS: list[dict[str, Any]] = []
 _incidents_lock = asyncio.Lock()
 
@@ -218,9 +223,14 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(incidents_router)
 app.include_router(replay_router)
+app.include_router(traces_router)
+app.include_router(alerts_router)
+app.include_router(analytics_router)
+app.include_router(stream_router)
+app.include_router(dag_router)
 
 
-# ── Health & Metrics ──────────────────────────────────────────────────
+# ── Health & Metrics ───────────────────────────────────────────────────────────
 
 
 @app.get("/metrics", tags=["ops"], include_in_schema=False)
@@ -347,7 +357,7 @@ async def service_status() -> dict[str, Any]:
     }
 
 
-# ── Ingest (FIXED: tenant isolation) ─────────────────────────────────
+# ── Ingest (FIXED: tenant isolation) ─────────────────────────────────────
 
 
 class IngestRequest(BaseModel):
@@ -496,7 +506,7 @@ async def ingest_events(
         return {"error": str(e), "traceback": traceback.format_exc()}
 
 
-# ── Executions ─────────────────────────────────────────────────────────
+# ── Executions ────────────────────────────────────────────────────────
 
 
 class DiffRequest(BaseModel):
@@ -598,7 +608,7 @@ async def diff_executions(
     return ExecutionDiffer.diff(exec_a, exec_b)
 
 
-# ── Clusters & Analytics ───────────────────────────────────────────────
+# ── Clusters & Analytics ────────────────────────────────────────────────────
 
 
 @app.get("/clusters", tags=["analytics"])
@@ -783,7 +793,7 @@ async def get_span_timeline(
     return ch.get_span_timeline(trace_id, tenant_id)
 
 
-# ── Incidents (FIXED: asyncio.Lock on all mutations) ──────────────────
+# ── Incidents (FIXED: asyncio.Lock on all mutations) ────────────────────
 
 
 @app.get("/incidents", tags=["incidents"])
@@ -834,7 +844,7 @@ async def resolve_incident(
     raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found")
 
 
-# ── Admin API ─────────────────────────────────────────────────────────
+# ── Admin API ─────────────────────────────────────────────────────
 
 
 class RegisterTenantRequest(BaseModel):
@@ -915,7 +925,7 @@ async def audit_proof(entry_hash: str, _: None = Depends(verify_admin_key)) -> d
     return proof
 
 
-# ── Tenant Limits & Usage ──────────────────────────────────────────────
+# ── Tenant Limits & Usage ──────────────────────────────────────────────────────
 
 
 @app.get("/usage", tags=["tenant"])
@@ -940,7 +950,7 @@ async def set_quota(
     return {"tenant_id": tenant_id, "daily_limit": daily_limit, "status": "updated"}
 
 
-# ── GDPR Compliance ───────────────────────────────────────────────────
+# ── GDPR Compliance ─────────────────────────────────────────────────────
 
 
 @app.get("/admin/tenants/{tenant_id}/export", tags=["admin", "gdpr"])
