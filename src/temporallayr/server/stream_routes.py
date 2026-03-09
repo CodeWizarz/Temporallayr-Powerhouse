@@ -1,114 +1,119 @@
-"""SSE event stream and datasets routes for TemporalLayr."""
+"""Server-Sent Events endpoint for real-time trace/span streaming."""
+
 from __future__ import annotations
+
 import asyncio
 import json
-import uuid
-from datetime import UTC, datetime
-from typing import Any, AsyncGenerator
-from fastapi import APIRouter, Depends, Request
+import logging
+import time
+from collections import deque
+from typing import AsyncGenerator
+
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from temporallayr.core.store import get_default_store
-from temporallayr.core.store_sqlite import SQLiteStore
-from temporallayr.server.auth import verify_api_key
+
+logger = logging.getLogger("temporallayr.stream")
 
 router = APIRouter(tags=["stream"])
 
-
-# ── SSE stream ────────────────────────────────────────────────────────
-
-async def _event_generator(tenant_id: str, request: Request) -> AsyncGenerator[str, None]:
-    """Generate SSE heartbeat events for the tenant."""
-    counter = 0
-    while True:
-        if await request.is_disconnected():
-            break
-        event = {
-            "id": str(uuid.uuid4()),
-            "type": "heartbeat",
-            "tenant_id": tenant_id,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "seq": counter,
-        }
-        yield f"data: {json.dumps(event)}\n\n"
-        counter += 1
-        await asyncio.sleep(5)
+# In-memory ring buffer for recent events (last 1000)
+_event_buffer: deque[dict] = deque(maxlen=1000)
+_subscribers: list[asyncio.Queue] = []
 
 
-@router.get("/stream/events")
+def publish_event(event: dict) -> None:
+    """Called by ingest pipeline to push events to all SSE subscribers."""
+    _event_buffer.append(event)
+    dead: list[asyncio.Queue] = []
+    for q in _subscribers:
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            dead.append(q)
+    for q in dead:
+        _subscribers.remove(q)
+
+
+async def _event_generator(
+    request: Request,
+    queue: asyncio.Queue,
+    kind_filter: str | None = None,
+    status_filter: str | None = None,
+    tenant_filter: str | None = None,
+) -> AsyncGenerator[str, None]:
+    """Yield SSE-formatted events, filtering as requested."""
+    try:
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=30.0)
+            except asyncio.TimeoutError:
+                yield ": keepalive\n\n"
+                continue
+
+            # Apply filters
+            if kind_filter and event.get("span_kind") != kind_filter:
+                continue
+            if status_filter and event.get("status") != status_filter:
+                continue
+            if tenant_filter and event.get("tenant_id") != tenant_filter:
+                continue
+
+            data = json.dumps(event, default=str)
+            yield f"data: {data}\n\n"
+    finally:
+        if queue in _subscribers:
+            _subscribers.remove(queue)
+
+
+@router.get("/v1/stream")
 async def stream_events(
     request: Request,
-    tenant_id: str = Depends(verify_api_key),
-) -> StreamingResponse:
-    """Server-Sent Events stream for real-time agent workflow events."""
+    kind: str | None = Query(None, description="Filter by span_kind: llm, tool, pipeline, agent"),
+    status: str | None = Query(None, description="Filter by status: ok, error"),
+    tenant_id: str | None = Query(None, description="Filter by tenant"),
+    backfill: int = Query(50, ge=0, le=200, description="Number of recent events to backfill"),
+):
+    """SSE endpoint for real-time event streaming.
+
+    Connect with EventSource:
+        const es = new EventSource('/v1/stream?kind=llm&backfill=100');
+        es.onmessage = (e) => console.log(JSON.parse(e.data));
+    """
+    queue: asyncio.Queue = asyncio.Queue(maxsize=500)
+    _subscribers.append(queue)
+
+    # Backfill recent events
+    recent = list(_event_buffer)[-backfill:] if backfill > 0 else []
+    for evt in recent:
+        if kind and evt.get("span_kind") != kind:
+            continue
+        if status and evt.get("status") != status:
+            continue
+        if tenant_id and evt.get("tenant_id") != tenant_id:
+            continue
+        try:
+            queue.put_nowait(evt)
+        except asyncio.QueueFull:
+            break
+
     return StreamingResponse(
-        _event_generator(tenant_id, request),
+        _event_generator(request, queue, kind, status, tenant_id),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
-# ── Datasets ──────────────────────────────────────────────────────────
-
-def _sqlite() -> SQLiteStore:
-    s = get_default_store()
-    return s if isinstance(s, SQLiteStore) else SQLiteStore()
-
-
-class DatasetCreate(BaseModel):
-    name: str
-    description: str = ""
-    schema: dict[str, Any] = {}
-
-
-@router.get("/datasets")
-async def list_datasets(
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
-    """List all datasets for the tenant."""
-    try:
-        store = _sqlite()
-        items = store.list_datasets(tenant_id) if hasattr(store, "list_datasets") else []
-    except Exception:
-        items = []
-    return {"items": items, "total": len(items)}
-
-
-@router.post("/datasets", status_code=201)
-async def create_dataset(
-    ds: DatasetCreate,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
-    """Create a new dataset."""
-    now = datetime.now(UTC).isoformat()
-    new_ds: dict[str, Any] = {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "name": ds.name,
-        "description": ds.description,
-        "schema": ds.schema,
-        "created_at": now,
-        "updated_at": now,
-        "event_count": 0,
+@router.get("/v1/stream/stats")
+async def stream_stats():
+    """Return current stream statistics."""
+    return {
+        "buffer_size": len(_event_buffer),
+        "active_subscribers": len(_subscribers),
+        "buffer_capacity": _event_buffer.maxlen,
     }
-    try:
-        store = _sqlite()
-        if hasattr(store, "save_dataset"):
-            store.save_dataset(new_ds)
-    except Exception:
-        pass
-    return new_ds
-
-
-@router.delete("/datasets/{dataset_id}", status_code=204)
-async def delete_dataset(
-    dataset_id: str,
-    tenant_id: str = Depends(verify_api_key),
-) -> None:
-    """Delete a dataset."""
-    try:
-        store = _sqlite()
-        if hasattr(store, "delete_dataset"):
-            store.delete_dataset(dataset_id, tenant_id)
-    except Exception:
-        pass
