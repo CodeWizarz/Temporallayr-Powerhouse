@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Layout from './components/Layout'
 import AuthGuard from './components/AuthGuard'
+import SettingsLayout from './layouts/settings/SettingsLayout'
 import TracesPage from './pages/Traces'
 import TraceDetailPage from './pages/TraceDetail'
 import IncidentsPage from './pages/Incidents'
@@ -10,6 +11,10 @@ import ReplayPage from './pages/Replay'
 import SettingsPage from './pages/Settings'
 import StatusPage from './pages/Status'
 import NewService from './pages/NewService'
+import OrganizationGeneralPage from './pages/settings/organization/GeneralPage'
+import OrganizationBillingPage from './pages/settings/organization/BillingPage'
+import OrganizationMembersPage from './pages/settings/organization/MembersPage'
+import OrganizationApiKeysPage from './pages/settings/organization/ApiKeysPage'
 
 import SignupPage from './pages/auth/Signup'
 import LoginPage from './pages/auth/Login'
@@ -31,6 +36,16 @@ export default function App() {
                     <Route path="/replay" element={<ReplayPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/status" element={<StatusPage />} />
+                    
+                    <Route path="/settings" element={<SettingsLayout />}>
+                        <Route index element={<SettingsPage />} />
+                        <Route path="organization" element={<OrganizationGeneralPage />} />
+                        <Route path="organization/billing" element={<OrganizationBillingPage />} />
+                        <Route path="organization/members" element={<OrganizationMembersPage />} />
+                        <Route path="organization/api-keys" element={<OrganizationApiKeysPage />} />
+                        <Route path="organization/webhooks" element={<div className="ch-page-container"><h1 className="ch-page-title">Webhooks</h1><p className="ch-page-subtitle">Coming soon...</p></div>} />
+                        <Route path="organization/security" element={<div className="ch-page-container"><h1 className="ch-page-title">Security</h1><p className="ch-page-subtitle">Coming soon...</p></div>} />
+                    </Route>
                 </Route>
             </Routes>
             <Toaster
