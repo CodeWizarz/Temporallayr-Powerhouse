@@ -13,13 +13,18 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 try:
+    import temporallayr_hll_ext
     import temporallayr_lru_ext
 
     # Spin up our native C++ backing concurrent LRU caching exactly as ClickHouse uses internally
     _ANALYTICS_CACHE = temporallayr_lru_ext.ConcurrentLRU(max_size=1000)
+
+    # Native exact distinct counter for fingerprints
+    _HLL_FINGERPRINTS = temporallayr_hll_ext.HyperLogLog()
 except ImportError:
     # Fallback if compilation failed
     _ANALYTICS_CACHE = None
+    _HLL_FINGERPRINTS = None
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +139,8 @@ class ClickHouseAnalyticsStore:
 
             fp_data = Fingerprinter.fingerprint_execution(graph)
             fingerprint: str | None = fp_data["fingerprint"]
+            if fingerprint and _HLL_FINGERPRINTS:
+                _HLL_FINGERPRINTS.add(fingerprint)
         except Exception:
             fingerprint = None
 
@@ -252,6 +259,8 @@ class ClickHouseAnalyticsStore:
 
                 fp_data = Fingerprinter.fingerprint_execution(graph)
                 fingerprint: str | None = fp_data["fingerprint"]
+                if fingerprint and _HLL_FINGERPRINTS:
+                    _HLL_FINGERPRINTS.add(fingerprint)
             except Exception:
                 fingerprint = None
 
@@ -529,6 +538,326 @@ class ClickHouseAnalyticsStore:
             except Exception:
                 pass
             rows.append(d)
+        return rows
+
+    def get_rolling_averages(
+        self, tenant_id: str, hours: int = 168, window_hours: int = 24
+    ) -> list[dict[str, Any]]:
+        """Calculate rolling averages of latency over time windows.
+
+        Args:
+            tenant_id: The tenant ID to query for
+            hours: How many hours of history to analyze
+            window_hours: Size of each rolling window in hours
+        """
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                toStartOfHour(start_time) AS hour,
+                name AS span_name,
+                count() AS call_count,
+                round(avg(duration_ms), 2) AS avg_ms,
+                round(quantile(0.50)(duration_ms), 2) AS p50_ms,
+                round(quantile(0.95)(duration_ms), 2) AS p95_ms,
+                round(quantile(0.99)(duration_ms), 2) AS p99_ms,
+                round(stddevPop(duration_ms), 2) AS stddev_ms,
+                countIf(status = 'error') AS error_count
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+              AND duration_ms IS NOT NULL
+            GROUP BY hour, name
+            ORDER BY hour DESC, call_count DESC
+            LIMIT 5000
+            """,
+            parameters={"tenant_id": tenant_id, "since": since},
+        )
+        cols = [
+            "hour",
+            "span_name",
+            "call_count",
+            "avg_ms",
+            "p50_ms",
+            "p95_ms",
+            "p99_ms",
+            "stddev_ms",
+            "error_count",
+        ]
+        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def get_anomaly_detection(
+        self, tenant_id: str, hours: int = 168, stddev_threshold: float = 3.0
+    ) -> list[dict[str, Any]]:
+        """Detect anomalies in latency patterns using statistical methods.
+
+        Args:
+            tenant_id: The tenant ID to query for
+            hours: How many hours of history to analyze
+            stddev_threshold: Number of standard deviations to flag as anomaly
+        """
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                name AS span_name,
+                toStartOfHour(start_time) AS hour,
+                round(avg(duration_ms), 2) AS avg_ms,
+                round(quantile(0.50)(duration_ms), 2) AS p50_ms,
+                round(stddevPop(duration_ms), 2) AS stddev_ms,
+                count() AS call_count,
+                countIf(status = 'error') AS error_count,
+                round(countIf(status = 'error') / count() * 100, 2) AS error_rate_pct
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+              AND duration_ms IS NOT NULL
+            GROUP BY name, hour
+            HAVING stddevPop(duration_ms) > {threshold:Float64}
+               OR countIf(status = 'error') / count() > 0.1
+            ORDER BY hour DESC, stddev_ms DESC
+            LIMIT 500
+            """,
+            parameters={
+                "tenant_id": tenant_id,
+                "since": since,
+                "threshold": stddev_threshold,
+            },
+        )
+        cols = [
+            "span_name",
+            "hour",
+            "avg_ms",
+            "p50_ms",
+            "stddev_ms",
+            "call_count",
+            "error_count",
+            "error_rate_pct",
+        ]
+        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def get_capacity_planning(
+        self, tenant_id: str, days: int = 30
+    ) -> list[dict[str, Any]]:
+        """Provide capacity planning metrics and projections.
+
+        Includes:
+        - Daily trace volumes
+        - Peak usage times
+        - Growth trends
+        - Resource utilization estimates
+        """
+        since = datetime.now(UTC) - timedelta(days=days)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                toDate(start_time) AS date,
+                count() AS total_traces,
+                countIf(error_count > 0) AS error_traces,
+                round(sum(span_count) / count(), 2) AS avg_spans_per_trace,
+                round(avg(duration_ms), 2) AS avg_trace_duration_ms,
+                quantile(0.95)(sum(span_count)) AS p95_spans_per_trace,
+                count(DISTINCT fingerprint) AS unique_fingerprints
+            FROM temporallayr_traces
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+            GROUP BY date
+            ORDER BY date DESC
+            """,
+            parameters={"tenant_id": tenant_id, "since": since},
+        )
+        cols = [
+            "date",
+            "total_traces",
+            "error_traces",
+            "avg_spans_per_trace",
+            "avg_trace_duration_ms",
+            "p95_spans_per_trace",
+            "unique_fingerprints",
+        ]
+        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def get_trace_duration_distribution(
+        self, tenant_id: str, hours: int = 24
+    ) -> list[dict[str, Any]]:
+        """Get distribution of trace durations by percentile bins.
+
+        Useful for understanding latency profiles and setting SLAs.
+        """
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                name AS span_name,
+                count() AS total_calls,
+                round(min(duration_ms), 2) AS min_ms,
+                round(quantileExact(0.01)(duration_ms), 2) AS p01_ms,
+                round(quantileExact(0.05)(duration_ms), 2) AS p05_ms,
+                round(quantileExact(0.25)(duration_ms), 2) AS p25_ms,
+                round(quantileExact(0.50)(duration_ms), 2) AS p50_ms,
+                round(quantileExact(0.75)(duration_ms), 2) AS p75_ms,
+                round(quantileExact(0.95)(duration_ms), 2) AS p95_ms,
+                round(quantileExact(0.99)(duration_ms), 2) AS p99_ms,
+                round(max(duration_ms), 2) AS max_ms
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+              AND duration_ms IS NOT NULL
+            GROUP BY name
+            ORDER BY total_calls DESC
+            LIMIT 200
+            """,
+            parameters={"tenant_id": tenant_id, "since": since},
+        )
+        cols = [
+            "span_name",
+            "total_calls",
+            "min_ms",
+            "p01_ms",
+            "p05_ms",
+            "p25_ms",
+            "p50_ms",
+            "p75_ms",
+            "p95_ms",
+            "p99_ms",
+            "max_ms",
+        ]
+        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def get_peak_usage_hours(
+        self, tenant_id: str, days: int = 7
+    ) -> list[dict[str, Any]]:
+        """Identify peak usage hours for capacity planning.
+
+        Returns hourly breakdown of average request volume.
+        """
+        since = datetime.now(UTC) - timedelta(days=days)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                toHour(start_time) AS hour_of_day,
+                count() AS total_requests,
+                round(avg(duration_ms), 2) AS avg_duration_ms,
+                countIf(status = 'error') AS error_count,
+                round(countIf(status = 'error') / count() * 100, 2) AS error_rate_pct
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+            GROUP BY hour_of_day
+            ORDER BY hour_of_day
+            """,
+            parameters={"tenant_id": tenant_id, "since": since},
+        )
+        cols = [
+            "hour_of_day",
+            "total_requests",
+            "avg_duration_ms",
+            "error_count",
+            "error_rate_pct",
+        ]
+        return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
+
+    def get_trace_execution_flow(
+        self, tenant_id: str, trace_id: str
+    ) -> list[dict[str, Any]]:
+        """Get detailed execution flow for a specific trace.
+
+        Includes span hierarchy, timing, and error details.
+        """
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                span_id,
+                parent_span_id,
+                name,
+                start_time,
+                end_time,
+                duration_ms,
+                status,
+                error,
+                fingerprint,
+                input_keys,
+                output_type,
+                attributes
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND trace_id = {trace_id:String}
+            ORDER BY start_time ASC
+            """,
+            parameters={"tenant_id": tenant_id, "trace_id": trace_id},
+        )
+        rows = []
+        for row in result.result_rows:
+            d = {
+                "span_id": row[0],
+                "parent_span_id": row[1],
+                "name": row[2],
+                "start_time": str(row[3]) if row[3] else None,
+                "end_time": str(row[4]) if row[4] else None,
+                "duration_ms": row[5],
+                "status": row[6],
+                "error": row[7],
+                "fingerprint": row[8],
+                "input_keys": list(row[9]) if row[9] else [],
+                "output_type": row[10],
+            }
+            try:
+                d["attributes"] = json.loads(row[11]) if row[11] else {}
+            except Exception:
+                d["attributes"] = {}
+            rows.append(d)
+        return rows
+
+    def get_error_rate_by_fingerprint(
+        self, tenant_id: str, hours: int = 24, min_count: int = 10
+    ) -> list[dict[str, Any]]:
+        """Get error rates grouped by fingerprint, sorted by severity.
+
+        Useful for identifying most problematic execution patterns.
+        """
+        since = datetime.now(UTC) - timedelta(hours=hours)
+        client = self._get_client()
+        result = client.query(
+            """
+            SELECT
+                fingerprint,
+                name AS span_name,
+                count() AS total_calls,
+                countIf(status = 'error') AS error_count,
+                round(countIf(status = 'error') / count() * 100, 2) AS error_rate_pct,
+                groupArray(DISTINCT error) AS sample_errors
+            FROM temporallayr_spans
+            WHERE tenant_id = {tenant_id:String}
+              AND start_time >= {since:DateTime64}
+            GROUP BY fingerprint, name
+            HAVING count() >= {min_count:UInt32}
+            ORDER BY error_count DESC
+            LIMIT 200
+            """,
+            parameters={
+                "tenant_id": tenant_id,
+                "since": since,
+                "min_count": min_count,
+            },
+        )
+        rows = []
+        for row in result.result_rows:
+            rows.append(
+                {
+                    "fingerprint": row[0] or "",
+                    "span_name": row[1],
+                    "total_calls": row[2],
+                    "error_count": row[3],
+                    "error_rate_pct": row[4],
+                    "sample_errors": [e for e in (row[5] or []) if e],
+                }
+            )
         return rows
 
 

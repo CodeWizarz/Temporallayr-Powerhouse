@@ -1,0 +1,38 @@
+# Code Owners
+#
+# This file defines who owns different parts of the TemporalLayr codebase.
+# Owners are automatically requested for review when changes are made to
+# files matching the patterns below.
+
+# Default owners for everything in the repository
+*       @temporallayr/core
+
+# Core functionality
+/src/temporallayr/core/           @temporallayr/core @temporallayr/backend
+/src/temporallayr/server/         @temporallayr/backend
+/workers/                          @temporallayr/backend
+
+# Dashboard
+/dashboard/                       @temporallayr/frontend
+/dashboard/src/                   @temporallayr/frontend
+
+# Testing
+/tests/                           @temporallayr/core
+/tests/integration/               @temporallayr/qa
+
+# CI/CD
+/.github/workflows/               @temporallayr/devops
+/ci/                              @temporallayr/devops
+
+# Documentation
+/docs/                            @temporallayr/docs
+/*.md                              @temporallayr/docs
+
+# Configuration
+/pyproject.toml                   @temporallayr/core
+/setup.py                         @temporallayr/core
+/docker/                          @temporallayr/devops
+
+# Security
+/src/temporallayr/core/auth/      @temporallayr/security
+/src/temporallayr/server/auth/    @temporallayr/security
