@@ -1,207 +1,160 @@
-import { useState, useEffect, useCallback } from 'react'
-import { api } from '../api/client'
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/client';
+import { Card, Badge } from '../components/ui';
+import { PageHeader } from '../components/shared';
+import { Skeleton } from '../components/ui/Skeleton';
+import { formatDate } from '../lib/utils';
+import { CheckCircle, XCircle, AlertTriangle, Clock, Server, Activity } from 'lucide-react';
 
-interface BackendStatus {
-  label: string
-  status: 'ok' | 'degraded' | 'error' | 'loading'
-  details: string
-  latencyMs?: number
+interface ServiceStatus {
+  service_name: string;
+  status: 'healthy' | 'degraded' | 'down' | 'unknown';
+  latency_ms: number;
+  error_rate: number;
+  uptime_pct: number;
+  last_seen: string;
+  span_count_24h: number;
 }
 
-export default function StatusPage() {
-  const [overallStatus, setOverallStatus] = useState<'ok' | 'degraded' | 'error' | 'loading'>('loading')
-  const [lastChecked, setLastChecked] = useState<Date>(new Date())
-  const [secondsAgo, setSecondsAgo] = useState(0)
+const STATUS_CONFIG: Record<string, { icon: any; color: string; bg: string; label: string }> = {
+  healthy: { icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-500/10', label: 'Healthy' },
+  degraded: { icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-500/10', label: 'Degraded' },
+  down: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10', label: 'Down' },
+  unknown: { icon: Clock, color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg-elevated)]', label: 'Unknown' },
+};
 
-  const [backends, setBackends] = useState<Record<string, BackendStatus>>({
-    api: { label: 'API Server', status: 'loading', details: import.meta.env.VITE_API_URL || 'http://localhost:8000' },
-    postgres: { label: 'PostgreSQL', status: 'loading', details: 'Neon — executions store' },
-    clickhouse: { label: 'ClickHouse', status: 'loading', details: 'Analytics engine' },
-    dashboard: { label: 'Dashboard', status: 'loading', details: 'Vercel — this page' }
-  })
-
-  const checkHealth = useCallback(async () => {
-    setOverallStatus('loading')
-
-    // 1. Check Dashboard (Self)
-    const dashStart = Date.now()
-    setBackends(prev => ({ ...prev, dashboard: { ...prev.dashboard, status: 'ok', latencyMs: Date.now() - dashStart } }))
-
-    // 2. Check API Health + Ready
-    try {
-      const apiStart = Date.now()
-
-      // First check basic health
-      await api.health.check()
-      const apiLatency = Date.now() - apiStart
-
-      // Then check detailed backends
-      const readyStart = Date.now()
-      const readyRes = await api.health.ready()
-      const readyLatency = Date.now() - readyStart
-
-      const pgStatusRaw = readyRes.backends.postgres || 'error'
-      const chStatusRaw = readyRes.backends.clickhouse || 'error'
-
-      const pgStatus = pgStatusRaw === 'ok' ? 'ok' : pgStatusRaw.startsWith('degraded') ? 'degraded' : 'error'
-      const chStatus = chStatusRaw === 'ok' ? 'ok' : chStatusRaw.startsWith('degraded') ? 'degraded' : 'error'
-
-      setBackends(prev => ({
-        ...prev,
-        api: { ...prev.api, status: 'ok', latencyMs: apiLatency },
-        postgres: { ...prev.postgres, status: pgStatus, latencyMs: readyLatency },
-        clickhouse: { ...prev.clickhouse, status: chStatus, latencyMs: readyLatency }
-      }))
-
-      if (readyRes.status === 'ok' || readyRes.status === 'ready') {
-        if (pgStatus === 'degraded' || chStatus === 'degraded') {
-          setOverallStatus('degraded')
-        } else {
-          setOverallStatus('ok')
-        }
-      } else {
-        setOverallStatus('error')
-      }
-    } catch (err) {
-      console.error('Health check failed', err)
-      setBackends(prev => ({
-        ...prev,
-        api: { ...prev.api, status: 'error', latencyMs: 0 },
-        postgres: { ...prev.postgres, status: 'error', latencyMs: 0 },
-        clickhouse: { ...prev.clickhouse, status: 'error', latencyMs: 0 }
-      }))
-      setOverallStatus('error')
-    }
-
-    setLastChecked(new Date())
-    setSecondsAgo(0)
-  }, [])
-
-  useEffect(() => {
-    checkHealth()
-
-    const tickInterval = setInterval(() => {
-      setSecondsAgo(prev => prev + 1)
-    }, 1000)
-
-    const fetchInterval = setInterval(() => {
-      checkHealth()
-    }, 30000) // 30 seconds
-
-    return () => {
-      clearInterval(tickInterval)
-      clearInterval(fetchInterval)
-    }
-  }, [checkHealth])
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'ok': return <span className="text-success font-bold text-sm">● OK</span>
-      case 'degraded': return <span className="text-warning font-bold text-sm">● Degraded</span>
-      case 'error': return <span className="text-error font-bold text-sm">● Error</span>
-      case 'loading': return <span className="loading-spinner w-3 h-3 border-[2px]" />
-      default: return <span className="text-text-muted">Unknown</span>
-    }
-  }
-
-  const getBannerConfig = () => {
-    if (overallStatus === 'loading') return { color: 'border-border-subtle bg-bg-surface', text: 'Checking systems...', icon: <span className="loading-spinner w-5 h-5 mr-3" /> }
-    if (overallStatus === 'ok') return { color: 'border-success/30 bg-success-dim', text: 'All systems operational', icon: <svg className="w-5 h-5 mr-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
-    if (overallStatus === 'degraded') return { color: 'border-warning/30 bg-warning-dim', text: 'Degraded performance', icon: <svg className="w-5 h-5 mr-3 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> }
-    return { color: 'border-error/30 bg-error-dim', text: 'Service disruption', icon: <svg className="w-5 h-5 mr-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> }
-  }
-
-  const banner = getBannerConfig()
+function StatusRow({ service }: { service: ServiceStatus }) {
+  const config = STATUS_CONFIG[service.status] ?? STATUS_CONFIG.unknown;
+  const Icon = config.icon;
 
   return (
-    <>
-      <div className="ch-sidebar-context">
-        <div className="ch-context-header">
-          <div className="ch-context-tab active">System Health</div>
-        </div>
-        <div className="ch-context-content">
-          <div className="text-[13px] text-white py-2 px-3 rounded bg-white/10 cursor-pointer font-medium mb-1">Global Status</div>
-          <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">API Services</div>
-          <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Databases</div>
-
-          <div className="mt-6 mb-2 text-[10px] uppercase tracking-wider text-text-muted px-3 font-semibold">External</div>
-          <div className="text-[13px] text-text-secondary py-2 px-3 hover:bg-white/5 cursor-pointer rounded mb-1 transition-colors">Dependents</div>
+    <div className="flex items-center gap-4 p-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-colors">
+      <div className={`p-2 rounded-lg ${config.bg}`}>
+        <Icon size={16} className={config.color} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-sm font-medium text-[var(--text-primary)]">{service.service_name}</h4>
+        <div className="flex items-center gap-3 mt-0.5 text-xs text-[var(--text-muted)]">
+          <span>Last seen: {formatDate(service.last_seen)}</span>
         </div>
       </div>
-
-      <main className="ch-workspace bg-bg-base">
-        <header className="ch-topbar">
-          <div className="ch-topbar-title flex flex-col justify-center">
-            <div className="text-[14px] text-text-primary font-bold">
-              Infrastructure Status
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-[11px] text-text-muted font-mono bg-bg-surface px-2 py-1 rounded border border-border-subtle">
-              Last checked: {secondsAgo}s ago
-            </span>
-            <div className="ch-topbar-actions">
-              <button
-                onClick={checkHealth}
-                className="ch-btn ch-btn-secondary"
-                disabled={overallStatus === 'loading'}
-              >
-                <svg className={`w-3.5 h-3.5 mr-1.5 ${overallStatus === 'loading' ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                Refresh
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <div className="ch-workspace-scroll">
-          <div className="p-8 max-w-4xl mx-auto">
-            <div className="mb-6">
-              <h1 className="text-xl font-bold text-text-primary mb-1">Service Health</h1>
-              <div className="text-[13px] text-text-muted">Real-time infrastructure health and dependency latency metrics</div>
-            </div>
-
-            <div className={`flex-row items-center p-4 rounded-xl border mb-8 transition-colors ${banner.color}`}>
-              {banner.icon}
-              <div className="font-semibold text-text-primary uppercase tracking-wider text-sm">{banner.text}</div>
-            </div>
-
-            {/* 2. SERVICE STATUS TABLE */}
-            <div className="card !p-0 overflow-hidden border border-border-subtle shadow-md">
-              <table className="table w-full">
-                <thead className="bg-[#0a0a0c]">
-                  <tr>
-                    <th className="w-1/4">Service</th>
-                    <th className="w-1/6">Status</th>
-                    <th className="w-1/6 text-right pr-6">Response Time</th>
-                    <th>Details</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.values(backends).map((b, i) => (
-                    <tr key={i} className="hover:bg-bg-hover transition-colors">
-                      <td className="font-medium text-text-primary text-[13px]">{b.label}</td>
-                      <td>{getStatusIcon(b.status)}</td>
-                      <td className="text-right pr-6 text-text-secondary font-mono text-[11px]">
-                        {b.status === 'loading' ? '—' : `${b.latencyMs}ms`}
-                      </td>
-                      <td>
-                        <span className={`text-[12px] font-mono ${b.details.startsWith('http') ? 'text-accent' : 'text-text-muted'}`}>
-                          {b.details}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-6 text-center text-xs text-text-muted bg-bg-surface p-3 rounded-lg border border-border-subtle inline-block mx-auto flex-row items-center gap-2 justify-center">
-              <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              This page auto-refreshes every 30 seconds.
-            </div>
+      <div className="flex items-center gap-6 text-xs">
+        <div className="text-center">
+          <div className="text-[var(--text-muted)] mb-0.5">Uptime</div>
+          <div className={`font-mono font-medium ${service.uptime_pct >= 99.9 ? 'text-green-400' : service.uptime_pct >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
+            {service.uptime_pct.toFixed(2)}%
           </div>
         </div>
-      </main>
-    </>
-  )
+        <div className="text-center">
+          <div className="text-[var(--text-muted)] mb-0.5">Latency</div>
+          <div className="font-mono text-[var(--text-primary)]">{service.latency_ms.toFixed(0)}ms</div>
+        </div>
+        <div className="text-center">
+          <div className="text-[var(--text-muted)] mb-0.5">Error Rate</div>
+          <div className={`font-mono ${service.error_rate > 5 ? 'text-red-400' : service.error_rate > 1 ? 'text-yellow-400' : 'text-[var(--text-primary)]'}`}>
+            {service.error_rate.toFixed(2)}%
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-[var(--text-muted)] mb-0.5">Spans (24h)</div>
+          <div className="font-mono text-[var(--text-primary)]">{service.span_count_24h.toLocaleString()}</div>
+        </div>
+        <Badge variant={service.status === 'healthy' ? 'success' : service.status === 'degraded' ? 'warning' : service.status === 'down' ? 'error' : 'default'}>
+          {config.label}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+export default function Status() {
+  const { data: services, isLoading } = useQuery({
+    queryKey: ['service-status'],
+    queryFn: () => api.getServiceStatus(),
+    refetchInterval: 30000,
+  });
+
+  const healthyCount = services?.filter((s: ServiceStatus) => s.status === 'healthy').length ?? 0;
+  const degradedCount = services?.filter((s: ServiceStatus) => s.status === 'degraded').length ?? 0;
+  const downCount = services?.filter((s: ServiceStatus) => s.status === 'down').length ?? 0;
+  const totalCount = services?.length ?? 0;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Service Status"
+        subtitle="Real-time health overview of all monitored services"
+      />
+
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card className="p-4 text-center">
+          <Server size={18} className="mx-auto text-[var(--text-muted)] mb-2" />
+          <div className="text-2xl font-semibold text-[var(--text-primary)]">
+            {isLoading ? <Skeleton className="h-8 w-8 mx-auto" /> : totalCount}
+          </div>
+          <div className="text-xs text-[var(--text-muted)] mt-0.5">Total Services</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <CheckCircle size={18} className="mx-auto text-green-400 mb-2" />
+          <div className="text-2xl font-semibold text-green-400">
+            {isLoading ? <Skeleton className="h-8 w-8 mx-auto" /> : healthyCount}
+          </div>
+          <div className="text-xs text-[var(--text-muted)] mt-0.5">Healthy</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <AlertTriangle size={18} className="mx-auto text-yellow-400 mb-2" />
+          <div className="text-2xl font-semibold text-yellow-400">
+            {isLoading ? <Skeleton className="h-8 w-8 mx-auto" /> : degradedCount}
+          </div>
+          <div className="text-xs text-[var(--text-muted)] mt-0.5">Degraded</div>
+        </Card>
+        <Card className="p-4 text-center">
+          <XCircle size={18} className="mx-auto text-red-400 mb-2" />
+          <div className="text-2xl font-semibold text-red-400">
+            {isLoading ? <Skeleton className="h-8 w-8 mx-auto" /> : downCount}
+          </div>
+          <div className="text-xs text-[var(--text-muted)] mt-0.5">Down</div>
+        </Card>
+      </div>
+
+      {/* Overall Status Bar */}
+      {totalCount > 0 && (
+        <div className="h-2 bg-[var(--bg-surface)] rounded-full overflow-hidden flex">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${(healthyCount / totalCount) * 100}%` }} />
+          <div className="h-full bg-yellow-500 transition-all" style={{ width: `${(degradedCount / totalCount) * 100}%` }} />
+          <div className="h-full bg-red-500 transition-all" style={{ width: `${(downCount / totalCount) * 100}%` }} />
+        </div>
+      )}
+
+      {/* Service List */}
+      <Card>
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">All Services</h3>
+          <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+            <Activity size={12} className="text-green-400" />
+            Auto-refreshing every 30s
+          </div>
+        </div>
+        {isLoading ? (
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+          </div>
+        ) : !services?.length ? (
+          <div className="py-12 text-center">
+            <Server size={32} className="mx-auto text-[var(--text-muted)] mb-3" />
+            <p className="text-sm text-[var(--text-muted)]">No services registered yet</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">Services will appear here once they start sending traces</p>
+          </div>
+        ) : (
+          services
+            .sort((a: ServiceStatus, b: ServiceStatus) => {
+              const order = { down: 0, degraded: 1, unknown: 2, healthy: 3 };
+              return (order[a.status] ?? 4) - (order[b.status] ?? 4);
+            })
+            .map((service: ServiceStatus) => <StatusRow key={service.service_name} service={service} />)
+        )}
+      </Card>
+    </div>
+  );
 }
