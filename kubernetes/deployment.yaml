@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporallayr-config
+  labels:
+    app: temporallayr
+data:
+  TEMPORALLAYR_API_KEY: ""
+  TEMPORALLAYR_ADMIN_KEY: ""
+  TEMPORALLAYR_TENANT_ID: "default"
+  TEMPORALLAYR_DATA_DIR: "/data/.temporallayr"
+  TEMPORALLAYR_LOG_LEVEL: "INFO"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporallayr-server
+  labels:
+    app: temporallayr
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: temporallayr
+  template:
+    metadata:
+      labels:
+        app: temporallayr
+    spec:
+      containers:
+        - name: server
+          image: temporallayr/server:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: temporallayr-config
+          env:
+            - name: TEMPORALLAYR_CLICKHOUSE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: temporallayr-secrets
+                  key: clickhouse-host
+            - name: TEMPORALLAYR_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: temporallayr-secrets
+                  key: clickhouse-password
+            - name: TEMPORALLAYR_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: temporallayr-secrets
+                  key: postgres-dsn
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporallayr
+  labels:
+    app: temporallayr
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: temporallayr
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: temporallayr-server
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: temporallayr-server
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

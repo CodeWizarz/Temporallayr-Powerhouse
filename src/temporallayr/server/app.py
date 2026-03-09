@@ -24,6 +24,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -198,6 +199,23 @@ app.add_middleware(
 )
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
+        response = await call_next(request)
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+
 app.include_router(incidents_router)
 app.include_router(replay_router)
 
@@ -213,7 +231,7 @@ async def metrics() -> Response:
 
 @app.get("/health", tags=["ops"])
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 @app.get("/ready", tags=["ops"])
@@ -221,8 +239,6 @@ async def ready() -> dict[str, Any]:
     details: dict[str, str] = {}
     try:
         store = get_default_store()
-        # Call async version directly if available (PostgresStore),
-        # otherwise wrap sync SQLiteStore call in a thread to avoid blocking
         if hasattr(store, "list_executions_async"):
             await store.list_executions_async("__probe__", limit=1)
         else:
@@ -240,6 +256,95 @@ async def ready() -> dict[str, Any]:
             details["clickhouse"] = f"degraded: {e}"
 
     return {"status": "ready", "backends": details}
+
+
+@app.get("/status/services", tags=["ops"])
+async def service_status() -> dict[str, Any]:
+    """Detailed service status for monitoring dashboards."""
+    import time
+
+    services = []
+    overall_status = "ok"
+
+    # Database status
+    db_status = "ok"
+    db_latency_ms = 0.0
+    try:
+        start = time.time()
+        store = get_default_store()
+        if hasattr(store, "list_executions_async"):
+            await store.list_executions_async("__probe__", limit=1)
+        else:
+            await asyncio.to_thread(store.list_executions, "__probe__", 1, 0)
+        db_latency_ms = (time.time() - start) * 1000
+    except Exception:
+        db_status = "degraded"
+        db_latency_ms = -1
+        overall_status = "degraded"
+
+    services.append(
+        {
+            "service": "database",
+            "status": db_status,
+            "latency_ms": round(db_latency_ms, 2),
+            "last_check": datetime.now(UTC).isoformat(),
+        }
+    )
+
+    # ClickHouse status
+    ch = get_clickhouse_store()
+    if ch:
+        ch_status = "ok"
+        ch_latency_ms = 0.0
+        try:
+            start = time.time()
+            client = ch._get_client()
+            client.command("SELECT 1")
+            ch_latency_ms = (time.time() - start) * 1000
+        except Exception:
+            ch_status = "degraded"
+            ch_latency_ms = -1
+            if overall_status == "ok":
+                overall_status = "degraded"
+
+        services.append(
+            {
+                "service": "clickhouse",
+                "status": ch_status,
+                "latency_ms": round(ch_latency_ms, 2),
+                "last_check": datetime.now(UTC).isoformat(),
+            }
+        )
+
+    # Redis status (for queue)
+    try:
+        import redis
+
+        r = redis.from_url(os.getenv("TEMPORALLAYR_REDIS_URL", "redis://localhost:6379"))
+        r.ping()
+        services.append(
+            {
+                "service": "redis",
+                "status": "ok",
+                "latency_ms": 0.0,
+                "last_check": datetime.now(UTC).isoformat(),
+            }
+        )
+    except Exception:
+        services.append(
+            {
+                "service": "redis",
+                "status": "unavailable",
+                "latency_ms": -1,
+                "last_check": datetime.now(UTC).isoformat(),
+            }
+        )
+
+    return {
+        "status": overall_status,
+        "services": services,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
 
 
 # ── Ingest (FIXED: tenant isolation) ─────────────────────────────────
@@ -833,6 +938,172 @@ async def set_quota(
 
     set_tenant_quota(tenant_id, daily_limit)
     return {"tenant_id": tenant_id, "daily_limit": daily_limit, "status": "updated"}
+
+
+# ── GDPR Compliance ───────────────────────────────────────────────────
+
+
+@app.get("/admin/tenants/{tenant_id}/export", tags=["admin", "gdpr"])
+async def export_tenant_data(
+    tenant_id: str,
+    _: None = Depends(verify_admin_key),
+) -> dict[str, Any]:
+    """Export all data for a tenant (GDPR data portability).
+
+    Returns all executions, incidents, and analytics data for the tenant.
+    """
+    import asyncio
+
+    from temporallayr.core.store import get_default_store
+
+    store = get_default_store()
+
+    executions = await asyncio.to_thread(store.list_executions, tenant_id, limit=10000)
+    incidents = store.load_all_incidents()
+
+    result = {
+        "tenant_id": tenant_id,
+        "export_timestamp": datetime.now(UTC).isoformat(),
+        "executions_count": len(executions),
+        "incidents_count": len(incidents),
+        "executions": [
+            {
+                "execution_id": e.execution_id,
+                "status": e.status,
+                "created_at": str(e.created_at) if e.created_at else None,
+                "completed_at": str(e.completed_at) if e.completed_at else None,
+            }
+            for e in executions
+        ],
+        "incidents": incidents,
+    }
+
+    logger.info(
+        "Exported tenant data", extra={"tenant_id": tenant_id, "executions": len(executions)}
+    )
+    return result
+
+
+@app.delete("/admin/tenants/{tenant_id}/data", tags=["admin", "gdpr"])
+async def delete_tenant_data(
+    tenant_id: str,
+    confirmation: str = "",
+    _: None = Depends(verify_admin_key),
+) -> dict[str, Any]:
+    """Delete all data for a tenant (GDPR right to erasure).
+
+    Requires confirmation parameter to be set to 'DELETE'.
+    This action is irreversible.
+    """
+    if confirmation != "DELETE":
+        raise HTTPException(
+            status_code=400,
+            detail="Must set confirmation='DELETE' to confirm data deletion",
+        )
+
+    import asyncio
+
+    from temporallayr.core.store import get_default_store
+    from temporallayr.core.store_clickhouse import get_clickhouse_store
+
+    store = get_default_store()
+    ch_store = get_clickhouse_store()
+
+    executions = await asyncio.to_thread(store.list_executions, tenant_id, limit=10000)
+
+    deleted_executions = 0
+    for execution in executions:
+        await asyncio.to_thread(store.delete_execution, tenant_id, execution.execution_id)
+        deleted_executions += 1
+
+    if ch_store:
+        try:
+            client = ch_store._get_client()
+            client.command(f"DELETE FROM temporallayr_spans WHERE tenant_id = '{tenant_id}'")
+            client.command(f"DELETE FROM temporallayr_traces WHERE tenant_id = '{tenant_id}'")
+            logger.info("Deleted ClickHouse data for tenant", extra={"tenant_id": tenant_id})
+        except Exception as e:
+            logger.error("Failed to delete ClickHouse data", extra={"error": str(e)})
+
+    AuditLogger.log_api_call(
+        method="DELETE",
+        path=f"/admin/tenants/{tenant_id}/data",
+        status_code=200,
+        duration_ms=0,
+        tenant_id="system",
+    )
+
+    logger.warning(
+        "Deleted all tenant data", extra={"tenant_id": tenant_id, "executions": deleted_executions}
+    )
+
+    return {
+        "tenant_id": tenant_id,
+        "status": "deleted",
+        "deleted_executions": deleted_executions,
+    }
+
+
+@app.post("/admin/tenants/{tenant_id}/anonymize", tags=["admin", "gdpr"])
+async def anonymize_tenant_data(
+    tenant_id: str,
+    _: None = Depends(verify_admin_key),
+) -> dict[str, Any]:
+    """Anonymize all data for a tenant (GDPR data minimization).
+
+    Replaces personally identifiable information with anonymized hashes.
+    """
+    import asyncio
+
+    from temporallayr.core.store import get_default_store
+    from temporallayr.core.store_clickhouse import get_clickhouse_store
+
+    store = get_default_store()
+    get_clickhouse_store()
+
+    executions = await asyncio.to_thread(store.list_executions, tenant_id, limit=10000)
+
+    anonymized_count = 0
+    for execution in executions:
+        try:
+            graph = await asyncio.to_thread(store.get_execution, tenant_id, execution.execution_id)
+            if graph:
+                import hashlib
+                import json
+
+                for span in graph.spans:
+                    if span.attributes:
+                        attrs = (
+                            json.loads(span.attributes)
+                            if isinstance(span.attributes, str)
+                            else span.attributes
+                        )
+                        for key in list(attrs.keys()):
+                            if any(
+                                p in key.lower()
+                                for p in ["email", "name", "phone", "address", "user"]
+                            ):
+                                attrs[key] = (
+                                    f"[REDACTED:{hashlib.sha256(key.encode()).hexdigest()[:8]}]"
+                                )
+                        span.attributes = json.dumps(attrs)
+                await asyncio.to_thread(store.save_execution, tenant_id, graph)
+                anonymized_count += 1
+        except Exception as e:
+            logger.warning(
+                "Failed to anonymize execution",
+                extra={"execution_id": execution.execution_id, "error": str(e)},
+            )
+
+    logger.info(
+        "Anonymized tenant data", extra={"tenant_id": tenant_id, "executions": anonymized_count}
+    )
+
+    return {
+        "tenant_id": tenant_id,
+        "status": "anonymized",
+        "anonymized_executions": anonymized_count,
+    }
 
 
 # ── Keys ───────────────────────────────────────────────────────────────

@@ -98,6 +98,16 @@ request_duration = _Histogram("tl_request_duration_ms", "Request latency ms")
 queue_size = _Gauge("tl_queue_size", "Current items in ingestion queue")
 ingestion_rate = _Counter("tl_ingestion_rate_total", "Ingestion throughput", ["tenant_id"])
 
+# Additional enterprise metrics
+active_connections = _Gauge("tl_active_connections", "Active API connections")
+database_connections = _Gauge("tl_database_connections", "Database connections in pool")
+database_latency = _Histogram("tl_database_latency_ms", "Database operation latency ms")
+clickhouse_latency = _Histogram("tl_clickhouse_latency_ms", "ClickHouse query latency ms")
+executions_stored = _Gauge("tl_executions_stored", "Total executions in storage")
+tenant_count = _Gauge("tl_tenants_active", "Number of active tenants")
+error_rate = _Gauge("tl_error_rate_percent", "Error rate percentage")
+uptime_seconds = _Gauge("tl_uptime_seconds", "Server uptime in seconds")
+
 _REGISTRY: list[_Renderable] = [
     spans_ingested,
     api_requests,
@@ -107,6 +117,14 @@ _REGISTRY: list[_Renderable] = [
     request_duration,
     queue_size,
     ingestion_rate,
+    active_connections,
+    database_connections,
+    database_latency,
+    clickhouse_latency,
+    executions_stored,
+    tenant_count,
+    error_rate,
+    uptime_seconds,
 ]
 
 
