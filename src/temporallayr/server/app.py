@@ -64,7 +64,10 @@ from temporallayr.server.traces_routes import router as traces_router
 from temporallayr.server.alerts_routes import router as alerts_router
 from temporallayr.server.analytics_routes import router as analytics_router
 from temporallayr.server.stream_routes import router as stream_router
+from temporallayr.server.stream_routes import publish_event
 from temporallayr.server.dag_routes import router as dag_router
+from temporallayr.server.datasets_routes import router as datasets_router
+from temporallayr.server.cost_routes import router as cost_router
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +228,8 @@ app.include_router(incidents_router)
 app.include_router(replay_router)
 app.include_router(traces_router)
 app.include_router(alerts_router)
+app.include_router(datasets_router)
+app.include_router(cost_router)
 app.include_router(analytics_router)
 app.include_router(stream_router)
 app.include_router(dag_router)
