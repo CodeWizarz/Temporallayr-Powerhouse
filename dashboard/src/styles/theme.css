@@ -1,42 +1,31 @@
+/* TemporalLayr Design Tokens */
 :root {
-  /* Colors */
   --bg-base: #1f1f1c;
   --bg-surface: #2d2d2d;
   --bg-sidebar: #111111;
   --bg-elevated: #3c3c3c;
-  --bg-hover: #4a4a4a;
-  --border: #3c3c3c;
-  --border-subtle: rgba(255, 255, 255, 0.05);
-
-  /* Text */
+  --bg-overlay: rgba(0, 0, 0, 0.6);
   --text-primary: #ffffff;
   --text-secondary: #e6e7e9;
   --text-muted: #a0a0a0;
-
-  /* Accent */
+  --border: #3c3c3c;
+  --border-hover: #555555;
+  --border-subtle: #333333;
   --accent: #FAFF69;
-  --accent-dim: rgba(250, 255, 105, 0.1);
   --accent-hover: #eaf059;
-
-  /* Status */
+  --accent-dim: rgba(250, 255, 105, 0.08);
   --success: #4ade80;
-  --success-dim: #4ade8015;
   --error: #f87171;
-  --error-dim: #f8717115;
   --warning: #fb923c;
-  --warning-dim: #fb923c15;
   --info: #60a5fa;
-
-  /* Spacing */
-  --sidebar-width: 250px;
-  --header-height: 60px;
-
-  /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-
-  /* Font */
-  --font-sans: 'SFMono-Regular', Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --font-ui: 'Inter', "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --success-dim: rgba(74, 222, 128, 0.08);
+  --error-dim: rgba(248, 113, 113, 0.08);
+  --warning-dim: rgba(251, 146, 60, 0.08);
+  --info-dim: rgba(96, 165, 250, 0.08);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sidebar-width: 220px;
+  --context-width: 240px;
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
 }
