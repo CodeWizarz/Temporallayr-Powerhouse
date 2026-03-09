@@ -1,113 +1,68 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../../api/client'
+import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Zap, ArrowRight } from 'lucide-react';
+import { Button } from '../../components/ui';
+import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../lib/client';
 
-export default function LoginPage() {
-    const [apiKey, setApiKey] = useState('')
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const navigate = useNavigate()
+export default function Login() {
+  const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setError(null)
-
-        if (!apiKey.trim()) {
-            setError('API Key is required')
-            return
-        }
-
-        setLoading(true)
-
-        // Temporarily set the key so client.ts can use it
-        localStorage.setItem('tl_api_key', apiKey.trim())
-
-        try {
-            // Validate key by attempting to fetch executions
-            await api.executions.list(1, 0)
-
-            // If successful, key is valid. Redirect to traces.
-            navigate('/traces', { replace: true })
-        } catch (err: any) {
-            // Auth failed
-            localStorage.removeItem('tl_api_key')
-            if (err.message && err.message.includes('HTTP 401')) {
-                setError('Invalid API key')
-            } else {
-                setError(err.message || 'Validation failed. Please try again.')
-            }
-        } finally {
-            setLoading(false)
-        }
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      localStorage.setItem('tl_api_key', apiKey);
+      await api.health.check();
+      login(apiKey);
+      navigate('/overview');
+    } catch {
+      localStorage.removeItem('tl_api_key');
+      setError('Invalid API key or server unreachable.');
+    } finally {
+      setLoading(false);
     }
+  }
 
-    return (
-        <div className="auth-page">
-            <Link to="/landing" className="auth-back-link">
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                Back to home
-            </Link>
-
-            {/* Glowing orbs */}
-            <div className="glow-orb glow-orb-blue" />
-            <div className="glow-orb glow-orb-amber" />
-
-            <div className="auth-header">
-                <div className="auth-logo-box">T</div>
-                <h1 className="auth-title">
-                    Sign in to TemporalLayr
-                </h1>
-                <p className="auth-subtitle">Welcome back to your dashboard</p>
-            </div>
-
-            <div className="auth-card">
-                <form onSubmit={handleLogin}>
-                    <div className="auth-form-group">
-                        <label htmlFor="apiKey" className="auth-label">
-                            API Key
-                        </label>
-                        <input
-                            id="apiKey"
-                            type="password"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            placeholder="tl_sk_..."
-                            className="input"
-                            required
-                        />
-                    </div>
-
-                    {error && (
-                        <div className="error-banner" style={{ padding: '8px 12px', fontSize: '13px', marginBottom: '16px' }}>
-                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <span>{error}</span>
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="btn btn-primary"
-                        style={{ width: '100%', padding: '10px', justifyContent: 'center', marginTop: '8px', fontSize: '14px' }}
-                    >
-                        {loading ? (
-                            <>
-                                <span className="loading-spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', borderColor: '#000', borderTopColor: 'transparent' }} />
-                                Validating...
-                            </>
-                        ) : (
-                            'Sign In'
-                        )}
-                    </button>
-                </form>
-
-                <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Don't have an account? </span>
-                    <Link to="/signup" className="auth-link">
-                        Sign up →
-                    </Link>
-                </div>
-            </div>
+  return (
+    <div className="auth-layout">
+      <div className="auth-glow auth-glow-1" />
+      <div className="auth-glow auth-glow-2" />
+      <div className="auth-card">
+        <div className="flex items-center gap-2 mb-8">
+          <Zap className="w-6 h-6 text-[var(--accent)]" />
+          <span className="text-lg font-bold text-[var(--text-primary)]">TemporalLayr</span>
         </div>
-    )
+        <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Welcome back</h1>
+        <p className="text-sm text-[var(--text-muted)] mb-6">Enter your API key to access the dashboard.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">API Key</label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder="tl_..."
+              required
+              className="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-md px-3 py-2.5 text-sm font-mono
+                text-[var(--text-primary)] placeholder-[var(--text-muted)]
+                focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30"
+            />
+          </div>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <Button type="submit" loading={loading} className="w-full" size="lg">
+            Sign In <ArrowRight className="w-4 h-4" />
+          </Button>
+        </form>
+        <p className="text-xs text-[var(--text-muted)] mt-6 text-center">
+          Need an account? <Link to="/signup" className="text-[var(--accent)] hover:underline">Register tenant</Link>
+        </p>
+      </div>
+    </div>
+  );
 }
