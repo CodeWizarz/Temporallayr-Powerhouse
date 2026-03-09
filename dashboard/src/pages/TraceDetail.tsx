@@ -9,8 +9,8 @@ import { ArrowLeft, Clock, Hash, Server, AlertTriangle, CheckCircle, XCircle } f
 import type { Span } from '../types';
 
 function SpanRow({ span, depth = 0 }: { span: Span & { children?: Span[] }; depth?: number }) {
-  const statusColor = span.status === 'error' ? 'text-red-400' : span.status === 'ok' ? 'text-green-400' : 'text-yellow-400';
-  const StatusIcon = span.status === 'error' ? XCircle : span.status === 'ok' ? CheckCircle : AlertTriangle;
+  const statusColor = span.status === 'ERROR' ? 'text-red-400' : span.status === 'OK' ? 'text-green-400' : 'text-yellow-400';
+  const StatusIcon = span.status === 'ERROR' ? XCircle : span.status === 'OK' ? CheckCircle : AlertTriangle;
 
   return (
     <>
@@ -25,7 +25,7 @@ function SpanRow({ span, depth = 0 }: { span: Span & { children?: Span[] }; dept
         {/* Waterfall bar */}
         <div className="w-48 h-2 bg-[var(--bg-base)] rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full ${span.status === 'error' ? 'bg-red-500' : 'bg-[var(--accent)]'}`}
+            className={`h-full rounded-full ${span.status === 'ERROR' ? 'bg-red-500' : 'bg-[var(--accent)]'}`}
             style={{ width: `${Math.min(100, Math.max(5, (span.duration_ms / 1000) * 100))}%` }}
           />
         </div>
@@ -41,8 +41,8 @@ function buildSpanTree(spans: Span[]): (Span & { children?: Span[] })[] {
   const map = new Map<string, Span & { children: Span[] }>();
   const roots: (Span & { children: Span[] })[] = [];
 
-  spans.forEach((s) => map.set(s.span_id, { ...s, children: [] }));
-  spans.forEach((s) => {
+  spans.forEach((s: Span) => map.set(s.span_id, { ...s, children: [] }));
+  spans.forEach((s: Span) => {
     const node = map.get(s.span_id)!;
     if (s.parent_span_id && map.has(s.parent_span_id)) {
       map.get(s.parent_span_id)!.children.push(node);
@@ -66,8 +66,8 @@ export default function TraceDetail() {
 
   const tree = spans ? buildSpanTree(spans) : [];
   const rootSpan = spans?.[0];
-  const totalDuration = spans ? Math.max(...spans.map((s) => s.duration_ms)) : 0;
-  const errorCount = spans?.filter((s) => s.status === 'error').length ?? 0;
+  const totalDuration = spans ? Math.max(...spans.map((s: Span) => s.duration_ms)) : 0;
+  const errorCount = spans?.filter((s: Span) => s.status === 'ERROR').length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -107,7 +107,7 @@ export default function TraceDetail() {
             <Server size={12} /> Services
           </div>
           <div className="text-xl font-semibold text-[var(--text-primary)]">
-            {isLoading ? <Skeleton className="h-7 w-8" /> : new Set(spans?.map((s) => s.service_name)).size}
+            {isLoading ? <Skeleton className="h-7 w-8" /> : new Set(spans?.map((s: Span) => s.service_name)).size}
           </div>
         </Card>
         <Card className="p-4">
