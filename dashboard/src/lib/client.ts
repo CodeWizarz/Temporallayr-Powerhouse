@@ -152,6 +152,39 @@ class ApiClient {
     ready: () => this.get<{ ready: boolean; checks: Record<string, boolean> }>('/health/ready'),
     services: () => this.get<ServiceHealth[]>('/health/services'),
   };
+
+  /* Additional API methods */
+  async getServiceStatus(): Promise<ServiceHealth[]> {
+    return this.get<ServiceHealth[]>('/health/services');
+  }
+
+  async getTraceSpans(traceId: string): Promise<import('../types').Span[]> {
+    return this.get<import('../types').Span[]>(`/executions/${traceId}`);
+  }
+
+  async getCostBreakdown(params?: { from: string; to: string }): Promise<any> {
+    const query = params ? `?from=${params.from}&to=${params.to}` : '';
+    return this.get(`/cost/breakdown${query}`);
+  }
+
+  async getCostByDataset(params?: { from: string; to: string }): Promise<any> {
+    const query = params ? `?from=${params.from}&to=${params.to}` : '';
+    return this.get(`/cost/by-dataset${query}`);
+  }
+
+  async getCostByService(params?: { from: string; to: string }): Promise<any> {
+    const query = params ? `?from=${params.from}&to=${params.to}` : '';
+    return this.get(`/cost/by-service${query}`);
+  }
+
+  async getCostForecast(): Promise<any> {
+    return this.get('/cost/forecast');
+  }
+
+  async getCostTimeline(params?: { from: string; to: string }): Promise<any> {
+    const query = params ? `?from=${params.from}&to=${params.to}` : '';
+    return this.get(`/cost/timeline${query}`);
+  }
 }
 
 export const api = new ApiClient();
