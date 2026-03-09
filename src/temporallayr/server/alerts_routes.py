@@ -1,169 +1,203 @@
-"""Alerts API routes for TemporalLayr."""
+"""Alert rules management API."""
+
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+import time
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
-from temporallayr.core.store import get_default_store
-from temporallayr.core.store_sqlite import SQLiteStore
-from temporallayr.server.auth import verify_api_key
+logger = logging.getLogger("temporallayr.alerts")
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
 
-def _store() -> SQLiteStore:
-    s = get_default_store()
-    return s if isinstance(s, SQLiteStore) else SQLiteStore()
+
+class AlertCondition(BaseModel):
+    metric: str = Field(..., description="Metric to monitor: error_rate, latency_p95, span_count, cost")
+    operator: str = Field(..., description="Comparison: gt, lt, gte, lte, eq")
+    threshold: float = Field(..., description="Threshold value")
+    window_minutes: int = Field(default=5, ge=1, le=1440)
+
+
+class NotificationChannel(BaseModel):
+    type: str = Field(..., description="Channel type: webhook, slack, pagerduty, email")
+    url: str | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class AlertRule(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    type: str = Field(default="threshold", description="threshold, anomaly, match")
+    condition: AlertCondition
+    channels: list[NotificationChannel] = Field(default_factory=list)
+    enabled: bool = True
+    severity: str = Field(default="warning", description="info, warning, critical")
+    tenant_id: str = "default"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_triggered_at: str | None = None
+    trigger_count: int = 0
+    silenced_until: str | None = None
 
 
 class AlertRuleCreate(BaseModel):
     name: str
-    condition: str
-    threshold: float
-    window_seconds: int = 300
-    severity: str = "warning"
+    description: str = ""
+    type: str = "threshold"
+    condition: AlertCondition
+    channels: list[NotificationChannel] = Field(default_factory=list)
     enabled: bool = True
-    notification_channels: list[str] = []
+    severity: str = "warning"
 
 
 class AlertRuleUpdate(BaseModel):
     name: str | None = None
-    condition: str | None = None
-    threshold: float | None = None
-    window_seconds: int | None = None
-    severity: str | None = None
+    description: str | None = None
+    condition: AlertCondition | None = None
+    channels: list[NotificationChannel] | None = None
     enabled: bool | None = None
-    notification_channels: list[str] | None = None
+    severity: str | None = None
+    silenced_until: str | None = None
+
+
+class AlertEvent(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    rule_id: str
+    rule_name: str
+    severity: str
+    metric_value: float
+    threshold: float
+    message: str
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    resolved: bool = False
+    resolved_at: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# In-memory store (production: swap for Postgres)
+# ---------------------------------------------------------------------------
+
+_rules: dict[str, AlertRule] = {}
+_events: list[AlertEvent] = []
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.get("")
 async def list_alerts(
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
-    """List all alert rules for the tenant."""
-    try:
-        store = _store()
-        items = store.list_alerts(tenant_id) if hasattr(store, "list_alerts") else []
-    except Exception:
-        items = []
-    return {"items": items, "total": len(items)}
+    tenant_id: str = Query("default"),
+    enabled_only: bool = Query(False),
+):
+    """List all alert rules."""
+    rules = [r for r in _rules.values() if r.tenant_id == tenant_id]
+    if enabled_only:
+        rules = [r for r in rules if r.enabled]
+    return {"alerts": [r.model_dump() for r in rules], "total": len(rules)}
 
 
 @router.post("", status_code=201)
-async def create_alert(
-    rule: AlertRuleCreate,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
+async def create_alert(body: AlertRuleCreate, tenant_id: str = Query("default")):
     """Create a new alert rule."""
-    now = datetime.now(UTC).isoformat()
-    new_rule: dict[str, Any] = {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "name": rule.name,
-        "condition": rule.condition,
-        "threshold": rule.threshold,
-        "window_seconds": rule.window_seconds,
-        "severity": rule.severity,
-        "enabled": rule.enabled,
-        "notification_channels": rule.notification_channels,
-        "created_at": now,
-        "updated_at": now,
-        "fired_count": 0,
-        "last_fired_at": None,
-    }
-    try:
-        store = _store()
-        if hasattr(store, "save_alert"):
-            store.save_alert(new_rule)
-    except Exception:
-        pass
-    return new_rule
+    rule = AlertRule(
+        name=body.name,
+        description=body.description,
+        type=body.type,
+        condition=body.condition,
+        channels=body.channels,
+        enabled=body.enabled,
+        severity=body.severity,
+        tenant_id=tenant_id,
+    )
+    _rules[rule.id] = rule
+    logger.info("Created alert rule %s: %s", rule.id, rule.name)
+    return rule.model_dump()
 
 
-# NOTE: /fired must come BEFORE /{alert_id} to avoid FastAPI matching "fired" as an ID
-@router.get("/fired")
-async def list_fired_alerts(
-    tenant_id: str = Depends(verify_api_key),
-    limit: int = 50,
-) -> dict[str, Any]:
-    """List recently fired alert events."""
-    try:
-        store = _store()
-        items = store.list_fired_alerts(tenant_id, limit) if hasattr(store, "list_fired_alerts") else []
-    except Exception:
-        items = []
-    return {"items": items, "total": len(items)}
+@router.get("/history")
+async def alert_history(
+    tenant_id: str = Query("default"),
+    limit: int = Query(50, ge=1, le=500),
+    rule_id: str | None = Query(None),
+):
+    """Get alert trigger history."""
+    events = _events
+    if rule_id:
+        events = [e for e in events if e.rule_id == rule_id]
+    events = sorted(events, key=lambda e: e.timestamp, reverse=True)[:limit]
+    return {"events": [e.model_dump() for e in events], "total": len(events)}
 
 
 @router.get("/{alert_id}")
-async def get_alert(
-    alert_id: str,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
-    """Get a single alert rule by ID."""
-    try:
-        store = _store()
-        item = store.get_alert(alert_id, tenant_id) if hasattr(store, "get_alert") else None
-        if item is None:
-            raise HTTPException(status_code=404, detail=f"Alert '{alert_id}' not found")
-        return item
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+async def get_alert(alert_id: str):
+    """Get a specific alert rule."""
+    rule = _rules.get(alert_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+    return rule.model_dump()
 
 
-@router.patch("/{alert_id}")
-async def update_alert(
-    alert_id: str,
-    updates: AlertRuleUpdate,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
-    """Update an alert rule."""
-    try:
-        store = _store()
-        item = store.get_alert(alert_id, tenant_id) if hasattr(store, "get_alert") else None
-        if item is None:
-            raise HTTPException(status_code=404, detail=f"Alert '{alert_id}' not found")
-        patch = updates.model_dump(exclude_none=True)
-        item.update(patch)
-        item["updated_at"] = datetime.now(UTC).isoformat()
-        if hasattr(store, "save_alert"):
-            store.save_alert(item)
-        return item
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+@router.put("/{alert_id}")
+async def update_alert(alert_id: str, body: AlertRuleUpdate):
+    """Update an existing alert rule."""
+    rule = _rules.get(alert_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(rule, field, value)
+    rule.updated_at = datetime.now(timezone.utc).isoformat()
+    return rule.model_dump()
 
 
-@router.delete("/{alert_id}", status_code=204)
-async def delete_alert(
-    alert_id: str,
-    tenant_id: str = Depends(verify_api_key),
-) -> None:
+@router.delete("/{alert_id}")
+async def delete_alert(alert_id: str):
     """Delete an alert rule."""
-    try:
-        store = _store()
-        if hasattr(store, "delete_alert"):
-            store.delete_alert(alert_id, tenant_id)
-    except Exception:
-        pass
+    rule = _rules.pop(alert_id, None)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+    return {"deleted": True, "id": alert_id}
 
 
-@router.post("/{alert_id}/test-fire", status_code=200)
-async def test_fire_alert(
-    alert_id: str,
-    tenant_id: str = Depends(verify_api_key),
-) -> dict[str, Any]:
-    """Test-fire an alert rule to verify notification channels."""
-    return {
-        "alert_id": alert_id,
-        "fired_at": datetime.now(UTC).isoformat(),
-        "test": True,
-        "message": "Test alert fired successfully",
-    }
+@router.post("/{alert_id}/silence")
+async def silence_alert(alert_id: str, until: str = Query(..., description="ISO 8601 timestamp")):
+    """Silence an alert until a given time."""
+    rule = _rules.get(alert_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+    rule.silenced_until = until
+    rule.updated_at = datetime.now(timezone.utc).isoformat()
+    return {"silenced": True, "until": until}
+
+
+@router.post("/{alert_id}/test")
+async def test_alert(alert_id: str):
+    """Fire a test notification for this alert."""
+    rule = _rules.get(alert_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Alert rule not found")
+    event = AlertEvent(
+        rule_id=rule.id,
+        rule_name=rule.name,
+        severity=rule.severity,
+        metric_value=0.0,
+        threshold=rule.condition.threshold,
+        message=f"Test alert for '{rule.name}'",
+    )
+    _events.append(event)
+    return {"test_fired": True, "event": event.model_dump()}
