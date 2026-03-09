@@ -75,11 +75,9 @@ logger = logging.getLogger(__name__)
 _INCIDENTS: list[dict[str, Any]] = []
 _incidents_lock = asyncio.Lock()
 
-
 def _get_sqlite_store() -> SQLiteStore:
     store = get_default_store()
     return store if isinstance(store, SQLiteStore) else SQLiteStore()
-
 
 def _load_incidents() -> list[dict[str, Any]]:
     try:
@@ -88,14 +86,12 @@ def _load_incidents() -> list[dict[str, Any]]:
         logger.warning("Failed to load incidents from SQLite", extra={"error": str(e)})
         return []
 
-
 async def _persist_incidents_locked(incidents: list[dict[str, Any]]) -> None:
     """Must be called inside _incidents_lock."""
     try:
         _get_sqlite_store().bulk_save_incidents(incidents)
     except Exception as e:
         logger.warning("Failed to persist incidents", extra={"error": str(e)})
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -157,7 +153,6 @@ async def lifespan(app: FastAPI):
     stop_retention_job()
     logger.info("TemporalLayr server shutting down")
 
-
 app = FastAPI(
     title="TemporalLayr",
     description="Production-grade AI agent observability — execution graphs, clustering, replay, OTLP.",
@@ -165,10 +160,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
 # CORSMiddleware must be added LAST so that it wraps the entire app
 # (including the audit middleware below it) as the absolutely OUTERNMOST layer.
-
 
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next: Any) -> Response:
@@ -197,7 +190,6 @@ async def audit_middleware(request: Request, call_next: Any) -> Response:
         request_duration.observe(duration_ms)
     return response
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -205,7 +197,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
@@ -220,34 +211,28 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         return response
 
-
 app.add_middleware(SecurityHeadersMiddleware)
-
 
 app.include_router(incidents_router)
 app.include_router(replay_router)
 app.include_router(traces_router)
 app.include_router(alerts_router)
-app.include_router(datasets_router)
-app.include_router(cost_router)
 app.include_router(analytics_router)
 app.include_router(stream_router)
 app.include_router(dag_router)
-
+app.include_router(datasets_router)
+app.include_router(cost_router)
 
 # ── Health & Metrics ───────────────────────────────────────────────────────────
-
 
 @app.get("/metrics", tags=["ops"], include_in_schema=False)
 async def metrics() -> Response:
     """Prometheus metrics endpoint. Scrape with Prometheus or Grafana."""
     return Response(content=render_metrics(), media_type="text/plain; version=0.0.4")
 
-
 @app.get("/health", tags=["ops"])
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": "0.2.0"}
-
 
 @app.get("/ready", tags=["ops"])
 async def ready() -> dict[str, Any]:
@@ -271,7 +256,6 @@ async def ready() -> dict[str, Any]:
             details["clickhouse"] = f"degraded: {e}"
 
     return {"status": "ready", "backends": details}
-
 
 @app.get("/status/services", tags=["ops"])
 async def service_status() -> dict[str, Any]:
@@ -361,18 +345,14 @@ async def service_status() -> dict[str, Any]:
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
-
 # ── Ingest (FIXED: tenant isolation) ─────────────────────────────────────
-
 
 class IngestRequest(BaseModel):
     events: list[dict[str, Any]]
 
-
 async def _enqueue_graph(graph: ExecutionGraph) -> None:
     """Process graph inline — writes directly to ClickHouse, no worker needed."""
     await _process_graph_sync(graph)
-
 
 async def _process_graph_sync(graph: ExecutionGraph) -> None:
     """Post-ingest side-effects: OTLP, ClickHouse, incident detection."""
@@ -406,7 +386,6 @@ async def _process_graph_sync(graph: ExecutionGraph) -> None:
                     asyncio.create_task(dispatch_incident_async(inc, "incident.created"))
     except Exception as e:
         logger.warning("Incident detection error", extra={"error": str(e)})
-
 
 @app.post("/v1/ingest", status_code=202, tags=["ingest"])
 async def ingest_events(
@@ -510,14 +489,11 @@ async def ingest_events(
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}
 
-
 # ── Executions ────────────────────────────────────────────────────────
-
 
 class DiffRequest(BaseModel):
     execution_a: str
     execution_b: str
-
 
 @app.post("/executions", status_code=201, tags=["executions"])
 async def create_execution(
@@ -545,7 +521,6 @@ async def create_execution(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-
 @app.get("/executions", tags=["executions"])
 async def list_executions(
     tenant_id: str = Depends(verify_api_key),
@@ -561,7 +536,6 @@ async def list_executions(
         "offset": offset,
         "has_more": (offset + limit) < len(ids),
     }
-
 
 @app.get("/executions/{execution_id}", tags=["executions"])
 async def get_execution(
@@ -582,7 +556,6 @@ async def get_execution(
     except Exception as e:
         return {"error": str(e), "traceback": traceback.format_exc()}
 
-
 @app.post("/executions/{execution_id}/replay", response_model=ReplayReport, tags=["executions"])
 async def replay_execution(
     execution_id: str,
@@ -595,7 +568,6 @@ async def replay_execution(
             status_code=404, detail=f"Execution '{execution_id}' not found"
         ) from None
     return await ReplayEngine(graph).replay()
-
 
 @app.post("/executions/diff", response_model=dict[str, list[Any]], tags=["executions"])
 async def diff_executions(
@@ -612,9 +584,7 @@ async def diff_executions(
         raise HTTPException(status_code=404, detail=f"'{request.execution_b}' not found") from None
     return ExecutionDiffer.diff(exec_a, exec_b)
 
-
 # ── Clusters & Analytics ────────────────────────────────────────────────────
-
 
 @app.get("/clusters", tags=["analytics"])
 async def get_clusters(
@@ -659,7 +629,6 @@ async def get_clusters(
         "offset": offset,
         "has_more": (offset + limit) < len(items),
     }
-
 
 @app.get("/analytics/latency", tags=["analytics"])
 async def get_latency(
@@ -723,7 +692,6 @@ async def get_latency(
         "has_more": (offset + limit) < len(items),
     }
 
-
 @app.get("/analytics/errors", tags=["analytics"])
 async def get_errors(
     tenant_id: str = Depends(verify_api_key),
@@ -775,7 +743,6 @@ async def get_errors(
         "has_more": (offset + limit) < len(items),
     }
 
-
 @app.get("/analytics/trends", tags=["analytics"])
 async def get_trends(
     tenant_id: str = Depends(verify_api_key),
@@ -785,7 +752,6 @@ async def get_trends(
     if not ch:
         raise HTTPException(status_code=503, detail="ClickHouse not configured.")
     return ch.get_fingerprint_trends(tenant_id, hours=hours)
-
 
 @app.get("/analytics/spans/{trace_id}", tags=["analytics"])
 async def get_span_timeline(
@@ -797,9 +763,7 @@ async def get_span_timeline(
         raise HTTPException(status_code=503, detail="ClickHouse not configured.")
     return ch.get_span_timeline(trace_id, tenant_id)
 
-
 # ── Incidents (FIXED: asyncio.Lock on all mutations) ────────────────────
-
 
 @app.get("/incidents", tags=["incidents"])
 async def get_incidents(
@@ -818,7 +782,6 @@ async def get_incidents(
         "has_more": (offset + limit) < len(tenant_incs),
     }
 
-
 @app.post("/incidents/{incident_id}/ack", tags=["incidents"])
 async def ack_incident(
     incident_id: str,
@@ -832,7 +795,6 @@ async def ack_incident(
                 await _persist_incidents_locked(_INCIDENTS)
                 return inc
     raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found")
-
 
 @app.post("/incidents/{incident_id}/resolve", tags=["incidents"])
 async def resolve_incident(
@@ -848,14 +810,11 @@ async def resolve_incident(
                 return inc
     raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found")
 
-
 # ── Admin API ─────────────────────────────────────────────────────
-
 
 class RegisterTenantRequest(BaseModel):
     tenant_id: str
     admin_email: str | None = None
-
 
 @app.post("/admin/tenants/register", status_code=201, tags=["admin"])
 async def register_tenant(
@@ -873,7 +832,6 @@ async def register_tenant(
         "created_at": datetime.now(UTC).isoformat(),
     }
 
-
 @app.post("/admin/tenants/{tenant_id}/rotate-key", tags=["admin"])
 async def rotate_key(
     tenant_id: str,
@@ -886,11 +844,9 @@ async def rotate_key(
     logger.info("Keys rotated", extra={"tenant_id": tenant_id, "revoked": revoked})
     return {"tenant_id": tenant_id, "api_key": new_key, "revoked_count": revoked}
 
-
 @app.get("/admin/tenants", tags=["admin"])
 async def list_tenants(_: None = Depends(verify_admin_key)) -> list[dict[str, Any]]:
     return list_all_tenants()
-
 
 @app.get("/admin/audit-chain", tags=["admin"])
 async def get_audit_chain(
@@ -905,7 +861,6 @@ async def get_audit_chain(
     entries = get_entries(tenant_id=tenant_id, limit=limit, offset=offset)
     return {"items": entries, "total": len(entries), "limit": limit, "offset": offset}
 
-
 @app.get("/admin/audit-chain/verify", tags=["admin"])
 async def verify_audit_chain(_: None = Depends(verify_admin_key)) -> dict:
     """Verify the integrity of the entire audit chain. Returns broken entry seq if tampered."""
@@ -918,7 +873,6 @@ async def verify_audit_chain(_: None = Depends(verify_admin_key)) -> dict:
         "message": "Chain intact" if is_valid else f"Chain broken at seq {broken_at}",
     }
 
-
 @app.get("/admin/audit-chain/proof/{entry_hash}", tags=["admin"])
 async def audit_proof(entry_hash: str, _: None = Depends(verify_admin_key)) -> dict:
     """Export cryptographic proof-of-existence for a specific audit entry."""
@@ -929,9 +883,7 @@ async def audit_proof(entry_hash: str, _: None = Depends(verify_admin_key)) -> d
         raise HTTPException(status_code=404, detail="Entry not found")
     return proof
 
-
 # ── Tenant Limits & Usage ──────────────────────────────────────────────────────
-
 
 @app.get("/usage", tags=["tenant"])
 async def get_usage(tenant: str = Depends(verify_api_key)) -> dict:
@@ -940,7 +892,6 @@ async def get_usage(tenant: str = Depends(verify_api_key)) -> dict:
 
     _, info = check_quota(tenant)
     return info
-
 
 @app.post("/admin/tenants/{tenant_id}/quota", tags=["admin"])
 async def set_quota(
@@ -954,9 +905,7 @@ async def set_quota(
     set_tenant_quota(tenant_id, daily_limit)
     return {"tenant_id": tenant_id, "daily_limit": daily_limit, "status": "updated"}
 
-
 # ── GDPR Compliance ─────────────────────────────────────────────────────
-
 
 @app.get("/admin/tenants/{tenant_id}/export", tags=["admin", "gdpr"])
 async def export_tenant_data(
@@ -997,7 +946,6 @@ async def export_tenant_data(
         "Exported tenant data", extra={"tenant_id": tenant_id, "executions": len(executions)}
     )
     return result
-
 
 @app.delete("/admin/tenants/{tenant_id}/data", tags=["admin", "gdpr"])
 async def delete_tenant_data(
@@ -1057,7 +1005,6 @@ async def delete_tenant_data(
         "status": "deleted",
         "deleted_executions": deleted_executions,
     }
-
 
 @app.post("/admin/tenants/{tenant_id}/anonymize", tags=["admin", "gdpr"])
 async def anonymize_tenant_data(
@@ -1120,9 +1067,7 @@ async def anonymize_tenant_data(
         "anonymized_executions": anonymized_count,
     }
 
-
 # ── Keys ───────────────────────────────────────────────────────────────
-
 
 @app.get("/keys", tags=["auth"])
 async def list_keys(tenant_id: str = Depends(verify_api_key)) -> list[dict[str, Any]]:
