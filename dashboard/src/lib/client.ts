@@ -1,128 +1,157 @@
-const BASE = import.meta.env.VITE_API_URL || '/api'
-const KEY = () => localStorage.getItem('tl_api_key') || ''
+import { AUTH_KEY, API_BASE_URL } from './constants';
+import type {
+  Trace, TraceRow, Incident, Cluster, LatencyRow, ReplayReport, DiffReport,
+  AlertRule, Dataset, DatasetSchema, CostSummary, CostTrend,
+  HealthStatus, ServiceHealth, StreamStats, Paginated,
+} from '../types';
 
-async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
-    const res = await fetch(`${BASE}${path}`, {
-        ...opts,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${KEY()}`, ...opts.headers },
-    })
-    if (!res.ok) {
-        const e = await res.json().catch(() => ({ detail: res.statusText }))
-        throw new Error(e.detail || `HTTP ${res.status}`)
+class ApiClient {
+  private get headers(): HeadersInit {
+    const key = localStorage.getItem(AUTH_KEY);
+    return {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-API-Key': key } : {}),
+    };
+  }
+
+  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const url = `${API_BASE_URL}${path}`;
+    const res = await fetch(url, {
+      ...options,
+      headers: { ...this.headers, ...options.headers as Record<string, string> },
+    });
+
+    if (res.status === 401) {
+      localStorage.removeItem(AUTH_KEY);
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
     }
-    return res.json()
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(body.detail || `API error: ${res.status}`);
+    }
+
+    return res.json();
+  }
+
+  private get<T>(path: string) { return this.request<T>(path); }
+  private post<T>(path: string, body?: unknown) {
+    return this.request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+  }
+  private put<T>(path: string, body?: unknown) {
+    return this.request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined });
+  }
+  private del<T>(path: string) { return this.request<T>(path, { method: 'DELETE' }); }
+
+  /* Executions / Traces */
+  executions = {
+    list: (params?: { limit?: number; offset?: number; search?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      if (params?.search) q.set('search', params.search);
+      return this.get<Paginated<TraceRow>>(`/executions?${q}`);
+    },
+    get: (id: string) => this.get<Trace>(`/executions/${id}`),
+    replay: (id: string) => this.post<ReplayReport>(`/executions/${id}/replay`),
+    diff: (a: string, b: string) => this.get<DiffReport>(`/executions/diff?trace_a=${a}&trace_b=${b}`),
+  };
+
+  /* Incidents */
+  incidents = {
+    list: (params?: { status?: string; limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.status && params.status !== 'all') q.set('status', params.status);
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      return this.get<Paginated<Incident>>(`/incidents?${q}`);
+    },
+    ack: (id: string) => this.post<Incident>(`/incidents/${id}/acknowledge`),
+    resolve: (id: string) => this.post<Incident>(`/incidents/${id}/resolve`),
+  };
+
+  /* Clusters */
+  clusters = { list: () => this.get<Cluster[]>('/clusters') };
+
+  /* Analytics */
+  analytics = {
+    latency: (period: string = '24h') => this.get<LatencyRow[]>(`/analytics/latency?period=${period}`),
+    trends: (period: string = '7d') => this.get<Array<{ date: string; count: number; errors: number }>>(`/analytics/trends?period=${period}`),
+  };
+
+  /* Alerts */
+  alerts = {
+    list: () => this.get<AlertRule[]>('/alerts'),
+    create: (data: Partial<AlertRule>) => this.post<AlertRule>('/alerts', data),
+    update: (id: string, data: Partial<AlertRule>) => this.put<AlertRule>(`/alerts/${id}`, data),
+    remove: (id: string) => this.del<void>(`/alerts/${id}`),
+    silence: (id: string, duration: number) => this.post<void>(`/alerts/${id}/silence`, { duration }),
+    test: (id: string) => this.post<{ success: boolean; message: string }>(`/alerts/${id}/test`),
+    history: (id: string) => this.get<Array<{ triggered_at: string; resolved_at?: string; severity: string }>>(`/alerts/${id}/history`),
+  };
+
+  /* Stream */
+  stream = {
+    stats: () => this.get<StreamStats>('/stream/stats'),
+    connect: (onEvent: (e: MessageEvent) => void) => {
+      const key = localStorage.getItem(AUTH_KEY);
+      const es = new EventSource(`${API_BASE_URL}/stream?api_key=${key}`);
+      es.onmessage = onEvent;
+      return es;
+    },
+  };
+
+  /* Datasets */
+  datasets = {
+    list: () => this.get<Dataset[]>('/datasets'),
+    get: (id: string) => this.get<Dataset>(`/datasets/${id}`),
+    schema: (id: string) => this.get<DatasetSchema>(`/datasets/${id}/schema`),
+    stats: (id: string) => this.get<{ row_count: number; size_bytes: number; last_updated: string }>(`/datasets/${id}/stats`),
+    updateRetention: (id: string, days: number) => this.put<void>(`/datasets/${id}/retention`, { retention_days: days }),
+  };
+
+  /* Cost */
+  cost = {
+    summary: (period: string = '30d') => this.get<CostSummary>(`/cost/summary?period=${period}`),
+    breakdown: (period: string = '30d') => this.get<CostSummary['breakdown']>(`/cost/breakdown?period=${period}`),
+    trends: (period: string = '30d') => this.get<CostTrend[]>(`/cost/trends?period=${period}`),
+    forecast: () => this.get<{ estimated_monthly: number; trend: string }>('/cost/forecast'),
+    topTraces: (period: string = '30d') => this.get<Array<{ trace_id: string; cost: number; model: string }>>(`/cost/top-traces?period=${period}`),
+  };
+
+  /* Keys */
+  keys = {
+    list: () => this.get<Array<{ id: string; name: string; prefix: string; created_at: string; last_used?: string }>>('/keys'),
+    create: (name: string) => this.post<{ id: string; key: string; name: string }>('/keys', { name }),
+    revoke: (id: string) => this.del<void>(`/keys/${id}`),
+  };
+
+  /* Admin */
+  admin = {
+    listTenants: (adminKey: string) =>
+      this.request<Array<{ tenant_id?: string; id?: string; created_at: string }>>('/admin/tenants', {
+        headers: { 'X-Admin-Key': adminKey },
+      }),
+    register: (tenantId: string, adminKey: string) =>
+      this.request<{ api_key: string; tenant_id: string }>('/admin/tenants', {
+        method: 'POST',
+        headers: { 'X-Admin-Key': adminKey },
+        body: JSON.stringify({ tenant_id: tenantId }),
+      }),
+    rotateKey: (tenantId: string, adminKey: string) =>
+      this.request<{ api_key: string }>(`/admin/tenants/${tenantId}/rotate`, {
+        method: 'POST',
+        headers: { 'X-Admin-Key': adminKey },
+      }),
+  };
+
+  /* Health */
+  health = {
+    check: () => this.get<HealthStatus>('/health'),
+    ready: () => this.get<{ ready: boolean; checks: Record<string, boolean> }>('/health/ready'),
+    services: () => this.get<ServiceHealth[]>('/health/services'),
+  };
 }
 
-export interface Span {
-    span_id: string; parent_span_id: string | null; name: string
-    start_time: string; end_time: string | null; duration_ms: number | null
-    status: 'success' | 'error'; error: string | null; attributes: Record<string, unknown>
-}
-export interface Trace {
-    trace_id: string; tenant_id: string; start_time: string
-    end_time: string | null; spans: Span[]
-}
-export interface Incident {
-    incident_id: string; tenant_id: string; cluster_id: string
-    severity: 'critical' | 'high' | 'normal'; status: 'open' | 'acknowledged' | 'resolved'
-    count: number; first_seen: string; last_seen: string; failing_node?: string
-}
-export interface Cluster {
-    cluster_id: string; fingerprint: string; failing_node: string
-    error_type: string; count: number; executions: string[]
-}
-export interface LatencyRow {
-    name: string; call_count: number; p50_ms: number
-    p95_ms: number; p99_ms: number; avg_ms: number
-    error_count: number; error_rate_pct: number
-}
-export interface Paginated<T> {
-    items: T[]; total: number; limit: number; offset: number; has_more: boolean
-}
-export interface ReplayReport {
-    graph_id: string; total_nodes: number; nodes_replayed: number
-    divergences_found: number; is_deterministic: boolean
-    results: Array<{ node_id: string; success: boolean; divergence_type?: string; divergence_details?: string }>
-}
-
-export const api = {
-    executions: {
-        list: (limit = 50, offset = 0) => req<Paginated<string>>(`/executions?limit=${limit}&offset=${offset}`),
-        get: (id: string) => req<Trace>(`/executions/${id}`),
-        replay: (id: string) => req<ReplayReport>(`/executions/${id}/replay`, { method: 'POST' }),
-        diff: (a: string, b: string) => req<Record<string, unknown[]>>('/executions/diff', {
-            method: 'POST', body: JSON.stringify({ execution_a: a, execution_b: b }),
-        }),
-    },
-    incidents: {
-        list: (limit = 50, offset = 0) => req<Paginated<Incident>>(`/incidents?limit=${limit}&offset=${offset}`),
-        ack: (id: string) => req<Incident>(`/incidents/${id}/ack`, { method: 'POST' }),
-        resolve: (id: string) => req<Incident>(`/incidents/${id}/resolve`, { method: 'POST' }),
-    },
-    clusters: {
-        list: (hours = 24) => req<Paginated<Cluster>>(`/clusters?hours=${hours}&limit=50`),
-    },
-    analytics: {
-        latency: (hours = 24) => req<Paginated<LatencyRow>>(`/analytics/latency?hours=${hours}&limit=200`),
-        trends: (hours = 168) => req<unknown[]>(`/analytics/trends?hours=${hours}`),
-    },
-    alerts: {
-        list: () => req<unknown[]>('/alerts'),
-        create: (data: Record<string, unknown>) =>
-            req<unknown>('/alerts', { method: 'POST', body: JSON.stringify(data) }),
-        update: (id: string, data: Record<string, unknown>) =>
-            req<unknown>(`/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-        remove: (id: string) =>
-            req<{ ok: boolean }>(`/alerts/${id}`, { method: 'DELETE' }),
-        silence: (id: string, until: string) =>
-            req<unknown>(`/alerts/${id}/silence?until=${encodeURIComponent(until)}`, { method: 'POST' }),
-        test: (id: string) =>
-            req<{ fired: boolean }>(`/alerts/${id}/test`, { method: 'POST' }),
-        history: () => req<unknown[]>('/alerts/history'),
-    },
-    stream: {
-        stats: () => req<{ buffer_size: number; active_subscribers: number; buffer_capacity: number }>('/v1/stream/stats'),
-    },
-    datasets: {
-        list: () => req<{ datasets: any[] }>('/datasets'),
-        get: (name: string) => req<any>(`/datasets/${name}`),
-        schema: (name: string) => req<{ dataset: string; fields: any[]; field_count: number }>(`/datasets/${name}/schema`),
-        stats: (name: string) => req<{ dataset: string; stats: Record<string, any> }>(`/datasets/${name}/stats`),
-        updateRetention: (name: string, ttlDays: number) =>
-            req<{ success: boolean }>(`/datasets/${name}/retention`, {
-                method: 'PUT', body: JSON.stringify({ ttl_days: ttlDays }),
-            }),
-    },
-    cost: {
-        summary: (days = 30, tenantId = 'default') =>
-            req<{ summary: Record<string, any> }>(`/analytics/cost?days=${days}&tenant_id=${tenantId}`),
-        breakdown: (groupBy = 'model', days = 30, tenantId = 'default') =>
-            req<{ breakdown: any[]; group_by: string }>(`/analytics/cost/breakdown?group_by=${groupBy}&days=${days}&tenant_id=${tenantId}`),
-        trends: (days = 30, granularity = 'day', tenantId = 'default') =>
-            req<{ trends: any[]; granularity: string }>(`/analytics/cost/trends?days=${days}&granularity=${granularity}&tenant_id=${tenantId}`),
-        forecast: (forecastDays = 30, tenantId = 'default') =>
-            req<{ forecast: Record<string, any> }>(`/analytics/cost/forecast?forecast_days=${forecastDays}&tenant_id=${tenantId}`),
-        topTraces: (days = 7, limit = 20, tenantId = 'default') =>
-            req<{ traces: any[] }>(`/analytics/cost/top-traces?days=${days}&limit=${limit}&tenant_id=${tenantId}`),
-    },
-    keys: { list: () => req<unknown[]>('/keys') },
-    admin: {
-        listTenants: (adminKey: string) =>
-            fetch(`${BASE}/admin/tenants`, { headers: { 'X-Admin-Key': adminKey } }).then(r => r.json()),
-        register: (tenantId: string, adminKey: string) =>
-            fetch(`${BASE}/admin/tenants/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
-                body: JSON.stringify({ tenant_id: tenantId }),
-            }).then(r => r.json()),
-        rotateKey: (tenantId: string, adminKey: string) =>
-            fetch(`${BASE}/admin/tenants/${tenantId}/rotate-key`, {
-                method: 'POST', headers: { 'X-Admin-Key': adminKey },
-            }).then(r => r.json()),
-    },
-    health: {
-        check: () => req<{ status: string }>('/health'),
-        ready: () => req<{ status: string; backends: Record<string, string> }>('/ready'),
-        services: () => req<Record<string, any>>('/status/services'),
-    },
-}
+export const api = new ApiClient();
