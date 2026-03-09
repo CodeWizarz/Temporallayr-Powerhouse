@@ -11,6 +11,11 @@ import ReplayPage from './pages/Replay'
 import SettingsPage from './pages/Settings'
 import StatusPage from './pages/Status'
 import NewService from './pages/NewService'
+import OverviewPage from './pages/Overview'
+import AlertsPage from './pages/Alerts'
+import DatasetsPage from './pages/Datasets'
+import CostTrackingPage from './pages/CostTracking'
+import EventStreamPage from './pages/EventStream'
 import OrganizationGeneralPage from './pages/settings/organization/GeneralPage'
 import OrganizationBillingPage from './pages/settings/organization/BillingPage'
 import OrganizationMembersPage from './pages/settings/organization/MembersPage'
@@ -25,18 +30,22 @@ export default function App() {
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
-                <Route path="/" element={<Navigate to="/traces" replace />} />
+                <Route path="/" element={<Navigate to="/overview" replace />} />
 
                 <Route element={<AuthGuard><Layout><Outlet /></Layout></AuthGuard>}>
                     <Route path="/new" element={<NewService />} />
+                    <Route path="/overview" element={<OverviewPage />} />
                     <Route path="/traces" element={<TracesPage />} />
                     <Route path="/traces/:traceId" element={<TraceDetailPage />} />
                     <Route path="/incidents" element={<IncidentsPage />} />
                     <Route path="/analytics" element={<AnalyticsPage />} />
                     <Route path="/replay" element={<ReplayPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/alerts" element={<AlertsPage />} />
+                    <Route path="/datasets" element={<DatasetsPage />} />
+                    <Route path="/cost" element={<CostTrackingPage />} />
+                    <Route path="/stream" element={<EventStreamPage />} />
                     <Route path="/status" element={<StatusPage />} />
-                    
+
                     <Route path="/settings" element={<SettingsLayout />}>
                         <Route index element={<SettingsPage />} />
                         <Route path="organization" element={<OrganizationGeneralPage />} />
@@ -48,26 +57,7 @@ export default function App() {
                     </Route>
                 </Route>
             </Routes>
-            <Toaster
-                position="bottom-right"
-                toastOptions={{
-                    duration: 4000,
-                    style: {
-                        background: '#1e1e1e',
-                        color: '#fff',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        fontSize: '13px',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)'
-                    },
-                    success: {
-                        iconTheme: {
-                            primary: '#4ade80',
-                            secondary: '#1e1e1e',
-                        },
-                    },
-                }}
-            />
+            <Toaster position="bottom-right" toastOptions={{ style: { background: 'var(--ch-surface)', color: 'var(--ch-text-primary)', border: '1px solid var(--ch-border)' } }} />
         </>
     )
 }
