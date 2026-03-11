@@ -59,36 +59,6 @@ function RailLink({ path, label, icon, matchNested = false }: { path: string; la
   );
 }
 
-
-// ---- Time Range Context ----
-import { createContext, useContext, useState, useMemo, type ReactNode } from 'react';
-
-interface TimeRange { from: string; to: string; }
-interface TimeRangeCtx { range: TimeRange; timeRange: TimeRange; setRange: (r: TimeRange) => void; }
-
-const TimeRangeContext = createContext<TimeRangeCtx | null>(null);
-
-export function useTimeRange(): TimeRangeCtx {
-  const ctx = useContext(TimeRangeContext);
-  if (!ctx) {
-    // fallback: return last 24h
-    const to = new Date().toISOString();
-    const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    return { range: { from, to }, timeRange: { from, to }, setRange: () => {} };
-  }
-  return ctx;
-}
-
-function TimeRangeProvider({ children }: { children: ReactNode }) {
-  const [range, setRange] = useState<TimeRange>(() => ({
-    from: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    to: new Date().toISOString(),
-  }));
-  const value = useMemo(() => ({ range, timeRange: range, setRange }), [range]);
-  return <TimeRangeContext.Provider value={value}>{children}</TimeRangeContext.Provider>;
-}
-// ---- End Time Range Context ----
-
 export default function Layout() {
   const { logout } = useAuth();
   const { data: health } = useQuery({
