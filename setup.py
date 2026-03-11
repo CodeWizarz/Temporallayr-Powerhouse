@@ -23,8 +23,36 @@ temporallayr_shard_ext = Extension(
     extra_compile_args=args,
 )
 
+temporallayr_spacesaving_ext = Extension(
+    "temporallayr_spacesaving_ext",
+    sources=["src/clickhouse_native/space_saving.cpp"],
+    language="c++",
+    extra_compile_args=args,
+)
+
+temporallayr_hll_ext = Extension(
+    "temporallayr_hll_ext",
+    sources=["src/clickhouse_native/hll_counter.cpp"],
+    language="c++",
+    extra_compile_args=args,
+)
+
+temporallayr_pool_ext = Extension(
+    "temporallayr_pool_ext",
+    sources=["src/clickhouse_native/fast_threadpool.cpp"],
+    language="c++",
+    extra_compile_args=args,
+)
+
 setup(
     name="temporallayr",
     version="0.1.0",
-    ext_modules=[temporallayr_hash_ext, temporallayr_lru_ext, temporallayr_shard_ext],
+    ext_modules=[
+        temporallayr_hash_ext,
+        temporallayr_lru_ext,
+        temporallayr_shard_ext,
+        temporallayr_spacesaving_ext,
+        temporallayr_hll_ext,
+        temporallayr_pool_ext,
+    ],
 )

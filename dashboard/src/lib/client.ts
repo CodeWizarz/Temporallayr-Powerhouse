@@ -134,13 +134,13 @@ class ApiClient {
         headers: { 'X-Admin-Key': adminKey },
       }),
     register: (tenantId: string, adminKey: string) =>
-      this.request<{ api_key: string; tenant_id: string }>('/admin/tenants', {
+      this.request<{ api_key: string; tenant_id: string }>('/admin/tenants/register', {
         method: 'POST',
         headers: { 'X-Admin-Key': adminKey },
         body: JSON.stringify({ tenant_id: tenantId }),
       }),
     rotateKey: (tenantId: string, adminKey: string) =>
-      this.request<{ api_key: string }>(`/admin/tenants/${tenantId}/rotate`, {
+      this.request<{ api_key: string }>(`/admin/tenants/${tenantId}/rotate-key`, {
         method: 'POST',
         headers: { 'X-Admin-Key': adminKey },
       }),
