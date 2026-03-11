@@ -26,12 +26,8 @@ function IncidentItem({
   onResolve,
 }: {
   incident: Incident;
-  expanded: boolean;
-  onToggle: () => void;
-  onAcknowledge: () => void;
-  onResolve: () => void;
-  ackLoading: boolean;
-  resolveLoading: boolean;
+  onAcknowledge: (id: string) => void;
+  onResolve: (id: string) => void;
 }) {
   return (
     <div className="rounded-2xl border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">

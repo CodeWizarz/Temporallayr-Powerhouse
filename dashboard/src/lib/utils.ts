@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]): string {
 /** Format date to readable string */
 export function formatDate(date: string | Date, opts?: Intl.DateTimeFormatOptions): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  if (isNaN(d.getTime())) return '\u2014';
+  if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -137,6 +137,3 @@ export function buildSpanTree(spans: import('../types').Span[]): import('../type
 
   return roots;
 }
-
-/** Alias for statusColor used by some pages */
-export const getStatusColor = statusColor;

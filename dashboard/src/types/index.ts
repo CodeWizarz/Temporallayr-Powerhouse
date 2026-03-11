@@ -10,7 +10,6 @@ export interface Span {
   status: 'OK' | 'ERROR' | 'TIMEOUT';
   error: string | null;
   attributes: Record<string, unknown>;
-  service_name?: string;
 }
 
 export interface Trace {
@@ -206,47 +205,4 @@ export interface TabItem {
 export interface SpanNode extends Span {
   children: SpanNode[];
   depth: number;
-}
-
-/* ───────── Dataset Field Types ───────── */
-
-export interface DatasetField {
-  name: string;
-  type: string;
-  description?: string;
-}
-
-/* ───────── API Key Types ───────── */
-
-export interface ApiKey {
-  id: string;
-  name: string;
-  key: string;
-  prefix: string;
-  created_at: string;
-  last_used_at?: string;
-  expires_at?: string;
-  scopes: string[];
-}
-
-/* ───────── Cost Tracking Types ───────── */
-
-export interface CostBreakdownItem {
-  name: string;
-  cost: number;
-  percentage: number;
-  trend: number;
-}
-
-export interface CostBreakdown {
-  items: CostBreakdownItem[];
-  total: number;
-}
-
-export interface CostForecast {
-  projected_cost: number;
-  confidence_low: number;
-  confidence_high: number;
-  trend: number;
-  data: Array<{ date: string; actual?: number; projected?: number }>;
 }
