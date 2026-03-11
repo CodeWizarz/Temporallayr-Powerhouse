@@ -4,7 +4,17 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
-body { font-family: var(--font-sans); background: var(--bg-base); color: var(--text-primary); min-height: 100vh; overflow: hidden; }
+html, body, #root { min-height: 100%; }
+body {
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(circle at top left, rgba(201, 246, 88, 0.08), transparent 22%),
+    radial-gradient(circle at top right, rgba(86, 122, 255, 0.06), transparent 26%),
+    linear-gradient(180deg, #0a0d12 0%, #0b0f14 100%);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow: hidden;
+}
 #root { min-height: 100vh; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -15,3 +25,4 @@ body { font-family: var(--font-sans); background: var(--bg-base); color: var(--t
 .tabular-nums { font-variant-numeric: tabular-nums; }
 h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.03em; }
 button, input, select, textarea { font: inherit; }
+a { color: inherit; text-decoration: none; }
