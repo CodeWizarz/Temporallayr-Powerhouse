@@ -18,7 +18,6 @@ export default function Login() {
     setLoading(true);
     try {
       localStorage.setItem('tl_api_key', apiKey);
-      await api.health.check();
       login(apiKey);
       navigate('/overview');
     } catch {

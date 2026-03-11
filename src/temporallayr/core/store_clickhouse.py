@@ -638,9 +638,7 @@ class ClickHouseAnalyticsStore:
         ]
         return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
 
-    def get_capacity_planning(
-        self, tenant_id: str, days: int = 30
-    ) -> list[dict[str, Any]]:
+    def get_capacity_planning(self, tenant_id: str, days: int = 30) -> list[dict[str, Any]]:
         """Provide capacity planning metrics and projections.
 
         Includes:
@@ -728,9 +726,7 @@ class ClickHouseAnalyticsStore:
         ]
         return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
 
-    def get_peak_usage_hours(
-        self, tenant_id: str, days: int = 7
-    ) -> list[dict[str, Any]]:
+    def get_peak_usage_hours(self, tenant_id: str, days: int = 7) -> list[dict[str, Any]]:
         """Identify peak usage hours for capacity planning.
 
         Returns hourly breakdown of average request volume.
@@ -762,9 +758,7 @@ class ClickHouseAnalyticsStore:
         ]
         return [dict(zip(cols, row, strict=True)) for row in result.result_rows]
 
-    def get_trace_execution_flow(
-        self, tenant_id: str, trace_id: str
-    ) -> list[dict[str, Any]]:
+    def get_trace_execution_flow(self, tenant_id: str, trace_id: str) -> list[dict[str, Any]]:
         """Get detailed execution flow for a specific trace.
 
         Includes span hierarchy, timing, and error details.

@@ -53,7 +53,7 @@ export default function Signup() {
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Tenant ID</label>
               <input
                 type="text" value={tenantId} onChange={e => setTenantId(e.target.value)}
-                placeholder="my-org" required pattern="^[a-z0-9-]+$"
+                placeholder="my-org" required pattern="^[a-z0-9\-]+$"
                 title="Lowercase letters, numbers, and hyphens only"
                 className="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-md px-3 py-2.5 text-sm font-mono
                   text-[var(--text-primary)] placeholder-[var(--text-muted)]

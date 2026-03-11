@@ -1,19 +1,19 @@
 /* TemporalLayr Design Tokens */
 :root {
-  --bg-base: #1f1f1c;
-  --bg-surface: #2d2d2d;
-  --bg-sidebar: #111111;
-  --bg-elevated: #3c3c3c;
+  --bg-base: #090d11;
+  --bg-surface: #0f151b;
+  --bg-sidebar: #070b0f;
+  --bg-elevated: #151d25;
   --bg-overlay: rgba(0, 0, 0, 0.6);
-  --text-primary: #ffffff;
-  --text-secondary: #e6e7e9;
-  --text-muted: #a0a0a0;
-  --border: #3c3c3c;
-  --border-hover: #555555;
-  --border-subtle: #333333;
-  --accent: #FAFF69;
-  --accent-hover: #eaf059;
-  --accent-dim: rgba(250, 255, 105, 0.08);
+  --text-primary: #eff6f3;
+  --text-secondary: #c4d0cb;
+  --text-muted: #7d8c92;
+  --border: #1f2a31;
+  --border-hover: #31414b;
+  --border-subtle: #182028;
+  --accent: #d2ff5c;
+  --accent-hover: #c2f144;
+  --accent-dim: rgba(210, 255, 92, 0.08);
   --success: #4ade80;
   --error: #f87171;
   --warning: #fb923c;
@@ -22,9 +22,10 @@
   --error-dim: rgba(248, 113, 113, 0.08);
   --warning-dim: rgba(251, 146, 60, 0.08);
   --info-dim: rgba(96, 165, 250, 0.08);
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --sidebar-width: 220px;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+  --sidebar-width: 272px;
   --context-width: 240px;
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;

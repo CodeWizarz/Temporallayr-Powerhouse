@@ -101,8 +101,7 @@ class PRInfo:
         pr_info.labels = set(labels_str.split(",")) if labels_str else set()
 
         pr_info.is_bugfix = (
-            Labels.PR_BUGFIX in pr_info.labels
-            or Labels.PR_CRITICAL_BUGFIX in pr_info.labels
+            Labels.PR_BUGFIX in pr_info.labels or Labels.PR_CRITICAL_BUGFIX in pr_info.labels
         )
 
         pr_info.force_tests = Labels.CAN_BE_TESTED in pr_info.labels
@@ -112,9 +111,7 @@ class PRInfo:
         pr_info.base_name = repo.split("/")[0]
 
         pr_info.pr_html_url = (
-            f"https://github.com/{repo}/pull/{pr_info.number}"
-            if pr_info.number
-            else ""
+            f"https://github.com/{repo}/pull/{pr_info.number}" if pr_info.number else ""
         )
         pr_info.commit_html_url = f"https://github.com/{repo}/commit/{pr_info.sha}"
         pr_info.task_url = os.getenv("GITHUB_RUN_URL", "")

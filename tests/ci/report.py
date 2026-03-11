@@ -119,7 +119,7 @@ class TestResultsReporter:
                         "test_name": result.name,
                         "test_status": result.status,
                         "test_duration_ms": int((result.time or 0) * 1000),
-                        "test_logs": result.raw_logs[: 32000],
+                        "test_logs": result.raw_logs[:32000],
                         "report_url": result.report_url,
                         "run_time": datetime.now().isoformat(),
                     }
@@ -204,9 +204,7 @@ def run_tests_with_report(
                     reporter.add_result(name, "SKIPPED")
 
         if result.returncode != 0:
-            reporter.add_result(
-                "pytest_exit", "ERROR", raw_logs=result.stderr[:10000]
-            )
+            reporter.add_result("pytest_exit", "ERROR", raw_logs=result.stderr[:10000])
 
     except subprocess.TimeoutExpired:
         reporter.add_result("pytest_timeout", "TIMEOUT")

@@ -7,30 +7,18 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../lib/client';
-import { useTimeRange } from '../components/Layout';
+import { Card, Badge, Button } from '../components/ui';
+import { Modal } from '../components/ui/Modal';
+import { PageHeader } from '../components/shared';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Bell, Plus, Trash2, ToggleLeft, ToggleRight, Mail, MessageSquare, Webhook } from 'lucide-react';
+import type { AlertRule as ApiAlertRule } from '../types';
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-interface Alert {
-  alert_id: string;
-  tenant_id: string;
-  name: string;
-  description: string;
-  severity: 'info' | 'warning' | 'critical';
-  metric: string;
-  operator: string;
-  threshold: number;
-  window_seconds: number;
-  dataset?: string;
-  channels: string[];
-  enabled: boolean;
-  silenced_until?: string | null;
-  last_triggered?: string | null;
-  created_at: string;
-  updated_at: string;
-}
+type AlertRule = ApiAlertRule & {
+  channel?: 'email' | 'slack' | 'webhook';
+  service_name?: string;
+};
 
 interface AlertHistoryEntry {
   triggered_at: string;
@@ -72,29 +60,13 @@ const WINDOW_OPTIONS = [
   { value: 86400, label: '24h' },
 ];
 
-const METRIC_OPTIONS = [
-  { value: 'error_rate',    label: 'Error Rate' },
-  { value: 'latency_avg',   label: 'Avg Latency' },
-  { value: 'latency_p99',   label: 'P99 Latency' },
-  { value: 'request_count',  label: 'Request Count' },
-  { value: 'cost',           label: 'Cost' },
-];
-
-const OPERATOR_OPTIONS = [
-  { value: '>',  label: '>' },
-  { value: '<',  label: '<' },
-  { value: '>=', label: '>=' },
-  { value: '<=', label: '<=' },
-  { value: '=',  label: '=' },
-];
-
-const SILENCE_DURATIONS = [
-  { value: 1800,   label: '30m' },
-  { value: 3600,   label: '1h' },
-  { value: 21600,  label: '6h' },
-  { value: 86400,  label: '24h' },
-  { value: 0,      label: 'Custom' },
-];
+function AlertRow({ rule, onToggle, onDelete }: {
+  rule: AlertRule;
+  onToggle: (id: string, enabled: boolean) => void;
+  onDelete: (id: string) => void;
+}) {
+  const channel = rule.channel ?? (rule.channels?.[0] as 'email' | 'slack' | 'webhook' | undefined) ?? 'email';
+  const ChannelIcon = CHANNEL_ICONS[channel] ?? Bell;
 
 const DEFAULT_FORM: AlertFormData = {
   name: '',
@@ -515,39 +487,15 @@ export default function Alerts() {
               text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50
               transition-all duration-200"
           />
-        </div>
-
-        <select
-          value={severityFilter}
-          onChange={e => setSeverityFilter(e.target.value)}
-          className="px-3 py-2 bg-[#13131a] border border-[#1e1e2e] rounded-lg text-sm text-gray-300
-            focus:outline-none focus:border-indigo-500/50 transition-all duration-200"
-        >
-          <option value="all">All Severities</option>
-          <option value="info">Info</option>
-          <option value="warning">Warning</option>
-          <option value="critical">Critical</option>
-        </select>
-
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-[#13131a] border border-[#1e1e2e] rounded-lg text-sm text-gray-300
-            focus:outline-none focus:border-indigo-500/50 transition-all duration-200"
-        >
-          <option value="all">All Statuses</option>
-          <option value="enabled">Enabled</option>
-          <option value="disabled">Disabled</option>
-          <option value="silenced">Silenced</option>
-        </select>
-
-        {(search || severityFilter !== 'all' || statusFilter !== 'all') && (
-          <button
-            onClick={() => { setSearch(''); setSeverityFilter('all'); setStatusFilter('all'); }}
-            className="px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-          >
-            Clear filters
-          </button>
+        ) : (
+          rules.map((rule) => (
+            <AlertRow
+              key={rule.id}
+              rule={rule as AlertRule}
+              onToggle={(id, enabled) => toggleMutation.mutate({ id, enabled })}
+              onDelete={(id) => deleteMutation.mutate(id)}
+            />
+          ))
         )}
       </div>
 

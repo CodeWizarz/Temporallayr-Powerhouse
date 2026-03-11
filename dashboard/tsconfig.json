@@ -10,6 +10,7 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
+    "types": ["vite/client"],
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
@@ -27,12 +28,6 @@
       ]
     }
   },
-  "include": [
-    "src"
-  ],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    }
-  ]
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["src/tests"]
 }

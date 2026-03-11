@@ -13,7 +13,7 @@ import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import clickhouse_connect
 import requests
@@ -145,9 +145,7 @@ class TemporalLayrClickHouseHelper:
         try:
             self._insert_json_str_info(db, table, event_str)
         except InsertException as e:
-            logging.error(
-                "Exception happened during inserting data into clickhouse: %s", e
-            )
+            logging.error("Exception happened during inserting data into clickhouse: %s", e)
             if not safe:
                 raise
 
@@ -159,9 +157,7 @@ class TemporalLayrClickHouseHelper:
         try:
             self._insert_json_str_info(db, table, ",".join(jsons))
         except InsertException as e:
-            logging.error(
-                "Exception happened during inserting data into clickhouse: %s", e
-            )
+            logging.error("Exception happened during inserting data into clickhouse: %s", e)
             if not safe:
                 raise
 
@@ -300,8 +296,7 @@ class CiLogsCredentials:
     def clean_ci_logs_from_credentials(self, log_path: Path) -> None:
         if not (self.host or self.password):
             logging.info(
-                "Hostname and password for CI logs instance are unknown, "
-                "skipping cleaning %s",
+                "Hostname and password for CI logs instance are unknown, " "skipping cleaning %s",
                 log_path,
             )
             return
@@ -315,9 +310,7 @@ class CiLogsCredentials:
                 return line.replace(self.host, "CLICKHOUSE_CI_LOGS_HOST")
             return line.replace(self.password, "CLICKHOUSE_CI_LOGS_PASSWORD")
 
-        with fileinput.input(
-            log_path, inplace=True, errors="surrogateescape"
-        ) as log_fd:
+        with fileinput.input(log_path, inplace=True, errors="surrogateescape") as log_fd:
             for line in log_fd:
                 print(process_line(line), end="")
 

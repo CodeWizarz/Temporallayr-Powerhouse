@@ -3,6 +3,7 @@ Redis connection handler for queue-based ingestion.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 
