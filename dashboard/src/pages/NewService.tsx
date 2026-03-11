@@ -2,129 +2,41 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/client';
-import { Card, Button } from '../components/ui';
-import { PageHeader } from '../components/shared';
-import { ArrowLeft, Plus, Code, Copy, Check, ChevronRight } from 'lucide-react';
+import { Badge, Button } from '../components/ui';
+import { DashboardSection, Surface, SurfaceHeader } from '../components/shared';
+import { ArrowLeft, Check, ChevronRight, Code, Copy, Sparkles } from 'lucide-react';
 
 const LANGUAGES = [
-  { id: 'python', label: 'Python', icon: '🐍' },
-  { id: 'javascript', label: 'JavaScript / Node.js', icon: 'JS' },
-  { id: 'go', label: 'Go', icon: 'Go' },
-  { id: 'java', label: 'Java', icon: '☕' },
-  { id: 'rust', label: 'Rust', icon: '🦀' },
-  { id: 'other', label: 'Other / Custom', icon: '...' },
+  { id: 'python', label: 'Python', icon: 'PY' },
+  { id: 'javascript', label: 'JavaScript', icon: 'JS' },
+  { id: 'go', label: 'Go', icon: 'GO' },
+  { id: 'java', label: 'Java', icon: 'JV' },
+  { id: 'rust', label: 'Rust', icon: 'RS' },
+  { id: 'other', label: 'Custom', icon: 'OT' },
 ];
 
 const CODE_SNIPPETS: Record<string, string> = {
-  python: `# Install: pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-# Configure
-provider = TracerProvider()
-exporter = OTLPSpanExporter(
-    endpoint="YOUR_ENDPOINT",
-    headers={"x-api-key": "YOUR_API_KEY"}
-)
-provider.add_span_processor(BatchSpanProcessor(exporter))
-trace.set_tracer_provider(provider)
-
-# Use
-tracer = trace.get_tracer("YOUR_SERVICE")
-with tracer.start_as_current_span("operation") as span:
-    span.set_attribute("key", "value")
-    # Your code here`,
-  javascript: `// Install: npm install @opentelemetry/api @opentelemetry/sdk-trace-node @opentelemetry/exporter-trace-otlp-grpc
-const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
-const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');
-
-const provider = new NodeTracerProvider();
-const exporter = new OTLPTraceExporter({
-  url: 'YOUR_ENDPOINT',
-  headers: { 'x-api-key': 'YOUR_API_KEY' },
-});
-
-provider.addSpanProcessor(new BatchSpanProcessor(exporter));
-provider.register();
-
-const tracer = provider.getTracer('YOUR_SERVICE');
-const span = tracer.startSpan('operation');
-span.setAttribute('key', 'value');
-// Your code here
-span.end();`,
-  go: `// Install: go get go.opentelemetry.io/otel
-package main
-
-import (
-    "context"
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-    sdktrace "go.opentelemetry.io/otel/sdk/trace"
-)
-
-func initTracer() *sdktrace.TracerProvider {
-    exporter, _ := otlptracegrpc.New(context.Background(),
-        otlptracegrpc.WithEndpoint("YOUR_ENDPOINT"),
-        otlptracegrpc.WithHeaders(map[string]string{"x-api-key": "YOUR_API_KEY"}),
-    )
-    tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))
-    otel.SetTracerProvider(tp)
-    return tp
-}`,
-  java: `// Add to pom.xml: opentelemetry-api, opentelemetry-sdk, opentelemetry-exporter-otlp
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
-import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
-
-OtlpGrpcSpanExporter exporter = OtlpGrpcSpanExporter.builder()
-    .setEndpoint("YOUR_ENDPOINT")
-    .addHeader("x-api-key", "YOUR_API_KEY")
-    .build();
-
-SdkTracerProvider provider = SdkTracerProvider.builder()
-    .addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
-    .build();
-
-Tracer tracer = provider.get("YOUR_SERVICE");
-var span = tracer.spanBuilder("operation").startSpan();
-span.setAttribute("key", "value");
-// Your code here
-span.end();`,
-  rust: `// Add to Cargo.toml: opentelemetry, opentelemetry-otlp
-use opentelemetry::global;
-use opentelemetry_otlp::WithExportConfig;
-
-fn init_tracer() {
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_endpoint("YOUR_ENDPOINT");
-    
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Failed to install tracer");
-}`,
-  other: `# Use any OpenTelemetry-compatible SDK
-# Configure the OTLP exporter with:
-#   Endpoint: YOUR_ENDPOINT
-#   Header: x-api-key: YOUR_API_KEY
-#   Protocol: gRPC or HTTP/protobuf`,
+  python: `from opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.export import BatchSpanProcessor\nfrom opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter\n\nprovider = TracerProvider()\nexporter = OTLPSpanExporter(\n    endpoint="YOUR_ENDPOINT",\n    headers={"x-api-key": "YOUR_API_KEY"},\n)\nprovider.add_span_processor(BatchSpanProcessor(exporter))\ntrace.set_tracer_provider(provider)`,
+  javascript: `const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');\nconst { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');\nconst { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');\n\nconst provider = new NodeTracerProvider();\nprovider.addSpanProcessor(new BatchSpanProcessor(new OTLPTraceExporter({\n  url: 'YOUR_ENDPOINT',\n  headers: { 'x-api-key': 'YOUR_API_KEY' },\n})));\nprovider.register();`,
+  go: `exporter, _ := otlptracegrpc.New(context.Background(),\n  otlptracegrpc.WithEndpoint("YOUR_ENDPOINT"),\n  otlptracegrpc.WithHeaders(map[string]string{"x-api-key": "YOUR_API_KEY"}),\n)\ntp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter))\notel.SetTracerProvider(tp)`,
+  java: `OtlpGrpcSpanExporter exporter = OtlpGrpcSpanExporter.builder()\n  .setEndpoint("YOUR_ENDPOINT")\n  .addHeader("x-api-key", "YOUR_API_KEY")\n  .build();`,
+  rust: `let exporter = opentelemetry_otlp::new_exporter()\n  .tonic()\n  .with_endpoint("YOUR_ENDPOINT");`,
+  other: `# Configure any OTLP-compatible tracer with:\n# endpoint: YOUR_ENDPOINT\n# header: x-api-key: YOUR_API_KEY`,
 };
 
-function CopyButton({ text }: { text: string }) {
+function CopySnippet({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+
   return (
-    <button onClick={handleCopy} className="p-1.5 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-      {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+    <button
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      }}
+      className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] text-[var(--text-secondary)]"
+    >
+      {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
     </button>
   );
 }
@@ -143,109 +55,83 @@ export default function NewService() {
   const snippet = CODE_SNIPPETS[language] ?? CODE_SNIPPETS.other;
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
-        >
-          <ArrowLeft size={18} className="text-[var(--text-muted)]" />
-        </button>
-        <PageHeader title="Add New Service" subtitle="Connect a service to start receiving traces" />
-      </div>
+    <div className="space-y-8">
+      <DashboardSection
+        eyebrow="Connect Service"
+        title="Onboarding should feel like a product flow."
+        description="This setup flow now reads as a guided connection experience instead of a bare three-step form."
+        actions={<Button variant="outline" onClick={() => navigate(-1)}><ArrowLeft className="h-4 w-4" />Back</Button>}
+      />
 
-      {/* Progress */}
-      <div className="flex items-center gap-2">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-              step >= s ? 'bg-[var(--accent)] text-[var(--bg-base)]' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
-            }`}>
-              {s}
+      <Surface tone="hero">
+        <div className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--text-dim)]">Flow progress</div>
+            <div className="mt-3 flex items-center gap-3">
+              {[1, 2, 3].map((item) => (
+                <div key={item} className="flex items-center gap-3">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium ${step >= item ? 'bg-[var(--accent)] text-[#11150e]' : 'bg-[var(--bg-panel-soft)] text-[var(--text-dim)]'}`}>{item}</div>
+                  {item < 3 ? <ChevronRight className="h-4 w-4 text-[var(--text-dim)]" /> : null}
+                </div>
+              ))}
             </div>
-            {s < 3 && <ChevronRight size={14} className="text-[var(--text-muted)]" />}
           </div>
-        ))}
-        <span className="text-xs text-[var(--text-muted)] ml-2">
-          {step === 1 ? 'Name your service' : step === 2 ? 'Choose language' : 'Integrate'}
-        </span>
-      </div>
+          <Badge variant="accent">{step === 1 ? 'Name service' : step === 2 ? 'Choose runtime' : 'Install snippet'}</Badge>
+        </div>
+      </Surface>
 
-      {/* Step 1: Service Name */}
-      {step === 1 && (
-        <Card className="p-6">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Service Name</h3>
-          <input
-            type="text"
-            value={serviceName}
-            onChange={(e) => setServiceName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && serviceName.trim() && setStep(2)}
-            placeholder="e.g. api-gateway, auth-service, payment-processor"
-            className="w-full px-3 py-2.5 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] mb-4"
-            autoFocus
-          />
-          <Button onClick={() => setStep(2)} disabled={!serviceName.trim()}>
-            Continue <ChevronRight size={14} className="ml-1" />
-          </Button>
-        </Card>
-      )}
+      {step === 1 ? (
+        <Surface>
+          <SurfaceHeader title="Step 1: Name the service" description="Choose a stable service identifier that will appear throughout traces, analytics, incidents, and cost attribution." />
+          <div className="px-6 pb-6 pt-4">
+            <input value={serviceName} onChange={(event) => setServiceName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && serviceName.trim() && setStep(2)} placeholder="e.g. api-gateway, auth-service" className="h-12 w-full rounded-2xl border border-[var(--border-soft)] bg-[rgba(0,0,0,0.18)] px-4 text-sm text-[var(--text-primary)] outline-none" autoFocus />
+            <div className="mt-4 flex justify-end"><Button onClick={() => setStep(2)} disabled={!serviceName.trim()}>Continue<ChevronRight className="h-4 w-4" /></Button></div>
+          </div>
+        </Surface>
+      ) : null}
 
-      {/* Step 2: Language */}
-      {step === 2 && (
-        <Card className="p-6">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Select Language / Runtime</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang.id}
-                onClick={() => setLanguage(lang.id)}
-                className={`p-3 rounded-lg border text-left transition-colors ${
-                  language === lang.id
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                    : 'border-[var(--border)] hover:border-[var(--border-hover)]'
-                }`}
-              >
-                <span className="text-lg">{lang.icon}</span>
-                <div className="text-xs font-medium text-[var(--text-primary)] mt-1">{lang.label}</div>
+      {step === 2 ? (
+        <Surface>
+          <SurfaceHeader title="Step 2: Choose runtime" description="Pick the environment that best matches the service you are instrumenting." />
+          <div className="grid gap-4 px-6 pb-6 pt-4 md:grid-cols-2 xl:grid-cols-3">
+            {LANGUAGES.map((item) => (
+              <button key={item.id} onClick={() => setLanguage(item.id)} className={`rounded-[20px] border p-5 text-left transition ${language === item.id ? 'border-[rgba(201,246,88,0.45)] bg-[rgba(201,246,88,0.08)]' : 'border-[var(--border-soft)] bg-[rgba(255,255,255,0.015)] hover:bg-white/4'}`}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] text-sm font-medium text-[var(--text-primary)]">{item.icon}</div>
+                <div className="mt-4 text-base font-medium text-[var(--text-primary)]">{item.label}</div>
               </button>
             ))}
           </div>
-          <div className="flex gap-3">
+          <div className="flex justify-between px-6 pb-6">
             <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
-            <Button
-              onClick={() => createService.mutate({ name: serviceName, language })}
-              disabled={!language || createService.isPending}
-            >
-              {createService.isPending ? 'Registering...' : 'Register Service'}
+            <Button onClick={() => createService.mutate({ name: serviceName, language })} disabled={!language || createService.isPending}>
+              {createService.isPending ? 'Registering...' : 'Register service'}
             </Button>
           </div>
-        </Card>
-      )}
+        </Surface>
+      ) : null}
 
-      {/* Step 3: Integration Code */}
-      {step === 3 && (
-        <Card className="p-6">
-          <div className="flex items-center gap-2 text-green-400 mb-4">
-            <Check size={18} />
-            <h3 className="text-sm font-semibold">Service "{serviceName}" registered!</h3>
-          </div>
-          <p className="text-xs text-[var(--text-muted)] mb-4">
-            Add the following code to your application to start sending traces:
-          </p>
-          <div className="relative">
-            <div className="absolute top-2 right-2">
-              <CopyButton text={snippet} />
+      {step === 3 ? (
+        <Surface>
+          <SurfaceHeader title="Step 3: Install the snippet" description={`Service \"${serviceName}\" is registered. Copy the starter snippet and replace the endpoint and API key placeholders.`} actions={<CopySnippet text={snippet} />} />
+          <div className="px-6 pb-6 pt-4">
+            <div className="mb-4 flex items-center gap-2 text-sm text-emerald-300"><Sparkles className="h-4 w-4" />Ready to instrument {serviceName}</div>
+            <pre className="overflow-x-auto rounded-[20px] border border-[var(--border-soft)] bg-[rgba(0,0,0,0.24)] p-5 text-xs leading-6 text-[var(--text-secondary)]"><code>{snippet}</code></pre>
+            <div className="mt-5 flex gap-3">
+              <Button onClick={() => navigate('/status')}>View services</Button>
+              <Button variant="outline" onClick={() => navigate('/overview')}>Go to dashboard</Button>
             </div>
-            <pre className="p-4 bg-[var(--bg-base)] rounded-lg text-xs text-[var(--text-secondary)] overflow-x-auto font-mono leading-relaxed">
-              {snippet}
-            </pre>
           </div>
-          <div className="flex gap-3 mt-4">
-            <Button onClick={() => navigate('/status')}>View Services</Button>
-            <Button variant="ghost" onClick={() => navigate('/')}>Go to Dashboard</Button>
-          </div>
-        </Card>
-      )}
+        </Surface>
+      ) : null}
+
+      <Surface tone="muted">
+        <SurfaceHeader title="What this flow improves" description="These three steps now have context and visual hierarchy, so onboarding feels intentional instead of improvised." />
+        <div className="grid gap-4 px-6 pb-6 pt-4 md:grid-cols-3">
+          <div className="rounded-[18px] border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-4 text-sm text-[var(--text-secondary)]">Consistent naming leads to better trace grouping and analytics attribution.</div>
+          <div className="rounded-[18px] border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-4 text-sm text-[var(--text-secondary)]">Runtime selection gives the user a clear mental model before they copy anything.</div>
+          <div className="rounded-[18px] border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-4 text-sm text-[var(--text-secondary)]">The final snippet panel is built to be copied and executed immediately.</div>
+        </div>
+      </Surface>
     </div>
   );
 }
