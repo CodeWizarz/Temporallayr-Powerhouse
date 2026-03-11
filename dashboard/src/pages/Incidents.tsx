@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, Clock3, EyeOff, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/client';
-import { Badge, Button, Card, EmptyState, Tabs } from '../components/ui';
-import { PageHeader } from '../components/shared';
-import { formatDate, timeAgo } from '../lib/utils';
+import { Badge, Button, Tabs } from '../components/ui';
+import { DashboardSection, EmptyPanel, MetricCard, Surface, SurfaceHeader } from '../components/shared';
+import { formatDate, formatNumber, timeAgo } from '../lib/utils';
 import type { Incident } from '../types';
 
 const STATUS_TABS = [
@@ -13,14 +13,14 @@ const STATUS_TABS = [
   { id: 'resolved', label: 'Resolved' },
 ] as const;
 
-const SEVERITY_BADGE: Record<Incident['severity'], 'error' | 'warning' | 'info'> = {
+const severityVariant: Record<Incident['severity'], 'error' | 'warning' | 'info'> = {
   critical: 'error',
   high: 'warning',
   medium: 'warning',
   low: 'info',
 };
 
-function IncidentItem({
+function IncidentRow({
   incident,
   onAcknowledge,
   onResolve,
@@ -30,55 +30,53 @@ function IncidentItem({
   onResolve: (id: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="rounded-[20px] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.015)] p-5">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-500/10 text-red-300">
-              <AlertTriangle className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-500/10 text-red-300">
+              <AlertTriangle className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-semibold text-[var(--text-primary)]">
+                <h3 className="truncate text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
                   {incident.error_type || incident.failing_node || incident.cluster_id}
                 </h3>
-                <Badge variant={SEVERITY_BADGE[incident.severity]}>{incident.severity}</Badge>
+                <Badge variant={severityVariant[incident.severity]}>{incident.severity}</Badge>
               </div>
-              <div className="mt-1 text-sm text-[var(--text-muted)]">
+              <div className="mt-1 text-sm text-[var(--text-secondary)]">
                 Cluster `{incident.cluster_id}` on `{incident.failing_node || 'unknown node'}`
               </div>
             </div>
           </div>
 
-          <div className="grid gap-3 text-sm text-[var(--text-secondary)] md:grid-cols-4">
-            <div className="rounded-xl border border-white/6 bg-black/20 px-3 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">First Seen</div>
-              <div className="mt-1">{formatDate(incident.first_seen, { hour: '2-digit', minute: '2-digit' })}</div>
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-dim)]">First seen</div>
+              <div className="mt-2 text-sm text-[var(--text-secondary)]">{formatDate(incident.first_seen, { hour: '2-digit', minute: '2-digit' })}</div>
             </div>
-            <div className="rounded-xl border border-white/6 bg-black/20 px-3 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Last Seen</div>
-              <div className="mt-1">{timeAgo(incident.last_seen)}</div>
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-dim)]">Last seen</div>
+              <div className="mt-2 text-sm text-[var(--text-secondary)]">{timeAgo(incident.last_seen)}</div>
             </div>
-            <div className="rounded-xl border border-white/6 bg-black/20 px-3 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Occurrences</div>
-              <div className="mt-1 tabular-nums">{incident.count.toLocaleString()}</div>
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-dim)]">Occurrences</div>
+              <div className="mt-2 text-sm tabular-nums text-[var(--text-secondary)]">{formatNumber(incident.count)}</div>
             </div>
-            <div className="rounded-xl border border-white/6 bg-black/20 px-3 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">State</div>
-              <div className="mt-1 capitalize">{incident.status}</div>
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-panel-soft)] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-dim)]">State</div>
+              <div className="mt-2 text-sm capitalize text-[var(--text-secondary)]">{incident.status}</div>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {incident.status === 'open' && (
+          {incident.status === 'open' ? (
             <Button variant="outline" onClick={() => onAcknowledge(incident.incident_id)}>
               Acknowledge
             </Button>
-          )}
-          {incident.status !== 'resolved' && (
-            <Button onClick={() => onResolve(incident.incident_id)}>Resolve</Button>
-          )}
+          ) : null}
+          {incident.status !== 'resolved' ? <Button onClick={() => onResolve(incident.incident_id)}>Resolve</Button> : null}
         </div>
       </div>
     </div>
@@ -88,91 +86,64 @@ function IncidentItem({
 export default function Incidents() {
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]['id']>('open');
   const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['incidents', status], queryFn: () => api.incidents.list({ status, limit: 50 }) });
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['incidents', status],
-    queryFn: () => api.incidents.list({ status, limit: 50 }),
-  });
-
-  const acknowledge = useMutation({
-    mutationFn: (id: string) => api.incidents.ack(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['incidents'] }),
-  });
-
-  const resolve = useMutation({
-    mutationFn: (id: string) => api.incidents.resolve(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['incidents'] }),
-  });
+  const acknowledge = useMutation({ mutationFn: (id: string) => api.incidents.ack(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['incidents'] }) });
+  const resolve = useMutation({ mutationFn: (id: string) => api.incidents.resolve(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['incidents'] }) });
 
   const incidents = data?.items ?? [];
   const stats = useMemo(() => {
     const critical = incidents.filter((incident) => incident.severity === 'critical').length;
-    const high = incidents.filter((incident) => incident.severity === 'high').length;
+    const active = incidents.filter((incident) => incident.status !== 'resolved').length;
     const total = incidents.reduce((sum, incident) => sum + incident.count, 0);
-    return { critical, high, total };
+    return { critical, active, total };
   }, [incidents]);
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-0 shadow-[0_24px_80px_rgba(0,0,0,0.25)]">
-        <PageHeader
-          title="Incidents"
-          subtitle="Resolve regressions, cluster failures, and high-severity exceptions before they cascade."
-          actions={<Tabs tabs={STATUS_TABS as unknown as { id: string; label: string }[]} activeTab={status} onChange={(id) => setStatus(id as typeof status)} variant="pill" />}
-        />
-        <div className="grid gap-4 border-t border-white/6 p-6 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/6 bg-black/20 p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              <ShieldAlert className="h-4 w-4 text-red-300" />
-              Critical
-            </div>
-            <div className="mt-2 text-3xl font-semibold tabular-nums">{stats.critical}</div>
-          </div>
-          <div className="rounded-2xl border border-white/6 bg-black/20 p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              <Clock3 className="h-4 w-4 text-yellow-300" />
-              High Priority
-            </div>
-            <div className="mt-2 text-3xl font-semibold tabular-nums">{stats.high}</div>
-          </div>
-          <div className="rounded-2xl border border-white/6 bg-black/20 p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-              Occurrences
-            </div>
-            <div className="mt-2 text-3xl font-semibold tabular-nums">{stats.total.toLocaleString()}</div>
-          </div>
-        </div>
-      </Card>
+    <div className="space-y-8">
+      <DashboardSection
+        eyebrow="Incidents"
+        title="Handle real failures with structure."
+        description="Incidents should read like an operational queue: severity first, timing second, actions close at hand, and no decorative noise."
+        actions={<Tabs tabs={STATUS_TABS as unknown as { id: string; label: string }[]} activeTab={status} onChange={(value) => setStatus(value as typeof status)} variant="pill" />}
+      />
 
-      {isLoading ? (
-        <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index} className="h-44 animate-pulse border-white/6 bg-white/3">
-              <div />
-            </Card>
-          ))}
+      <Surface tone="hero">
+        <div className="grid gap-4 p-6 md:grid-cols-3">
+          <MetricCard label="Critical incidents" value={formatNumber(stats.critical)} hint="Highest-severity failures" icon={<ShieldAlert className="h-5 w-5" />} />
+          <MetricCard label="Active incidents" value={formatNumber(stats.active)} hint="Open or acknowledged" icon={<Clock3 className="h-5 w-5" />} />
+          <MetricCard label="Occurrences" value={formatNumber(stats.total)} hint="Observed failure events" icon={<CheckCircle2 className="h-5 w-5" />} />
         </div>
-      ) : incidents.length === 0 ? (
-        <Card className="border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))]">
-          <EmptyState
-            icon={status === 'resolved' ? CheckCircle2 : EyeOff}
-            title={`No ${status} incidents`}
-            description={status === 'open' ? 'The system is quiet right now. New incidents will appear here as failure clusters form.' : `There are no ${status} incidents in this window.`}
-          />
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {incidents.map((incident) => (
-            <IncidentItem
-              key={incident.incident_id}
-              incident={incident}
-              onAcknowledge={(id) => acknowledge.mutate(id)}
-              onResolve={(id) => resolve.mutate(id)}
+      </Surface>
+
+      <Surface>
+        <SurfaceHeader title="Incident queue" description="Every incident item carries the fields you need to triage quickly." />
+        <div className="px-6 pb-6 pt-3">
+          {isLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-44 animate-pulse rounded-[18px] bg-white/4" />
+              ))}
+            </div>
+          ) : incidents.length === 0 ? (
+            <EmptyPanel
+              title={`No ${status} incidents`}
+              description={status === 'open' ? 'The system is quiet right now. New failure clusters will appear here as they form.' : `There are no ${status} incidents in the selected view.`}
             />
-          ))}
+          ) : (
+            <div className="space-y-4">
+              {incidents.map((incident) => (
+                <IncidentRow
+                  key={incident.incident_id}
+                  incident={incident}
+                  onAcknowledge={(id) => acknowledge.mutate(id)}
+                  onResolve={(id) => resolve.mutate(id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </Surface>
     </div>
   );
 }
