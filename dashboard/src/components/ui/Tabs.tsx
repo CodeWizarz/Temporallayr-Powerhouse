@@ -9,12 +9,15 @@ interface Tab {
 
 interface TabsProps {
   tabs: Tab[];
-  active: string;
+  active?: string;
+  activeTab?: string;
   onChange: (id: string) => void;
   variant?: 'line' | 'pill';
 }
 
-export function Tabs({ tabs, active, onChange, variant = 'line' }: TabsProps) {
+export function Tabs({ tabs, active, activeTab, onChange, variant = 'line' }: TabsProps) {
+  const current = activeTab ?? active;
+
   if (variant === 'pill') {
     return (
       <div className="flex gap-1 p-1 bg-[var(--bg-base)] rounded-lg border border-[var(--border)]">
@@ -23,7 +26,7 @@ export function Tabs({ tabs, active, onChange, variant = 'line' }: TabsProps) {
             key={tab.id}
             onClick={() => onChange(tab.id)}
             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer
-              ${active === tab.id
+              ${current === tab.id
                 ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
@@ -48,7 +51,7 @@ export function Tabs({ tabs, active, onChange, variant = 'line' }: TabsProps) {
           key={tab.id}
           onClick={() => onChange(tab.id)}
           className={`px-4 py-2.5 text-xs font-medium transition-colors relative cursor-pointer
-            ${active === tab.id
+            ${current === tab.id
               ? 'text-[var(--accent)]'
               : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
             }`}
@@ -62,7 +65,7 @@ export function Tabs({ tabs, active, onChange, variant = 'line' }: TabsProps) {
               </span>
             )}
           </span>
-          {active === tab.id && (
+          {current === tab.id && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
           )}
         </button>

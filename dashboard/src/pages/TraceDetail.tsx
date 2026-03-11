@@ -1,171 +1,137 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, Clock3, GitBranch, Layers3, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/client';
-import { Card } from '../components/ui';
+import { Badge, Button, Card, EmptyState } from '../components/ui';
 import { PageHeader } from '../components/shared';
-import { Skeleton } from '../components/ui/Skeleton';
-import { formatDate, formatDuration, getStatusColor } from '../lib/utils';
-import { ArrowLeft, Clock, Hash, Server, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import type { Span } from '../types';
+import { buildSpanTree, formatDate, formatDuration } from '../lib/utils';
+import type { SpanNode } from '../types';
 
-function SpanRow({ span, depth = 0 }: { span: Span & { children?: Span[] }; depth?: number }) {
-  const statusColor = span.status === 'error' ? 'text-red-400' : span.status === 'ok' ? 'text-green-400' : 'text-yellow-400';
-  const StatusIcon = span.status === 'error' ? XCircle : span.status === 'ok' ? CheckCircle : AlertTriangle;
+function SpanRow({ node, maxDuration }: { node: SpanNode; maxDuration: number }) {
+  const width = Math.max(6, Math.round((node.duration_ms / Math.max(maxDuration, 1)) * 100));
+  const badgeVariant = node.status === 'ERROR' ? 'error' : node.status === 'TIMEOUT' ? 'warning' : 'success';
 
   return (
     <>
       <div
-        className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-colors group"
-        style={{ paddingLeft: `${depth * 24 + 16}px` }}
+        className="grid grid-cols-[minmax(0,1.7fr)_120px_120px_1fr] items-center gap-4 border-b border-white/6 px-4 py-3 text-sm"
+        style={{ paddingLeft: `${node.depth * 20 + 16}px` }}
       >
-        <StatusIcon size={14} className={statusColor} />
-        <span className="text-sm font-medium text-[var(--text-primary)] truncate flex-1">{span.name}</span>
-        <span className="text-xs text-[var(--text-muted)] font-mono">{span.service_name}</span>
-        <span className="text-xs text-[var(--text-muted)] font-mono w-20 text-right">{formatDuration(span.duration_ms)}</span>
-        {/* Waterfall bar */}
-        <div className="w-48 h-2 bg-[var(--bg-base)] rounded-full overflow-hidden">
+        <div className="min-w-0">
+          <div className="truncate font-medium text-[var(--text-primary)]">{node.name}</div>
+          <div className="mt-1 font-mono text-xs text-[var(--text-muted)]">{node.span_id}</div>
+        </div>
+        <div className="text-xs text-[var(--text-secondary)] tabular-nums">{formatDuration(node.duration_ms)}</div>
+        <div>
+          <Badge variant={badgeVariant}>{node.status}</Badge>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-black/30">
           <div
-            className={`h-full rounded-full ${span.status === 'error' ? 'bg-red-500' : 'bg-[var(--accent)]'}`}
-            style={{ width: `${Math.min(100, Math.max(5, (span.duration_ms / 1000) * 100))}%` }}
+            className={`h-full rounded-full ${node.status === 'ERROR' ? 'bg-red-400' : node.status === 'TIMEOUT' ? 'bg-yellow-400' : 'bg-[var(--accent)]'}`}
+            style={{ width: `${width}%` }}
           />
         </div>
       </div>
-      {span.children?.map((child) => (
-        <SpanRow key={child.span_id} span={child as Span & { children?: Span[] }} depth={depth + 1} />
+      {node.children.map((child) => (
+        <SpanRow key={child.span_id} node={child} maxDuration={maxDuration} />
       ))}
     </>
   );
-}
-
-function buildSpanTree(spans: Span[]): (Span & { children?: Span[] })[] {
-  const map = new Map<string, Span & { children: Span[] }>();
-  const roots: (Span & { children: Span[] })[] = [];
-
-  spans.forEach((s) => map.set(s.span_id, { ...s, children: [] }));
-  spans.forEach((s) => {
-    const node = map.get(s.span_id)!;
-    if (s.parent_span_id && map.has(s.parent_span_id)) {
-      map.get(s.parent_span_id)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
-  });
-
-  return roots;
 }
 
 export default function TraceDetail() {
   const { traceId } = useParams<{ traceId: string }>();
   const navigate = useNavigate();
 
-  const { data: spans, isLoading, error } = useQuery({
-    queryKey: ['trace', traceId],
-    queryFn: () => api.getTraceSpans(traceId!),
-    enabled: !!traceId,
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['trace-detail', traceId],
+    queryFn: () => api.executions.get(traceId || ''),
+    enabled: Boolean(traceId),
   });
 
-  const tree = spans ? buildSpanTree(spans) : [];
-  const rootSpan = spans?.[0];
-  const totalDuration = spans ? Math.max(...spans.map((s) => s.duration_ms)) : 0;
-  const errorCount = spans?.filter((s) => s.status === 'error').length ?? 0;
+  const tree = useMemo(() => (data ? buildSpanTree(data.spans) : []), [data]);
+  const maxDuration = useMemo(
+    () => (data ? Math.max(...data.spans.map((span) => span.duration_ms), 0) : 0),
+    [data],
+  );
+  const errorCount = data?.spans.filter((span) => span.status === 'ERROR').length ?? 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => navigate('/traces')}
-          className="p-2 rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
-        >
-          <ArrowLeft size={18} className="text-[var(--text-muted)]" />
-        </button>
+      <Card className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-0 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
         <PageHeader
-          title={rootSpan?.name ?? 'Trace Detail'}
-          subtitle={traceId ? `Trace ${traceId.slice(0, 12)}...` : ''}
+          title={traceId ? `Trace ${traceId.slice(0, 12)}` : 'Trace Detail'}
+          subtitle={data ? `Captured ${formatDate(data.start_time)} across ${data.spans.length} spans.` : 'Inspect execution flow, timing, and failures across the span tree.'}
+          actions={
+            <Button variant="outline" onClick={() => navigate('/traces')}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to Traces
+            </Button>
+          }
         />
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs mb-1">
-            <Hash size={12} /> Spans
-          </div>
-          <div className="text-xl font-semibold text-[var(--text-primary)]">
-            {isLoading ? <Skeleton className="h-7 w-12" /> : spans?.length ?? 0}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs mb-1">
-            <Clock size={12} /> Duration
-          </div>
-          <div className="text-xl font-semibold text-[var(--text-primary)]">
-            {isLoading ? <Skeleton className="h-7 w-20" /> : formatDuration(totalDuration)}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs mb-1">
-            <Server size={12} /> Services
-          </div>
-          <div className="text-xl font-semibold text-[var(--text-primary)]">
-            {isLoading ? <Skeleton className="h-7 w-8" /> : new Set(spans?.map((s) => s.service_name)).size}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-[var(--text-muted)] text-xs mb-1">
-            <AlertTriangle size={12} /> Errors
-          </div>
-          <div className={`text-xl font-semibold ${errorCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
-            {isLoading ? <Skeleton className="h-7 w-8" /> : errorCount}
-          </div>
-        </Card>
-      </div>
-
-      {/* Span Waterfall */}
-      <Card>
-        <div className="p-4 border-b border-[var(--border-subtle)]">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Span Waterfall</h3>
+        <div className="grid gap-4 border-t border-white/6 p-6 md:grid-cols-4">
+          <Card className="border-white/6 bg-black/20">
+            <div className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Trace ID</div>
+            <div className="mt-2 truncate font-mono text-sm text-[var(--text-secondary)]">{traceId}</div>
+          </Card>
+          <Card className="border-white/6 bg-black/20">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              <Layers3 className="h-4 w-4" /> Spans
+            </div>
+            <div className="mt-2 text-3xl font-semibold tabular-nums">{data?.spans.length ?? 0}</div>
+          </Card>
+          <Card className="border-white/6 bg-black/20">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              <Clock3 className="h-4 w-4" /> Max Duration
+            </div>
+            <div className="mt-2 text-3xl font-semibold tabular-nums">{formatDuration(maxDuration)}</div>
+          </Card>
+          <Card className="border-white/6 bg-black/20">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              {errorCount > 0 ? <AlertTriangle className="h-4 w-4 text-red-300" /> : <ShieldCheck className="h-4 w-4 text-emerald-300" />}
+              Exceptions
+            </div>
+            <div className="mt-2 text-3xl font-semibold tabular-nums">{errorCount}</div>
+          </Card>
         </div>
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-2 border-b border-[var(--border)] text-xs text-[var(--text-muted)] font-medium">
-          <span className="w-4" />
-          <span className="flex-1">Operation</span>
-          <span>Service</span>
-          <span className="w-20 text-right">Duration</span>
-          <span className="w-48 text-center">Timeline</span>
+      </Card>
+
+      <Card className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-0">
+        <div className="flex items-center justify-between border-b border-white/6 px-4 py-3">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Span Waterfall</h2>
+            <p className="text-sm text-[var(--text-muted)]">Hierarchy, duration, and status across the execution tree.</p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <GitBranch className="h-4 w-4" /> Ordered by parent-child flow
+          </div>
         </div>
+
         {isLoading ? (
-          <div className="p-4 space-y-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full" />
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 7 }).map((_, index) => (
+              <div key={index} className="h-12 animate-pulse rounded-xl bg-white/4" />
             ))}
           </div>
         ) : error ? (
-          <div className="p-8 text-center text-red-400 text-sm">Failed to load trace spans</div>
-        ) : tree.length === 0 ? (
-          <div className="p-8 text-center text-[var(--text-muted)] text-sm">No spans found</div>
+          <EmptyState title="Trace unavailable" description={error instanceof Error ? error.message : 'Failed to load trace detail.'} />
+        ) : !data || tree.length === 0 ? (
+          <EmptyState title="No spans found" description="This trace does not contain any recorded spans yet." />
         ) : (
-          tree.map((span) => <SpanRow key={span.span_id} span={span} />)
-        )}
-      </Card>
-
-      {/* Span Attributes (first span) */}
-      {rootSpan?.attributes && Object.keys(rootSpan.attributes).length > 0 && (
-        <Card>
-          <div className="p-4 border-b border-[var(--border-subtle)]">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Root Span Attributes</h3>
-          </div>
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {Object.entries(rootSpan.attributes).map(([key, value]) => (
-              <div key={key} className="flex items-center px-4 py-2.5">
-                <span className="text-xs font-mono text-[var(--text-muted)] w-1/3 truncate">{key}</span>
-                <span className="text-xs font-mono text-[var(--text-primary)] flex-1 truncate">
-                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                </span>
-              </div>
+          <div>
+            <div className="grid grid-cols-[minmax(0,1.7fr)_120px_120px_1fr] gap-4 border-b border-white/6 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+              <span>Operation</span>
+              <span>Duration</span>
+              <span>Status</span>
+              <span>Relative Weight</span>
+            </div>
+            {tree.map((node) => (
+              <SpanRow key={node.span_id} node={node} maxDuration={maxDuration} />
             ))}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
     </div>
   );
 }

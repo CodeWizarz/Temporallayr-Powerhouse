@@ -113,6 +113,8 @@ export function statusColor(status: string): string {
   return colors[status] || 'text-gray-400';
 }
 
+export const getStatusColor = statusColor;
+
 /** Build a span tree from flat array */
 export function buildSpanTree(spans: import('../types').Span[]): import('../types').SpanNode[] {
   type SpanNode = import('../types').SpanNode;

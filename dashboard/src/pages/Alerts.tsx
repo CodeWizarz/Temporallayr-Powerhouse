@@ -7,18 +7,12 @@ import { PageHeader } from '../components/shared';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Bell, Plus, Trash2, ToggleLeft, ToggleRight, Mail, MessageSquare, Webhook } from 'lucide-react';
+import type { AlertRule as ApiAlertRule } from '../types';
 
-interface AlertRule {
-  id: string;
-  name: string;
-  condition: string;
-  threshold: number;
+type AlertRule = ApiAlertRule & {
+  channel?: 'email' | 'slack' | 'webhook';
   service_name?: string;
-  channel: 'email' | 'slack' | 'webhook';
-  enabled: boolean;
-  last_triggered_at?: string;
-  created_at: string;
-}
+};
 
 const CHANNEL_ICONS: Record<string, any> = {
   email: Mail,
@@ -39,7 +33,8 @@ function AlertRow({ rule, onToggle, onDelete }: {
   onToggle: (id: string, enabled: boolean) => void;
   onDelete: (id: string) => void;
 }) {
-  const ChannelIcon = CHANNEL_ICONS[rule.channel] ?? Bell;
+  const channel = rule.channel ?? (rule.channels?.[0] as 'email' | 'slack' | 'webhook' | undefined) ?? 'email';
+  const ChannelIcon = CHANNEL_ICONS[channel] ?? Bell;
 
   return (
     <div className="flex items-center gap-4 p-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-colors">
@@ -125,10 +120,10 @@ export default function Alerts() {
             action={{ label: 'Create Rule', onClick: () => setShowCreate(true) }}
           />
         ) : (
-          rules.map((rule: AlertRule) => (
+          rules.map((rule) => (
             <AlertRow
               key={rule.id}
-              rule={rule}
+              rule={rule as AlertRule}
               onToggle={(id, enabled) => toggleMutation.mutate({ id, enabled })}
               onDelete={(id) => deleteMutation.mutate(id)}
             />

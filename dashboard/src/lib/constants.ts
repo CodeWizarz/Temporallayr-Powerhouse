@@ -22,7 +22,7 @@ export const ROUTES = {
 
 export const AUTH_KEY = 'tl_api_key';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export const SIDEBAR_NAV = [
   { section: 'Observe', items: [
@@ -35,7 +35,7 @@ export const SIDEBAR_NAV = [
     { label: 'Replay', path: ROUTES.REPLAY, icon: 'Play' },
     { label: 'Alerts', path: ROUTES.ALERTS, icon: 'Bell' },
     { label: 'Datasets', path: ROUTES.DATASETS, icon: 'Database' },
-    { label: 'Cost Tracking', path: ROUTES.COST_TRACKING, icon: 'DollarSign' },
+    { label: 'Cost', path: ROUTES.COST_TRACKING, icon: 'DollarSign' },
     { label: 'Event Stream', path: ROUTES.EVENT_STREAM, icon: 'Activity' },
   ]},
   { section: 'System', items: [

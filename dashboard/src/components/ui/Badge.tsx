@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type BadgeVariant = 'success' | 'error' | 'warning' | 'info' | 'neutral' | 'accent';
+type BadgeVariant = 'success' | 'error' | 'warning' | 'info' | 'neutral' | 'accent' | 'default';
 
 interface BadgeProps {
   variant?: BadgeVariant;
@@ -16,6 +16,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   info: 'bg-blue-400/10 text-blue-400 border-blue-400/20',
   neutral: 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border)]',
   accent: 'bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20',
+  default: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border)]',
 };
 
 export function Badge({ variant = 'neutral', children, className = '', dot }: BadgeProps) {
