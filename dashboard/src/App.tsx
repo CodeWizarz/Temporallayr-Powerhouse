@@ -1,53 +1,49 @@
-import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import AuthGuard from './components/AuthGuard';
-import { LoadingState } from './components/shared/LoadingState';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+import Overview from './pages/Overview';
+import EventStream from './pages/EventStream';
+import Traces from './pages/Traces';
+import Alerts from './pages/Alerts';
+import Incidents from './pages/Incidents';
+import Analytics from './pages/Analytics';
+import Datasets from './pages/Datasets';
+import CostTracking from './pages/CostTracking';
+import Settings from './pages/Settings';
+import TraceDetail from './pages/TraceDetail';
+import Status from './pages/Status';
 
-const Layout = lazy(() => import('./components/Layout'));
-const Login = lazy(() => import('./pages/auth/Login'));
-const Signup = lazy(() => import('./pages/auth/Signup'));
-const Overview = lazy(() => import('./pages/Overview'));
-const Traces = lazy(() => import('./pages/Traces'));
-const TraceDetail = lazy(() => import('./pages/TraceDetail'));
-const Incidents = lazy(() => import('./pages/Incidents'));
-const Analytics = lazy(() => import('./pages/Analytics'));
-const Replay = lazy(() => import('./pages/Replay'));
-const Alerts = lazy(() => import('./pages/Alerts'));
-const Datasets = lazy(() => import('./pages/Datasets'));
-const CostTracking = lazy(() => import('./pages/CostTracking'));
-const EventStream = lazy(() => import('./pages/EventStream'));
-const Status = lazy(() => import('./pages/Status'));
-const Settings = lazy(() => import('./pages/Settings'));
-const NewService = lazy(() => import('./pages/NewService'));
-
-function AppRoutes() {
-  return (
-    <Suspense fallback={<LoadingState message="Loading..." />}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route element={<AuthGuard><Layout /></AuthGuard>}>
-          <Route path="/overview" element={<Overview />} />
-          <Route path="/new" element={<NewService />} />
-          <Route path="/traces" element={<Traces />} />
-          <Route path="/traces/:traceId" element={<TraceDetail />} />
-          <Route path="/incidents" element={<Incidents />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/replay" element={<Replay />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/datasets" element={<Datasets />} />
-          <Route path="/cost" element={<CostTracking />} />
-          <Route path="/stream" element={<EventStream />} />
-          <Route path="/status" element={<Status />} />
-          <Route path="/settings/*" element={<Settings />} />
-        </Route>
-        <Route path="/" element={<Navigate to="/overview" replace />} />
-        <Route path="*" element={<Navigate to="/overview" replace />} />
-      </Routes>
-    </Suspense>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 30000,
+    },
+  },
+});
 
 export default function App() {
-  return <AppRoutes />;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Overview />} />
+              <Route path="/overview" element={<Overview />} />
+              <Route path="/stream" element={<EventStream />} />
+              <Route path="/traces" element={<Traces />} />
+              <Route path="/trace/:traceId" element={<TraceDetail />} />
+              <Route path="/alerts" element={<Alerts />} />
+              <Route path="/incidents" element={<Incidents />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/datasets" element={<Datasets />} />
+              <Route path="/cost" element={<CostTracking />} />
+              <Route path="/status" element={<Status />} />
+              <Route path="/settings" element={<Settings />} />
+            </Route>
+          </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
 }
