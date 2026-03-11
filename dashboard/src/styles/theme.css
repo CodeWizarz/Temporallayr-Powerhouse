@@ -1,19 +1,22 @@
 /* TemporalLayr Design Tokens */
 :root {
-  --bg-base: #090d11;
-  --bg-surface: #0f151b;
-  --bg-sidebar: #070b0f;
-  --bg-elevated: #151d25;
+  --bg-base: #0a0d12;
+  --bg-surface: #11161d;
+  --bg-sidebar: #0d1218;
+  --bg-elevated: #171e27;
+  --bg-panel-soft: rgba(255, 255, 255, 0.018);
   --bg-overlay: rgba(0, 0, 0, 0.6);
-  --text-primary: #eff6f3;
-  --text-secondary: #c4d0cb;
-  --text-muted: #7d8c92;
-  --border: #1f2a31;
-  --border-hover: #31414b;
+  --text-primary: #f2f6f8;
+  --text-secondary: #aab5be;
+  --text-muted: #72808c;
+  --text-dim: #5f6b76;
+  --border: #202935;
+  --border-hover: #303c49;
+  --border-soft: rgba(255, 255, 255, 0.075);
   --border-subtle: #182028;
-  --accent: #d2ff5c;
-  --accent-hover: #c2f144;
-  --accent-dim: rgba(210, 255, 92, 0.08);
+  --accent: #c9f658;
+  --accent-hover: #d8ff72;
+  --accent-dim: rgba(201, 246, 88, 0.1);
   --success: #4ade80;
   --error: #f87171;
   --warning: #fb923c;

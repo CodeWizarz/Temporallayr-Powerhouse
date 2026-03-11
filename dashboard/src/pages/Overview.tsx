@@ -1,226 +1,174 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Activity, AlertTriangle, ArrowRight, DollarSign, GitBranch, ShieldCheck, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CircleDollarSign, GitBranch, ShieldCheck, Zap } from 'lucide-react';
 import { api } from '../lib/client';
-import { Badge, Button, Card } from '../components/ui';
-import { PageHeader } from '../components/shared';
+import { Badge, Button } from '../components/ui';
+import { DashboardSection, EmptyPanel, MetricCard, Surface, SurfaceHeader } from '../components/shared';
 import { formatCurrency, formatDuration, formatNumber, timeAgo } from '../lib/utils';
 
-function MetricStrip({
-  label,
-  value,
-  meta,
-  icon,
-}: {
-  label: string;
-  value: string;
-  meta: string;
-  icon: React.ReactNode;
-}) {
+function TrendBars({ values }: { values: number[] }) {
+  const max = Math.max(...values, 1);
+
   return (
-    <Card className="border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] shadow-[0_18px_60px_rgba(0,0,0,0.2)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">{label}</div>
-          <div className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--text-primary)] tabular-nums">{value}</div>
-          <div className="mt-2 text-sm text-[var(--text-muted)]">{meta}</div>
-        </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/6 bg-black/20 text-[var(--accent)]">
-          {icon}
-        </div>
-      </div>
-    </Card>
+    <div className="flex h-[180px] items-end gap-2">
+      {values.map((value, index) => (
+        <div key={index} className="flex-1 rounded-t-[10px] bg-[linear-gradient(180deg,rgba(201,246,88,0.92),rgba(201,246,88,0.18))]" style={{ height: `${Math.max(12, (value / max) * 100)}%` }} />
+      ))}
+    </div>
   );
 }
 
 export default function Overview() {
   const navigate = useNavigate();
-
-  const tracesQuery = useQuery({
-    queryKey: ['overview-executions'],
-    queryFn: () => api.executions.list({ limit: 8 }),
-  });
-
-  const incidentsQuery = useQuery({
-    queryKey: ['overview-incidents'],
-    queryFn: () => api.incidents.list({ status: 'open', limit: 6 }),
-  });
-
-  const analyticsQuery = useQuery({
-    queryKey: ['overview-analytics'],
-    queryFn: () => api.getAnalytics({ time_range: '24h' }),
-  });
-
-  const costQuery = useQuery({
-    queryKey: ['overview-cost'],
-    queryFn: () => api.getCosts({ time_range: '30d' }),
-  });
+  const tracesQuery = useQuery({ queryKey: ['overview-executions'], queryFn: () => api.executions.list({ limit: 6 }) });
+  const incidentsQuery = useQuery({ queryKey: ['overview-incidents'], queryFn: () => api.incidents.list({ status: 'open', limit: 5 }) });
+  const analyticsQuery = useQuery({ queryKey: ['overview-analytics'], queryFn: () => api.getAnalytics({ time_range: '24h' }) });
+  const costQuery = useQuery({ queryKey: ['overview-cost'], queryFn: () => api.getCosts({ time_range: '30d' }) });
 
   const recentTraces = tracesQuery.data?.items ?? [];
   const openIncidents = incidentsQuery.data?.items ?? [];
+  const trendBars = useMemo(() => {
+    const values = analyticsQuery.data?.services?.map((service: { request_count?: number; avg_latency_ms?: number }) => (service.request_count ?? 0) + (service.avg_latency_ms ?? 0)) ?? [];
+    return values.length ? values.slice(0, 10) : [8, 10, 7, 15, 11, 13, 9, 12];
+  }, [analyticsQuery.data]);
 
   const metrics = useMemo(() => {
     const total = tracesQuery.data?.total ?? 0;
+    const p95 = analyticsQuery.data?.percentiles?.P95 ?? 0;
     const errors = recentTraces.filter((trace) => trace.status === 'ERROR').length;
-    const p95 = analyticsQuery.data?.services?.length
-      ? Math.max(...analyticsQuery.data.services.map((service: { avg_latency_ms: number }) => service.avg_latency_ms))
-      : 0;
-    const estCost = Number(costQuery.data?.summary.total_cost ?? 0);
-    return { total, errors, p95, estCost };
+    const cost = Number(costQuery.data?.summary.total_cost ?? 0);
+    return { total, p95, errors, cost };
   }, [analyticsQuery.data, costQuery.data, recentTraces, tracesQuery.data]);
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-white/6 bg-[radial-gradient(circle_at_top_left,rgba(210,255,92,0.12),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-0 shadow-[0_28px_80px_rgba(0,0,0,0.28)]">
-        <PageHeader
-          title="Overview"
-          subtitle="Mission Control for traces, failures, latency, and spend across your AI stack."
-          actions={
-            <div className="flex items-center gap-2">
-              <Badge variant="accent">24h live window</Badge>
-              <Button variant="outline" onClick={() => navigate('/traces')}>
-                Explore traces
-              </Button>
-            </div>
-          }
-        />
-        <div className="grid gap-4 border-t border-white/6 p-6 md:grid-cols-2 xl:grid-cols-4">
-          <MetricStrip
-            label="Total Traces"
-            value={formatNumber(metrics.total)}
-            meta="Captured in the active workspace"
-            icon={<GitBranch className="h-5 w-5" />}
-          />
-          <MetricStrip
-            label="Open Incidents"
-            value={String(openIncidents.length)}
-            meta="Failure clusters requiring attention"
-            icon={<AlertTriangle className="h-5 w-5" />}
-          />
-          <MetricStrip
-            label="p95 Latency"
-            value={formatDuration(metrics.p95)}
-            meta="Worst-case service average in the last 24h"
-            icon={<Activity className="h-5 w-5" />}
-          />
-          <MetricStrip
-            label="30d Cost"
-            value={formatCurrency(metrics.estCost)}
-            meta="LLM and tracing spend estimate"
-            icon={<DollarSign className="h-5 w-5" />}
-          />
-        </div>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
-        <Card className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-0">
-          <div className="flex items-center justify-between border-b border-white/6 px-5 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Recent Traces</h2>
-              <p className="text-sm text-[var(--text-muted)]">High-signal executions from the last polling window.</p>
-            </div>
-            <Button variant="ghost" onClick={() => navigate('/traces')}>
-              View all
-              <ArrowRight className="h-4 w-4" />
+    <div className="space-y-8">
+      <DashboardSection
+        eyebrow="Overview"
+        title="Observe your system with real hierarchy."
+        description="A cleaner control surface for traces, incidents, latency, and cost. Everything important stays above the fold and every panel has a job."
+        actions={
+          <>
+            <Badge variant="accent">24h window</Badge>
+            <Button variant="outline" onClick={() => navigate('/traces')}>
+              Explore traces
             </Button>
+          </>
+        }
+      />
+
+      <Surface tone="hero">
+        <div className="grid gap-5 p-6 xl:grid-cols-[1.4fr_0.9fr]">
+          <div className="space-y-6">
+            <div>
+              <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-[var(--text-dim)]">Mission Snapshot</div>
+              <div className="mt-3 max-w-2xl text-[28px] font-semibold leading-[1.05] tracking-[-0.06em] text-[var(--text-primary)] md:text-[36px]">
+                Production traces, exceptions, and spend in one disciplined surface.
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+              <MetricCard label="Total traces" value={formatNumber(metrics.total)} hint="Active workspace volume" icon={<GitBranch className="h-5 w-5" />} />
+              <MetricCard label="Open incidents" value={String(openIncidents.length)} hint="Clusters needing action" icon={<AlertTriangle className="h-5 w-5" />} />
+              <MetricCard label="p95 latency" value={formatDuration(metrics.p95)} hint="Worst service percentile" icon={<Activity className="h-5 w-5" />} />
+              <MetricCard label="30d spend" value={formatCurrency(metrics.cost)} hint="Estimated monthly burn" icon={<CircleDollarSign className="h-5 w-5" />} />
+            </div>
           </div>
 
-          <div className="divide-y divide-white/6">
-            {tracesQuery.isLoading ? (
-              Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-16 animate-pulse bg-white/3" />
-              ))
-            ) : recentTraces.length === 0 ? (
-              <div className="px-5 py-10 text-sm text-[var(--text-muted)]">No traces yet. Connect a service to begin capturing executions.</div>
+          <div className="rounded-[20px] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.015)] p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Throughput shape</div>
+                <div className="mt-1 text-sm text-[var(--text-secondary)]">Relative request pressure and service load.</div>
+              </div>
+              <Badge variant="default">Live sample</Badge>
+            </div>
+            <div className="mt-6">
+              <TrendBars values={trendBars} />
+            </div>
+          </div>
+        </div>
+      </Surface>
+
+      <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+        <Surface>
+          <SurfaceHeader
+            title="Recent traces"
+            description="Fast access to the latest executions with status, duration, and density."
+            actions={
+              <Button variant="ghost" onClick={() => navigate('/traces')}>
+                View all
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            }
+          />
+          <div className="px-6 pb-6 pt-3">
+            {recentTraces.length === 0 ? (
+              <EmptyPanel title="No traces yet" description="Connect a service and send your first execution. This panel will turn into the primary trace feed once data starts flowing." />
             ) : (
-              recentTraces.map((trace) => (
-                <button
-                  key={trace.id}
-                  onClick={() => navigate(`/traces/${trace.id}`)}
-                  className="grid w-full grid-cols-[minmax(0,1.6fr)_100px_100px_130px] items-center gap-4 px-5 py-4 text-left transition hover:bg-white/3"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate font-mono text-xs text-[var(--text-secondary)]">{trace.id}</div>
-                    <div className="mt-1 text-sm text-[var(--text-muted)]">Seen {timeAgo(trace.created_at)}</div>
-                  </div>
-                  <div>
-                    <Badge variant={trace.status === 'ERROR' ? 'error' : 'success'}>{trace.status}</Badge>
-                  </div>
-                  <div className="text-sm text-[var(--text-secondary)] tabular-nums">{trace.span_count} spans</div>
-                  <div className="text-sm text-[var(--text-secondary)] tabular-nums">{formatDuration(trace.duration_ms)}</div>
-                </button>
-              ))
+              <div className="overflow-hidden rounded-[18px] border border-[var(--border-soft)]">
+                <div className="grid grid-cols-[minmax(0,1.6fr)_110px_120px_140px] gap-4 bg-[rgba(255,255,255,0.02)] px-5 py-3 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--text-dim)]">
+                  <div>Trace</div>
+                  <div>Status</div>
+                  <div>Spans</div>
+                  <div>Duration</div>
+                </div>
+                {recentTraces.map((trace) => (
+                  <button
+                    key={trace.id}
+                    onClick={() => navigate(`/traces/${trace.id}`)}
+                    className="grid w-full grid-cols-[minmax(0,1.6fr)_110px_120px_140px] gap-4 border-t border-[var(--border-soft)] px-5 py-4 text-left transition hover:bg-white/3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-mono text-[13px] text-[var(--text-primary)]">{trace.id}</div>
+                      <div className="mt-1 text-sm text-[var(--text-secondary)]">Seen {timeAgo(trace.created_at)}</div>
+                    </div>
+                    <div>
+                      <Badge variant={trace.status === 'ERROR' ? 'error' : 'success'}>{trace.status}</Badge>
+                    </div>
+                    <div className="text-sm tabular-nums text-[var(--text-secondary)]">{trace.span_count}</div>
+                    <div className="text-sm tabular-nums text-[var(--text-secondary)]">{formatDuration(trace.duration_ms)}</div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-        </Card>
+        </Surface>
 
         <div className="space-y-6">
-          <Card className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-0">
-            <div className="border-b border-white/6 px-5 py-4">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Incident Feed</h2>
-              <p className="text-sm text-[var(--text-muted)]">Active clusters ranked by recency and severity.</p>
-            </div>
-            <div className="divide-y divide-white/6">
-              {incidentsQuery.isLoading ? (
-                Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="h-20 animate-pulse bg-white/3" />
-                ))
-              ) : openIncidents.length === 0 ? (
-                <div className="px-5 py-10 text-sm text-[var(--text-muted)]">All quiet. No active incidents right now.</div>
+          <Surface tone="muted">
+            <SurfaceHeader title="Incident feed" description="Most recent live failures ranked by severity and recency." />
+            <div className="px-6 pb-6 pt-2">
+              {openIncidents.length === 0 ? (
+                <EmptyPanel title="No active incidents" description="When new failure clusters appear, they will show up here with severity, age, and count." />
               ) : (
-                openIncidents.map((incident) => (
-                  <button
-                    key={incident.incident_id}
-                    onClick={() => navigate('/incidents')}
-                    className="w-full px-5 py-4 text-left transition hover:bg-white/3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-[var(--text-primary)]">{incident.error_type || incident.failing_node || incident.cluster_id}</span>
-                          <Badge variant={incident.severity === 'critical' ? 'error' : 'warning'}>{incident.severity}</Badge>
+                <div className="space-y-3">
+                  {openIncidents.map((incident) => (
+                    <button key={incident.incident_id} onClick={() => navigate('/incidents')} className="w-full rounded-[18px] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.015)] px-4 py-4 text-left transition hover:bg-white/4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-[var(--text-primary)]">{incident.error_type || incident.failing_node || incident.cluster_id}</div>
+                            <Badge variant={incident.severity === 'critical' ? 'error' : 'warning'}>{incident.severity}</Badge>
+                          </div>
+                          <div className="mt-2 text-sm text-[var(--text-secondary)]">{incident.count} occurrences on {incident.failing_node || 'unknown node'}</div>
                         </div>
-                        <div className="mt-1 text-sm text-[var(--text-muted)]">{incident.count} occurrences on {incident.failing_node || 'unknown node'}</div>
+                        <div className="text-xs text-[var(--text-dim)]">{timeAgo(incident.last_seen)}</div>
                       </div>
-                      <div className="text-xs text-[var(--text-muted)]">{timeAgo(incident.last_seen)}</div>
-                    </div>
-                  </button>
-                ))
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-          </Card>
+          </Surface>
 
-          <Card className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.01))] p-0">
-            <div className="border-b border-white/6 px-5 py-4">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Runtime Posture</h2>
-              <p className="text-sm text-[var(--text-muted)]">Signals inferred from the latest trace and analytics window.</p>
+          <Surface>
+            <SurfaceHeader title="Runtime posture" description="How healthy the current working set looks right now." />
+            <div className="grid gap-4 px-6 pb-6 pt-3 md:grid-cols-3">
+              <MetricCard label="Healthy traces" value={formatNumber(Math.max(recentTraces.length - metrics.errors, 0))} hint="Recent non-error executions" icon={<ShieldCheck className="h-5 w-5" />} />
+              <MetricCard label="Error traces" value={formatNumber(metrics.errors)} hint="Exceptions in recent executions" icon={<AlertTriangle className="h-5 w-5" />} />
+              <MetricCard label="Tracked services" value={String(analyticsQuery.data?.services?.length ?? 0)} hint="Services visible in analytics" icon={<Zap className="h-5 w-5" />} />
             </div>
-            <div className="grid gap-4 p-5 md:grid-cols-3">
-              <div className="rounded-2xl border border-white/6 bg-black/20 p-4">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                  <ShieldCheck className="h-4 w-4 text-emerald-300" /> Healthy traces
-                </div>
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
-                  {formatNumber(Math.max(recentTraces.length - metrics.errors, 0))}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/6 bg-black/20 p-4">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                  <AlertTriangle className="h-4 w-4 text-red-300" /> Erroring traces
-                </div>
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-[var(--text-primary)]">{metrics.errors}</div>
-              </div>
-              <div className="rounded-2xl border border-white/6 bg-black/20 p-4">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                  <Zap className="h-4 w-4 text-[var(--accent)]" /> Services tracked
-                </div>
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
-                  {analyticsQuery.data?.services?.length ?? 0}
-                </div>
-              </div>
-            </div>
-          </Card>
+          </Surface>
         </div>
       </div>
     </div>

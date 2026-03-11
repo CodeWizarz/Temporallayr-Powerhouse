@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap, ArrowRight } from 'lucide-react';
-import { Button } from '../../components/ui';
+import { ArrowRight, KeyRound } from 'lucide-react';
+import { Button, Input } from '../../components/ui';
+import { AuthShell } from '../../components/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../lib/client';
 
@@ -12,12 +13,14 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
     setError('');
     setLoading(true);
+
     try {
       localStorage.setItem('tl_api_key', apiKey);
+      await api.verifyKey();
       login(apiKey);
       navigate('/overview');
     } catch {
@@ -29,39 +32,38 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-layout">
-      <div className="auth-glow auth-glow-1" />
-      <div className="auth-glow auth-glow-2" />
-      <div className="auth-card">
-        <div className="flex items-center gap-2 mb-8">
-          <Zap className="w-6 h-6 text-[var(--accent)]" />
-          <span className="text-lg font-bold text-[var(--text-primary)]">TemporalLayr</span>
-        </div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Welcome back</h1>
-        <p className="text-sm text-[var(--text-muted)] mb-6">Enter your API key to access the dashboard.</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">API Key</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="tl_..."
-              required
-              className="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-md px-3 py-2.5 text-sm font-mono
-                text-[var(--text-primary)] placeholder-[var(--text-muted)]
-                focus:outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30"
-            />
-          </div>
-          {error && <p className="text-xs text-red-400">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full" size="lg">
-            Sign In <ArrowRight className="w-4 h-4" />
-          </Button>
-        </form>
-        <p className="text-xs text-[var(--text-muted)] mt-6 text-center">
-          Need an account? <Link to="/signup" className="text-[var(--accent)] hover:underline">Register tenant</Link>
+    <AuthShell
+      eyebrow="Sign in"
+      title="Open your observability workspace."
+      description="Use a valid tenant API key to access traces, incidents, analytics, and system controls."
+      footer={
+        <p className="text-sm text-[var(--text-secondary)]">
+          Need a tenant first?{' '}
+          <Link to="/signup" className="font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]">
+            Register one here
+          </Link>
         </p>
-      </div>
-    </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <Input
+          label="API key"
+          type="password"
+          value={apiKey}
+          onChange={(event) => setApiKey(event.target.value)}
+          placeholder="tl_..."
+          required
+          icon={<KeyRound className="h-4 w-4" />}
+          error={error || undefined}
+          hint="We verify the key against the backend before opening the dashboard."
+          className="h-12 rounded-2xl border-[var(--border-soft)] bg-[rgba(0,0,0,0.18)] px-4 text-sm"
+        />
+
+        <Button type="submit" loading={loading} className="w-full justify-center" size="lg">
+          Sign in
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

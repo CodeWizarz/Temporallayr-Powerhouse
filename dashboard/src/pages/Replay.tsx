@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckCircle, Clock3, Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
 import { api } from '../lib/client';
-import { Card, Badge, Button } from '../components/ui';
-import { PageHeader } from '../components/shared';
-import { Skeleton } from '../components/ui/Skeleton';
-import { EmptyState } from '../components/ui/EmptyState';
+import { Badge, Button } from '../components/ui';
+import { DashboardSection, EmptyPanel, MetricCard, Surface, SurfaceHeader } from '../components/shared';
 import { formatDate, formatDuration } from '../lib/utils';
-import { Play, RotateCcw, Pause, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 type ReplayStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -23,127 +21,104 @@ interface ReplaySession {
   error_message?: string;
 }
 
-const STATUS_CONFIG: Record<ReplayStatus, { icon: any; color: string; label: string }> = {
-  pending: { icon: Clock, color: 'text-yellow-400', label: 'Pending' },
-  running: { icon: Loader2, color: 'text-blue-400', label: 'Running' },
-  completed: { icon: CheckCircle, color: 'text-green-400', label: 'Completed' },
-  failed: { icon: XCircle, color: 'text-red-400', label: 'Failed' },
+const STATUS_CONFIG: Record<ReplayStatus, { icon: typeof Clock3; variant: 'warning' | 'info' | 'success' | 'error'; label: string }> = {
+  pending: { icon: Clock3, variant: 'warning', label: 'Pending' },
+  running: { icon: Loader2, variant: 'info', label: 'Running' },
+  completed: { icon: CheckCircle, variant: 'success', label: 'Completed' },
+  failed: { icon: XCircle, variant: 'error', label: 'Failed' },
 };
-
-function ReplayCard({ session }: { session: ReplaySession }) {
-  const config = STATUS_CONFIG[session.status];
-  const Icon = config.icon;
-  const progress = session.total_spans > 0 ? (session.replayed_spans / session.total_spans) * 100 : 0;
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h4 className="text-sm font-medium text-[var(--text-primary)]">{session.name}</h4>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5 font-mono">Trace: {session.trace_id.slice(0, 16)}...</p>
-        </div>
-        <div className={`flex items-center gap-1.5 ${config.color}`}>
-          <Icon size={14} className={session.status === 'running' ? 'animate-spin' : ''} />
-          <span className="text-xs font-medium">{config.label}</span>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between text-xs text-[var(--text-muted)] mb-1">
-          <span>{session.replayed_spans} / {session.total_spans} spans</span>
-          <span>{Math.round(progress)}%</span>
-        </div>
-        <div className="h-1.5 bg-[var(--bg-base)] rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              session.status === 'failed' ? 'bg-red-500' : 'bg-[var(--accent)]'
-            }`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {session.error_message && (
-        <div className="text-xs text-red-400 bg-red-500/10 rounded-md p-2 mb-3">
-          {session.error_message}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-        <span>{formatDate(session.created_at)}</span>
-        {session.duration_ms && <span>{formatDuration(session.duration_ms)}</span>}
-      </div>
-    </Card>
-  );
-}
 
 export default function Replay() {
   const [traceIdInput, setTraceIdInput] = useState('');
-
-  const { data: sessions, isLoading } = useQuery({
-    queryKey: ['replay-sessions'],
-    queryFn: () => api.getReplaySessions(),
-  });
+  const queryClient = useQueryClient();
+  const { data: sessions } = useQuery({ queryKey: ['replay-sessions'], queryFn: () => api.getReplaySessions() });
 
   const createReplay = useMutation({
     mutationFn: (traceId: string) => api.createReplaySession({ trace_id: traceId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['replay-sessions'] });
+      setTraceIdInput('');
+    },
   });
 
-  const handleCreate = () => {
-    if (traceIdInput.trim()) {
-      createReplay.mutate(traceIdInput.trim());
-      setTraceIdInput('');
-    }
+  const list = (sessions ?? []) as ReplaySession[];
+  const stats = {
+    total: list.length,
+    completed: list.filter((session) => session.status === 'completed').length,
+    failed: list.filter((session) => session.status === 'failed').length,
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Replay"
-        subtitle="Re-execute traces to debug and validate fixes"
+    <div className="space-y-8">
+      <DashboardSection
+        eyebrow="Replay Lab"
+        title="Replay should feel like a tool, not a form." 
+        description="This surface is designed around the real workflow: paste a trace id, launch a replay, and inspect the latest run state immediately."
       />
 
-      {/* Create Replay */}
-      <Card className="p-4">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Start New Replay</h3>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            placeholder="Enter trace ID to replay..."
-            value={traceIdInput}
-            onChange={(e) => setTraceIdInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-            className="flex-1 px-3 py-2 bg-[var(--bg-base)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)]"
-          />
-          <Button onClick={handleCreate} disabled={!traceIdInput.trim() || createReplay.isPending}>
-            <Play size={14} className="mr-1.5" />
-            {createReplay.isPending ? 'Starting...' : 'Replay'}
-          </Button>
+      <Surface tone="hero">
+        <div className="grid gap-6 p-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[20px] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.018)] p-5">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--text-dim)]">Launch replay</div>
+            <div className="mt-3 text-sm text-[var(--text-secondary)]">Start from a known trace id and compare deterministic behavior over time.</div>
+            <div className="mt-5 flex flex-col gap-3 md:flex-row">
+              <input value={traceIdInput} onChange={(event) => setTraceIdInput(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && traceIdInput.trim() && createReplay.mutate(traceIdInput.trim())} placeholder="Enter trace ID..." className="h-12 flex-1 rounded-2xl border border-[var(--border-soft)] bg-[rgba(0,0,0,0.18)] px-4 text-sm text-[var(--text-primary)] outline-none" />
+              <Button onClick={() => createReplay.mutate(traceIdInput.trim())} disabled={!traceIdInput.trim() || createReplay.isPending}>
+                <Play className="h-4 w-4" />
+                {createReplay.isPending ? 'Starting...' : 'Start replay'}
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+            <MetricCard label="Sessions" value={String(stats.total)} hint="Stored locally" icon={<RotateCcw className="h-5 w-5" />} />
+            <MetricCard label="Completed" value={String(stats.completed)} hint="Successful replays" icon={<CheckCircle className="h-5 w-5" />} />
+            <MetricCard label="Failed" value={String(stats.failed)} hint="Runs with divergence" icon={<XCircle className="h-5 w-5" />} />
+          </div>
         </div>
-      </Card>
+      </Surface>
 
-      {/* Sessions */}
-      <div>
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Recent Sessions</h3>
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
-          </div>
-        ) : !sessions?.length ? (
-          <EmptyState
-            icon={RotateCcw}
-            title="No replay sessions"
-            description="Enter a trace ID above to start your first replay session."
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sessions.map((session: ReplaySession) => (
-              <ReplayCard key={session.id} session={session} />
-            ))}
-          </div>
-        )}
-      </div>
+      <Surface>
+        <SurfaceHeader title="Recent replay sessions" description="Compact, readable run cards with progress and failure state." />
+        <div className="px-6 pb-6 pt-4">
+          {list.length === 0 ? (
+            <EmptyPanel title="No replay sessions" description="Enter a trace id above to start your first replay session. Sessions are currently stored locally for this frontend workflow." />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {list.map((session) => {
+                const config = STATUS_CONFIG[session.status];
+                const Icon = config.icon;
+                const progress = session.total_spans > 0 ? (session.replayed_spans / session.total_spans) * 100 : 0;
+
+                return (
+                  <div key={session.id} className="rounded-[20px] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.015)] p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-medium text-[var(--text-primary)]">{session.name}</div>
+                        <div className="mt-1 font-mono text-xs text-[var(--text-dim)]">{session.trace_id.slice(0, 18)}</div>
+                      </div>
+                      <Badge variant={config.variant}><Icon className={`mr-1 h-3 w-3 ${session.status === 'running' ? 'animate-spin' : ''}`} />{config.label}</Badge>
+                    </div>
+                    <div className="mt-5">
+                      <div className="mb-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                        <span>{session.replayed_spans} / {session.total_spans} spans</span>
+                        <span>{Math.round(progress)}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-panel-soft)]">
+                        <div className={`h-full rounded-full ${session.status === 'failed' ? 'bg-red-400' : 'bg-[var(--accent)]'}`} style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                    {session.error_message ? <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-3 text-sm text-red-300">{session.error_message}</div> : null}
+                    <div className="mt-4 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                      <span>{formatDate(session.created_at)}</span>
+                      <span>{session.duration_ms ? formatDuration(session.duration_ms) : '—'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Surface>
     </div>
   );
 }
