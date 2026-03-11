@@ -20,12 +20,12 @@ interface TableProps<T> {
 export function Table<T>({ columns, data, loading, emptyMessage = 'No data', onRowClick, rowKey }: TableProps<T>) {
   if (loading) {
     return (
-      <div className="w-full">
+      <div className="w-full overflow-hidden rounded-[20px] border border-[var(--border-soft)]">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-[var(--border)]">
+            <tr className="border-b border-[var(--border-soft)] bg-[rgba(255,255,255,0.02)]">
               {columns.map(col => (
-                <th key={col.key} className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                <th key={col.key} className="px-4 py-3 text-left text-[11px] font-medium text-[var(--text-dim)] uppercase tracking-[0.18em]">
                   {col.header}
                 </th>
               ))}
@@ -33,7 +33,7 @@ export function Table<T>({ columns, data, loading, emptyMessage = 'No data', onR
           </thead>
           <tbody>
             {Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i} className="border-b border-[var(--border)]/50">
+              <tr key={i} className="border-b border-[var(--border-soft)]">
                 {columns.map(col => (
                   <td key={col.key} className="px-4 py-3">
                     <div className="h-4 bg-[var(--bg-elevated)] rounded animate-pulse" style={{ width: col.width || '80%' }} />
@@ -56,14 +56,14 @@ export function Table<T>({ columns, data, loading, emptyMessage = 'No data', onR
   }
 
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full overflow-x-auto overflow-hidden rounded-[20px] border border-[var(--border-soft)]">
       <table className="w-full">
         <thead>
-          <tr className="border-b border-[var(--border)]">
+          <tr className="border-b border-[var(--border-soft)] bg-[rgba(255,255,255,0.02)]">
             {columns.map(col => (
               <th
                 key={col.key}
-                className={`px-4 py-3 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider
+                className={`px-4 py-3 text-[11px] font-medium text-[var(--text-dim)] uppercase tracking-[0.18em]
                   ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
                 style={{ width: col.width }}
               >
@@ -77,8 +77,8 @@ export function Table<T>({ columns, data, loading, emptyMessage = 'No data', onR
             <tr
               key={rowKey(item)}
               onClick={() => onRowClick?.(item)}
-              className={`border-b border-[var(--border)]/50 transition-colors
-                ${onRowClick ? 'cursor-pointer hover:bg-[var(--bg-elevated)]/50' : ''}`}
+              className={`border-b border-[var(--border-soft)] transition-colors
+                ${onRowClick ? 'cursor-pointer hover:bg-white/3' : ''}`}
             >
               {columns.map(col => (
                 <td
