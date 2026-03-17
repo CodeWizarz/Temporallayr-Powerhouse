@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Style check"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -30,7 +30,7 @@ jobs:
     needs: [style_check]
     name: "Docs check"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check markdown files
         run: grep -rn "TODO" docs/ || echo "Docs check passed"
 
@@ -44,7 +44,7 @@ jobs:
     needs: [style_check]
     name: "Build Binary (${{ matrix.os }})"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -62,7 +62,7 @@ jobs:
     needs: [build_native_binary]
     name: "Fast test"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
