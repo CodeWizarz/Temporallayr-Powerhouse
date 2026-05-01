@@ -34,7 +34,7 @@ Documentation = "https://github.com/CodeWizarz/Temporallayr-Powerhouse#readme"
 [project.optional-dependencies]
 clickhouse = [
   "clickhouse-connect>=0.7.0",
-  "redis>=5.0.0",
+  "redis>=7.4.0",
 ]
 postgres = [
   "asyncpg>=0.29.0",
