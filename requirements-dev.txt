@@ -7,6 +7,6 @@ httpx>=0.27.0
 ruff>=0.1.0
 black>=24.0.0
 mypy>=1.10.0
-coverage>=7.6.0
+coverage>=7.13.5
 types-PyYAML>=6.0.12.20250516
 asyncpg>=0.29.0
